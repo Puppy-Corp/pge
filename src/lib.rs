@@ -1,6 +1,6 @@
 pub mod engine;
 pub mod camera;
-mod window;
+pub mod window;
 mod rotation;
 mod world_3d;
 mod translation;
@@ -9,3 +9,5 @@ mod animation;
 pub mod types;
 pub mod shapes;
 pub mod entity;
+pub mod gui;
+mod wgpu;

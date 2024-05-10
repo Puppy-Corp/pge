@@ -8,3 +8,4 @@ edition = "2021"
 
 [dependencies]
 log = "0.4"
+bytemuck = { version = "1.15", features = ["derive"] }

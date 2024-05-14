@@ -1,13 +1,17 @@
+use tokio::sync::mpsc;
+use winit::event_loop::EventLoopProxy;
+
 use crate::camera::CameraView;
 use crate::gui::GUI;
 use crate::input::InputHandler;
+use crate::types::*;
 
 pub struct Window {
 
 }
 
 impl Window {
-	pub fn new() -> Window {
+	pub fn new(tx: mpsc::UnboundedSender<UserEvent>) -> Window {
 		Window {}
 	}
 
@@ -23,15 +27,15 @@ impl Window {
 		
 	}
 
-	pub fn add_camera_view(&self, view: CameraView) {
+	pub fn camera_view(&self, view: CameraView) {
 		
 	}
 
 	pub fn view(&self, view: CameraView) -> Window {
-		
+		Window {}	
 	}
 }
 
-pub fn window() -> Window {
-	Window::new()
-}
+// pub fn window() -> Window {
+// 	Window::new()
+// }

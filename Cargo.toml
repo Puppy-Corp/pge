@@ -1,11 +1,15 @@
 workspace = { members = ["examples/*"] }
 [package]
 name = "puppy_game_engine"
-version = "0.1.0"
+version = "0.0.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 log = "0.4"
+winit = "0.30"
+wgpu = "0.20"
+anyhow = "1"
 bytemuck = { version = "1.15", features = ["derive"] }
+tokio = { version = "1", features = ["full"] }

@@ -2,6 +2,10 @@ pub struct Camera {
 
 }
 
+pub fn camera() -> Camera {
+	Camera::new()
+}
+
 impl Clone for Camera {
 	fn clone(&self) -> Camera {
 		Camera {}
@@ -30,19 +34,16 @@ impl Camera {
 }
 
 pub struct CameraView {
-
+	pub camera: Camera,
 }
 
 impl CameraView {
-	pub fn new() -> CameraView {
-		CameraView {}
+	pub fn new(camera: Camera) -> CameraView {
+		CameraView {
+			camera
+		}
 	}
-
-	pub fn set_camera(&self, camera: Camera) -> CameraView {
-		log::info!("Camera set");
-		CameraView {}
-	}
-
+	
 	pub fn set_size(&self, width: usize, height: usize) {
 		log::info!("Camera view size set to width: {}, height: {}", width, height);
 	}
@@ -52,6 +53,6 @@ impl CameraView {
 	}	
 }
 
-pub fn camera_view() -> CameraView {
-	CameraView::new()
+pub fn camera_view(camera: Camera) -> CameraView {
+	CameraView::new(camera)
 }

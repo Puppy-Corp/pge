@@ -10,6 +10,6 @@ impl InputHandler {
 	}
 
 	pub async fn poll(&self) -> InputEvent {
-		InputEvent::MouseEvent
+		InputEvent::KeyboardEvent
 	}
 }

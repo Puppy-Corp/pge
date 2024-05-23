@@ -10,5 +10,5 @@ use crate::types::Mesh;
 // }
 
 pub fn cube(s: f32) -> Mesh {
-	Mesh {}
+	Mesh::new()
 }

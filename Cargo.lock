@@ -122,6 +122,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-trait"
+version = "0.1.80"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c6fa2087f2753a7da8cc1c0dbfcf89579dd57458e36769de5ac750b4671737ca"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.61",
+]
+
+[[package]]
 name = "atomic-waker"
 version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -188,6 +199,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "43ff7d91d3c1d568065b06c899777d1e48dcf76103a672a0adbc238a7f247f1e"
 dependencies = [
  "objc2",
+]
+
+[[package]]
+name = "boxshape"
+version = "0.1.0"
+dependencies = [
+ "puppy_game_engine",
+ "tokio",
 ]
 
 [[package]]
@@ -489,6 +508,7 @@ checksum = "aa9a19cbb55df58761df49b23516a86d432839add4af60fc256da840f66ed35b"
 name = "fps"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "puppy_game_engine",
  "tokio",
 ]
@@ -1147,6 +1167,7 @@ name = "puppy_game_engine"
 version = "0.0.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "bytemuck",
  "log",
  "tokio",

@@ -16,15 +16,17 @@ async fn main() {
 
 		let mut camera_node = Node::new();
 		let camera = Camera::new();
+		let scene_cam = SceneCam::new(&camera);
 		camera_node.set_camera(camera);
 		camera_node.set_translation(0.0, 2.0, 3.0);
 		camera_node.looking_at(0.0, 0.0, 0.0);
 		root.add_node(camera_node);
 
-		handle.save(&scene);
+		handle.save_scene(&scene);
 
 		let mut window = Window::new();
 		window.title = "BIG box".to_string();
+		window.body = view().add(scene_cam).into();
 		handle.save_window(&window);
 	}).run().await;
 }

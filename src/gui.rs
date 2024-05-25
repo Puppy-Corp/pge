@@ -1,9 +1,81 @@
-pub struct GUI {
+use crate::Camera;
 
+pub struct SceneCam {
+	pub camera_id: usize,
 }
 
-impl GUI {
-	pub fn new() -> GUI {
-		GUI {}
+impl SceneCam {
+	pub fn new(camera: &Camera) -> Self {
+		Self {
+			camera_id: camera.id
+		}
 	}
+}
+
+impl Into<GuiItem> for SceneCam {
+	fn into(self) -> GuiItem {
+		GuiItem::SceneCam(self)
+	}
+}
+
+pub struct Text {
+	pub text: String,
+}
+
+#[derive(Clone)]
+pub struct View {
+		
+}
+
+impl View {
+	// pub fn add(mut self, item: GuiItem) -> Self {
+	// 	self
+	// }
+
+	pub fn add<T: Into<GuiItem>>(mut self, item: T) -> Self {
+		self
+	}
+}
+
+pub enum GuiItem {
+	None,
+	View(View),
+	Text(Text),
+	SceneCam(SceneCam)
+}
+
+impl From<&mut View> for GuiItem {
+	fn from(view: &mut View) -> Self {
+		GuiItem::View(view.clone())
+	}
+}
+
+pub struct Window {
+	pub title: String,
+	pub width: u32,
+	pub height: u32,
+	pub body: GuiItem
+}
+
+impl Into<GuiItem> for View {
+	fn into(self) -> GuiItem {
+		GuiItem::View(self)
+	}
+}
+
+
+
+impl Window {
+	pub fn new() -> Self {
+		Self {
+			title: "".to_string(),
+			width: 800,
+			height: 600,
+			body: GuiItem::None
+		}
+	}
+}
+
+pub fn view() -> View {
+	View {}
 }

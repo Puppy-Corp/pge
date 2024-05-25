@@ -19,3 +19,4 @@ pub use wgpu::renderer::Renderer;
 pub use engine::Engine;
 pub use types::*;
 pub use shapes::*;
+pub use gui::*;

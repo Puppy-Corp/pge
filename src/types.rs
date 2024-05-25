@@ -217,11 +217,15 @@ impl Location {
 }
 
 
-pub struct Camera {}
+pub struct Camera {
+	pub id: usize
+}
 
 impl Camera {
 	pub fn new() -> Self {
-		Self {}
+		Self {
+			id: 0
+		}
 	}
 
 	pub fn set_location(&self, location: Location) {
@@ -295,28 +299,6 @@ impl Material {
 			occlusion_texture: None,
 			emissive_texture: None,
 			emissive_factor: [1.0, 1.0, 1.0],
-		}
-	}
-}
-
-pub enum WindowItem {
-	None
-}
-
-pub struct Window {
-	pub title: String,
-	pub width: u32,
-	pub height: u32,
-	pub body: WindowItem
-}
-
-impl Window {
-	pub fn new() -> Self {
-		Self {
-			title: "".to_string(),
-			width: 800,
-			height: 600,
-			body: WindowItem::None
 		}
 	}
 }

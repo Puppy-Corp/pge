@@ -102,6 +102,7 @@ use crate::system::Context;
 use crate::traits::Actor;
 use crate::traits::IntoBoxedActor;
 use crate::types::*;
+use crate::Window;
 
 // pub struct Engine<F> {
 // 	f: F
@@ -152,7 +153,7 @@ impl EngineHandle {
 		Self {}
 	}
 
-	pub fn save(&self, scene: &Scene) {
+	pub fn save_scene(&self, scene: &Scene) {
 
 	}
 

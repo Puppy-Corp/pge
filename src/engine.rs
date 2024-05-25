@@ -99,6 +99,8 @@ struct WindowContext<'a> {
 	window: gui::Window
 }
 
+
+
 pub struct EngineHandler<'a> {
 	windows: HashMap<WindowId, WindowContext<'a>>,
 	device: Arc<wgpu::Device>,
@@ -109,6 +111,7 @@ pub struct EngineHandler<'a> {
 	normal_buffer: Buffer,
 	tex_coord_buffer: Buffer,
 	indices_buffer: Buffer,
+	nodes_buffer: Buffer,
 	mesh_pointers: HashMap<usize, MeshPointer>
 }
 
@@ -133,6 +136,23 @@ impl<'a> EngineHandler<'a> {
 		let normal_buffer = Buffer::new(device.clone(), queue.clone());
 		let tex_coord_buffer = Buffer::new(device.clone(), queue.clone());
 		let indices_buffer = Buffer::new(device.clone(), queue.clone());
+		let nodes_buffer = Buffer::new(device.clone(), queue.clone());
+
+		let node_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+			label: Some("Node Bind Group Layout"),
+			entries: &[
+				wgpu::BindGroupLayoutEntry {
+					binding: 0,
+					visibility: wgpu::ShaderStages::VERTEX,
+					ty: wgpu::BindingType::Buffer {
+						ty: wgpu::BufferBindingType::Uniform,
+						has_dynamic_offset: false,
+						min_binding_size: None,
+					},
+					count: None,
+				},
+			],
+		});
 
 		Self {
 			windows: HashMap::new(),
@@ -144,6 +164,7 @@ impl<'a> EngineHandler<'a> {
 			normal_buffer,
 			tex_coord_buffer,
 			indices_buffer,
+			nodes_buffer,
 			mesh_pointers: HashMap::new()
 		}
 	}
@@ -195,6 +216,7 @@ impl ApplicationHandler<Command> for EngineHandler<'_> {
 							Some(pointer) => {
 								self.position_buffer.write(pointer.positions.offset, bytemuck::cast_slice(&positions));
 								self.normal_buffer.write(pointer.normals.offset, bytemuck::cast_slice(&normals));
+								self.indices_buffer.write(pointer.incides.offset, bytemuck::cast_slice(&mesh.indices));
 							}
 							None => {
 								let positions = self.position_buffer.store(bytemuck::cast_slice(&positions));

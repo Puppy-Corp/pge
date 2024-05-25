@@ -34,4 +34,8 @@ impl Buffer {
 	pub fn write(&self, slot: usize, data: &[u8]) {
 		
 	}
+
+	pub fn bind_group(&self) {
+
+	}
 }

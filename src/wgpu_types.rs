@@ -1,3 +1,6 @@
+use crate::buffer::Buffer;
+use crate::math::Mat4;
+
 
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
@@ -6,8 +9,6 @@ pub struct Position {
 }
 
 impl Position {
-	pub fn new()
-
 	pub fn desc() -> wgpu::VertexBufferLayout<'static> {
 		wgpu::VertexBufferLayout {
 			array_stride: std::mem::size_of::<Position>() as wgpu::BufferAddress,
@@ -85,7 +86,7 @@ pub struct CameraUniform {
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Instance {
-    model_matrix: [[f32; 4]; 4],
+    node_index: i32
 }
 
 impl Instance {
@@ -93,34 +94,12 @@ impl Instance {
         use std::mem;
         wgpu::VertexBufferLayout {
             array_stride: mem::size_of::<Instance>() as wgpu::BufferAddress,
-            // We need to switch from using a step mode of Vertex to Instance
-            // This means that our shaders will only change to use the next
-            // instance when the shader starts processing a new instance
             step_mode: wgpu::VertexStepMode::Instance,
             attributes: &[
                 wgpu::VertexAttribute {
                     offset: 0,
-                    // While our vertex shader only uses locations 0, and 1 now, in later tutorials we'll
-                    // be using 2, 3, and 4, for Vertex. We'll start at slot 5 not conflict with them later
                     shader_location: 5,
-                    format: wgpu::VertexFormat::Float32x4,
-                },
-                // A mat4 takes up 4 vertex slots as it is technically 4 vec4s. We need to define a slot
-                // for each vec4. We don't have to do this in code though.
-                wgpu::VertexAttribute {
-                    offset: mem::size_of::<[f32; 4]>() as wgpu::BufferAddress,
-                    shader_location: 6,
-                    format: wgpu::VertexFormat::Float32x4,
-                },
-                wgpu::VertexAttribute {
-                    offset: mem::size_of::<[f32; 8]>() as wgpu::BufferAddress,
-                    shader_location: 7,
-                    format: wgpu::VertexFormat::Float32x4,
-                },
-                wgpu::VertexAttribute {
-                    offset: mem::size_of::<[f32; 12]>() as wgpu::BufferAddress,
-                    shader_location: 8,
-                    format: wgpu::VertexFormat::Float32x4,
+                    format: wgpu::VertexFormat::Uint32,
                 },
             ],
         }
@@ -191,4 +170,52 @@ struct LightUniform {
     point_lights: [PointLight; MAX_POINT_LIGHTS],
     spot_lights: [SpotLight; MAX_SPOT_LIGHTS],
     directional_lights: [DirectionalLight; MAX_DIRECTIONAL_LIGHTS],
+}
+
+pub struct NodeTransform {
+	pub model: Mat4,
+	parent_index: i32
+}
+
+impl NodeTransform {
+	pub fn desc() -> wgpu::VertexBufferLayout<'static> {
+		use std::mem;
+		wgpu::VertexBufferLayout {
+			array_stride: mem::size_of::<NodeTransform>() as wgpu::BufferAddress,
+			step_mode: wgpu::VertexStepMode::Instance,
+			attributes: &[
+				wgpu::VertexAttribute {
+					offset: 0,
+					shader_location: 3,
+					format: wgpu::VertexFormat::Float32x4,
+				},
+				wgpu::VertexAttribute {
+					offset: 16,
+					shader_location: 4,
+					format: wgpu::VertexFormat::Float32x4,
+				},
+				wgpu::VertexAttribute {
+					offset: 32,
+					shader_location: 5,
+					format: wgpu::VertexFormat::Float32x4,
+				},
+				wgpu::VertexAttribute {
+					offset: 48,
+					shader_location: 6,
+					format: wgpu::VertexFormat::Float32x4,
+				},
+				wgpu::VertexAttribute {
+					offset: 64,
+					shader_location: 7,
+					format: wgpu::VertexFormat::Sint32,
+				},
+			],
+		}
+	}
+}
+
+pub struct WgpuState {
+	node_bind_group_layout: wgpu::BindGroupLayout,
+	camera_bind_group_layout: wgpu::BindGroupLayout,
+	position_buffer: Buffer,
 }

@@ -2,7 +2,8 @@ use std::time::Duration;
 
 use tokio::time::sleep;
 
-use crate::wgpu::renderer::Renderer;
+use crate::idgen::gen_id;
+use crate::math::Point3D;
 
 
 #[derive(Debug)]
@@ -67,17 +68,21 @@ pub enum UserEvent {
 	CreateWindow
 }
 
+#[derive(Debug, Clone)]
 pub struct Node {
-
+	pub mesh: Option<Mesh>,
 }
 
 impl Node {
 	pub fn new() -> Self {
-		Self {}
+		Self {
+			mesh: None,
+		}
 	}
 
 	pub fn set_mesh(&mut self, mesh: Mesh) {
 		println!("Setting mesh");
+		self.mesh = Some(mesh);
 	}
 
 	pub fn set_camera(&self, camera: Camera) {
@@ -97,14 +102,25 @@ impl Node {
 	}
 }
 
+#[derive(Debug, Clone)]
 pub struct Mesh {
+	pub id: usize,
 	pub material: Option<Material>,
+	pub positions: Vec<[f32; 3]>,
+	pub normals: Vec<[f32; 3]>,
+	pub text_coords: Vec<[f32; 2]>,
+	pub indices: Vec<u32>,
 }
 
 impl Mesh {
 	pub fn new() -> Self {
 		Self {
+			id: gen_id(),
 			material: None,
+			positions: vec![],
+			normals: vec![],
+			text_coords: vec![],
+			indices: vec![],
 		}
 	}
 
@@ -117,23 +133,16 @@ pub struct Asset {
 	ascenes: Vec<Scene>,
 }
 
-pub struct Entity {
-
-}
-
-impl Entity {
-	pub fn set_node(&self, node: Node) {
-		println!("Setting node");
-	}
-}
-
+#[derive(Debug, Clone)]
 pub struct Scene {
-
+	pub nodes: Vec<Node>,
 }
 
 impl Scene {
 	pub fn new() -> Self {
-		Self {}
+		Self {
+			nodes: vec![],
+		}
 	}
 
 	pub fn add_node(&self, node: Node) {
@@ -186,8 +195,6 @@ impl Recevier {
 	}
 }
 
-struct Id(u32);
-
 pub struct EngineContext {
 
 }
@@ -218,13 +225,21 @@ impl Location {
 
 
 pub struct Camera {
-	pub id: usize
+	pub id: usize,
+    aspect: f32,
+    fovy: f32,
+    znear: f32,
+    zfar: f32,
 }
 
 impl Camera {
 	pub fn new() -> Self {
 		Self {
-			id: 0
+			id: 0,
+			aspect: 1.0,
+			fovy: 1.0,
+			znear: 1.0,
+			zfar: 1.0,
 		}
 	}
 
@@ -261,13 +276,13 @@ impl Animation {
 	}
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Texture {
     name: String,
     source: String, // URI to the texture image
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PbrMetallicRoughness {
     base_color_factor: [f32; 4],
     metallic_factor: f32,
@@ -275,7 +290,7 @@ pub struct PbrMetallicRoughness {
     base_color_texture: Option<Texture>, // Optional base color texture
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Material {
     name: Option<String>,
     pbr_metallic_roughness: PbrMetallicRoughness,

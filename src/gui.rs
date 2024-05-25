@@ -1,5 +1,7 @@
+use crate::idgen::gen_id;
 use crate::Camera;
 
+#[derive(Clone, Debug)]
 pub struct SceneCam {
 	pub camera_id: usize,
 }
@@ -18,11 +20,12 @@ impl Into<GuiItem> for SceneCam {
 	}
 }
 
+#[derive(Clone, Debug)]
 pub struct Text {
 	pub text: String,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct View {
 		
 }
@@ -37,6 +40,7 @@ impl View {
 	}
 }
 
+#[derive(Clone, Debug)]
 pub enum GuiItem {
 	None,
 	View(View),
@@ -50,7 +54,9 @@ impl From<&mut View> for GuiItem {
 	}
 }
 
+#[derive(Clone, Debug)]
 pub struct Window {
+	pub id: usize,
 	pub title: String,
 	pub width: u32,
 	pub height: u32,
@@ -68,6 +74,7 @@ impl Into<GuiItem> for View {
 impl Window {
 	pub fn new() -> Self {
 		Self {
+			id: gen_id(),
 			title: "".to_string(),
 			width: 800,
 			height: 600,

@@ -1,7 +1,10 @@
+use std::time::Duration;
+
 use puppy_game_engine::*;
+use tokio::time::sleep;
 
 #[tokio::main]
-async fn main() {
+async fn main() -> anyhow::Result<()> {
     Engine::new(|handle| async move {
 		let scene = Scene::new();
 
@@ -28,6 +31,9 @@ async fn main() {
 		window.title = "BIG box".to_string();
 		window.body = view().add(scene_cam).into();
 		handle.save_window(&window);
-	}).run().await;
+
+		sleep(Duration::from_secs(10)).await;
+	}).run().await?;
+	Ok(())
 }
  

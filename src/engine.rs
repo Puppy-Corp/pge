@@ -11,15 +11,21 @@ use winit::window::WindowId;
 use crate::buffer::Buffer;
 use crate::buffer::Slot;
 use crate::gui;
+use crate::math::Mat4;
 use crate::types::*;
 use crate::wgpu_renderer::RenderArgs;
 use crate::wgpu_renderer::Renderer;
+use crate::wgpu_types::NodeTransform;
 use crate::Window;
 
 #[derive(Debug, Clone)]
 pub enum Command {
 	SaveWindow(Window),
 	SaveScene(Scene),
+	SetTransformation {
+		node_id: usize,
+		transformation: Mat4
+	},
 	Exit
 }
 
@@ -112,7 +118,8 @@ pub struct EngineHandler<'a> {
 	tex_coord_buffer: Buffer,
 	indices_buffer: Buffer,
 	nodes_buffer: Buffer,
-	mesh_pointers: HashMap<usize, MeshPointer>
+	mesh_pointers: HashMap<usize, MeshPointer>,
+	node_offsets: HashMap<usize, u64>
 }
 
 impl<'a> EngineHandler<'a> {
@@ -165,7 +172,8 @@ impl<'a> EngineHandler<'a> {
 			tex_coord_buffer,
 			indices_buffer,
 			nodes_buffer,
-			mesh_pointers: HashMap::new()
+			mesh_pointers: HashMap::new(),
+			node_offsets: HashMap::new()
 		}
 	}
 }
@@ -233,7 +241,23 @@ impl ApplicationHandler<Command> for EngineHandler<'_> {
 						}
 					}
 				}
+			}
+			Command::SetTransformation { node_id, transformation } => {
+				// println!("Setting transformation");
+				// match self.node_offsets.get(&node_id) {
+				// 	Some(offset) => {
+				// 		let node_transfrom = NodeTransform {
+				// 			model: transformation,
+				// 			parent_index: -1
+				// 		};
+				// 		self.nodes_buffer.write(Slot, data)
+				// 	}
+				// 	None => {
 
+				// 	}
+				// }
+				// let node = self.nodes_buffer.get_mut::<Node>(node_id);
+				// node.transformation = transformation;
 			}
 		}
 	}

@@ -60,6 +60,7 @@ impl Vec3 {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Mat4 {
 	data: [[f32; 4]; 4]
 }

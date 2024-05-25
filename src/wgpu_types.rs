@@ -174,7 +174,7 @@ struct LightUniform {
 
 pub struct NodeTransform {
 	pub model: Mat4,
-	parent_index: i32
+	pub parent_index: i32
 }
 
 impl NodeTransform {

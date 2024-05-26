@@ -1,3 +1,5 @@
+use bytemuck::Pod;
+
 
 pub struct Point3D {}
 
@@ -62,11 +64,11 @@ impl Vec3 {
 
 #[derive(Debug, Clone)]
 pub struct Mat4 {
-	data: [[f32; 4]; 4]
+	pub data: [[f32; 4]; 4]
 }
 
 impl Mat4 {
-	fn identity() -> Mat4 {
+	pub fn identity() -> Mat4 {
 		Mat4 {
 			data: [
 				[1.0, 0.0, 0.0, 0.0],
@@ -77,7 +79,7 @@ impl Mat4 {
 		}
 	}
 
-    fn translation(x: f32, y: f32, z: f32) -> Self {
+    pub fn translation(x: f32, y: f32, z: f32) -> Self {
         let mut mat = Mat4::identity();
         mat.data[0][3] = x;
         mat.data[1][3] = y;
@@ -85,7 +87,7 @@ impl Mat4 {
         mat
     }
 
-	fn rotation_x(angle: f32) -> Self {
+	pub fn rotation_x(angle: f32) -> Self {
         let mut mat = Mat4::identity();
         let cos = angle.cos();
         let sin = angle.sin();
@@ -96,7 +98,7 @@ impl Mat4 {
         mat
     }
 
-    fn rotation_y(angle: f32) -> Self {
+    pub fn rotation_y(angle: f32) -> Self {
         let mut mat = Mat4::identity();
         let cos = angle.cos();
         let sin = angle.sin();
@@ -107,7 +109,7 @@ impl Mat4 {
         mat
     }
 
-    fn rotation_z(angle: f32) -> Self {
+    pub fn rotation_z(angle: f32) -> Self {
         let mut mat = Mat4::identity();
         let cos = angle.cos();
         let sin = angle.sin();
@@ -118,7 +120,7 @@ impl Mat4 {
         mat
     }
 
-    fn perspective(fovy: f32, aspect: f32, znear: f32, zfar: f32) -> Self {
+    pub fn perspective(fovy: f32, aspect: f32, znear: f32, zfar: f32) -> Self {
         let tan_half_fovy = (fovy / 2.0).tan();
         let mut mat = Mat4::identity();
         mat.data[0][0] = 1.0 / (aspect * tan_half_fovy);
@@ -130,7 +132,7 @@ impl Mat4 {
         mat
     }
 
-    fn look_at(eye: Vec3, center: Vec3, up: Vec3) -> Self {
+    pub fn look_at(eye: Vec3, center: Vec3, up: Vec3) -> Self {
         let f = center.sub(&eye).normalize();
         let s = f.cross(&up.normalize()).normalize();
         let u = s.cross(&f);
@@ -151,7 +153,7 @@ impl Mat4 {
         mat
     }
 
-    fn multiply(&self, other: &Mat4) -> Self {
+    pub fn multiply(&self, other: &Mat4) -> Self {
         let mut result = Mat4::identity();
         for i in 0..4 {
             for j in 0..4 {
@@ -164,7 +166,7 @@ impl Mat4 {
         result
     }
 
-    fn transform_point(&self, point: Vec3) -> Vec3 {
+    pub fn transform_point(&self, point: Vec3) -> Vec3 {
         let x = self.data[0][0] * point.x + self.data[0][1] * point.y + self.data[0][2] * point.z + self.data[0][3];
         let y = self.data[1][0] * point.x + self.data[1][1] * point.y + self.data[1][2] * point.z + self.data[1][3];
         let z = self.data[2][0] * point.x + self.data[2][1] * point.y + self.data[2][2] * point.z + self.data[2][3];

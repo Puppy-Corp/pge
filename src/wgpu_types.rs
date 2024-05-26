@@ -80,20 +80,66 @@ struct MaterialUniform {
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct CameraUniform {
-    view_proj: [[f32; 4]; 4],
+    proj: [[f32; 4]; 4],
+}
+
+impl CameraUniform {
+	pub fn create_buffer(device: &wgpu::Device) -> wgpu::Buffer {
+		device.create_buffer(&wgpu::BufferDescriptor {
+			label: Some("Camera Buffer"),
+			size: std::mem::size_of::<CameraUniform>() as u64,
+			usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+			mapped_at_creation: false,
+		})
+	}
+
+	pub fn create_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
+		device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+			label: Some("Camera Bind Group Layout"),
+			entries: &[
+				wgpu::BindGroupLayoutEntry {
+					binding: 0,
+					visibility: wgpu::ShaderStages::VERTEX,
+					ty: wgpu::BindingType::Buffer {
+						ty: wgpu::BufferBindingType::Uniform,
+						has_dynamic_offset: false,
+						min_binding_size: None,
+					},
+					count: None,
+				},
+			],
+		})
+	}
+
+	pub fn create_bind_group(device: &wgpu::Device, buffer: &wgpu::Buffer, layout: &wgpu::BindGroupLayout) -> wgpu::BindGroup {
+		device.create_bind_group(&wgpu::BindGroupDescriptor {
+			layout,
+			entries: &[
+				wgpu::BindGroupEntry {
+					binding: 0,
+					resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+						buffer,
+						offset: 0,
+						size: None,
+					}),
+				},
+			],
+			label: Some("Camera Bind Group"),
+		})
+	}
 }
 
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct Instance {
-    node_index: i32
+pub struct RawInstance {
+    pub node_index: i32
 }
 
-impl Instance {
+impl RawInstance {
 	pub fn desc() -> wgpu::VertexBufferLayout<'static> {
         use std::mem;
         wgpu::VertexBufferLayout {
-            array_stride: mem::size_of::<Instance>() as wgpu::BufferAddress,
+            array_stride: mem::size_of::<RawInstance>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Instance,
             attributes: &[
                 wgpu::VertexAttribute {
@@ -172,45 +218,91 @@ struct LightUniform {
     directional_lights: [DirectionalLight; MAX_DIRECTIONAL_LIGHTS],
 }
 
+#[repr(C)]
+#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct NodeTransform {
-	pub model: Mat4,
+	pub model: [[f32; 4]; 4],
 	pub parent_index: i32
 }
 
 impl NodeTransform {
-	pub fn desc() -> wgpu::VertexBufferLayout<'static> {
-		use std::mem;
-		wgpu::VertexBufferLayout {
-			array_stride: mem::size_of::<NodeTransform>() as wgpu::BufferAddress,
-			step_mode: wgpu::VertexStepMode::Instance,
-			attributes: &[
-				wgpu::VertexAttribute {
-					offset: 0,
-					shader_location: 3,
-					format: wgpu::VertexFormat::Float32x4,
-				},
-				wgpu::VertexAttribute {
-					offset: 16,
-					shader_location: 4,
-					format: wgpu::VertexFormat::Float32x4,
-				},
-				wgpu::VertexAttribute {
-					offset: 32,
-					shader_location: 5,
-					format: wgpu::VertexFormat::Float32x4,
-				},
-				wgpu::VertexAttribute {
-					offset: 48,
-					shader_location: 6,
-					format: wgpu::VertexFormat::Float32x4,
-				},
-				wgpu::VertexAttribute {
-					offset: 64,
-					shader_location: 7,
-					format: wgpu::VertexFormat::Sint32,
+	// pub fn desc() -> wgpu::VertexBufferLayout<'static> {
+	// 	use std::mem;
+	// 	wgpu::VertexBufferLayout {
+	// 		array_stride: mem::size_of::<NodeTransform>() as wgpu::BufferAddress,
+	// 		step_mode: wgpu::VertexStepMode::Instance,
+	// 		attributes: &[
+	// 			wgpu::VertexAttribute {
+	// 				offset: 0,
+	// 				shader_location: 3,
+	// 				format: wgpu::VertexFormat::Float32x4,
+	// 			},
+	// 			wgpu::VertexAttribute {
+	// 				offset: 16,
+	// 				shader_location: 4,
+	// 				format: wgpu::VertexFormat::Float32x4,
+	// 			},
+	// 			wgpu::VertexAttribute {
+	// 				offset: 32,
+	// 				shader_location: 5,
+	// 				format: wgpu::VertexFormat::Float32x4,
+	// 			},
+	// 			wgpu::VertexAttribute {
+	// 				offset: 48,
+	// 				shader_location: 6,
+	// 				format: wgpu::VertexFormat::Float32x4,
+	// 			},
+	// 			wgpu::VertexAttribute {
+	// 				offset: 64,
+	// 				shader_location: 7,
+	// 				format: wgpu::VertexFormat::Sint32,
+	// 			},
+	// 		],
+	// 	}
+	// }
+
+	pub fn create_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
+		device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+			label: Some("Node Bind Group Layout"),
+			entries: &[
+				wgpu::BindGroupLayoutEntry {
+					binding: 0,
+					visibility: wgpu::ShaderStages::VERTEX,
+					ty: wgpu::BindingType::Buffer {
+						ty: wgpu::BufferBindingType::Storage { read_only: true },
+						has_dynamic_offset: false,
+						min_binding_size: None,
+					},
+					count: None,
 				},
 			],
-		}
+		})
+	}
+
+	pub fn create_buffer(device: &wgpu::Device) -> wgpu::Buffer {
+		device.create_buffer(&wgpu::BufferDescriptor {
+			label: Some("Node Buffer"),
+			size: std::mem::size_of::<NodeTransform>() as u64,
+			usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+			mapped_at_creation: false,
+		})
+	}
+
+	pub fn create_bind_group(device: &wgpu::Device, buffer: &wgpu::Buffer, layout: &wgpu::BindGroupLayout) -> wgpu::BindGroup {
+		device.create_bind_group(&wgpu::BindGroupDescriptor {
+			layout,
+			entries: &[
+				wgpu::BindGroupEntry {
+					binding: 0,
+					resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+						buffer,
+						offset: 0,
+						size: None,
+					}),
+				},
+			],
+			label: Some("Node Bind Group"),
+		})
 	}
 }
 

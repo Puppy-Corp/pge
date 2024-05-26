@@ -145,8 +145,9 @@ impl Scene {
 		}
 	}
 
-	pub fn add_node(&self, node: Node) {
+	pub fn add_node(&mut self, node: Node) {
 		println!("Adding node");
+		self.nodes.push(node);
 	}
 }
 

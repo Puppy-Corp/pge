@@ -10,11 +10,11 @@ pub struct Vec3 {
 }
 
 impl Vec3 {
-    fn new(x: f32, y: f32, z: f32) -> Self {
+    pub fn new(x: f32, y: f32, z: f32) -> Self {
         Self { x, y, z }
     }
 
-    fn cross(&self, other: &Vec3) -> Vec3 {
+    pub fn cross(&self, other: &Vec3) -> Vec3 {
         Vec3 {
             x: self.y * other.z - self.z * other.y,
             y: self.z * other.x - self.x * other.z,
@@ -30,7 +30,7 @@ impl Vec3 {
 		}
 	}
 
-    fn normalize(&self) -> Vec3 {
+    pub fn normalize(&self) -> Vec3 {
         let mag = (self.x * self.x + self.y * self.y + self.z * self.z).sqrt();
         Vec3 {
             x: self.x / mag,

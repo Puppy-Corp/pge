@@ -15,6 +15,7 @@ use crate::buffer::Slot;
 use crate::cube;
 use crate::gui;
 use crate::math::Mat4;
+use crate::math::Vec3;
 use crate::types::*;
 use crate::wgpu_renderer::*;
 use crate::wgpu_types::CameraUniform;
@@ -182,7 +183,7 @@ impl<'a> EngineHandler<'a> {
 		let instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
 			label: Some("Instance Buffer"),
 			size: 1024,
-			usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::STORAGE,
+			usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::VERTEX,
 			mapped_at_creation: false
 		});
 
@@ -227,32 +228,34 @@ impl<'a> EngineHandler<'a> {
 		};
 		let renderer = builder.build();
 
-		let cube = cube(3.0);
-		println!("cute indices count: {}", cube.indices.len());
-		let indice_data = bytemuck::cast_slice(&cube.indices);
-		println!("indice data len: {:?}", indice_data.len());
-		let position_data = bytemuck::cast_slice(&cube.positions);
-		println!("position data len: {:?}", position_data.len());
-		self.queue.write_buffer(&self.position_buffer.buffer(), 0, position_data);
-		self.queue.write_buffer(&self.indices_buffer.buffer(), 0, indice_data);
+		// let cube = cube(3.0);
+		// println!("cute indices count: {}", cube.indices.len());
+		// let indice_data = bytemuck::cast_slice(&cube.indices);
+		// println!("indice data len: {:?}", indice_data.len());
+		// let position_data = bytemuck::cast_slice(&cube.positions);
+		// println!("position data len: {:?}", position_data.len());
+		// // self.queue.write_buffer(&self.position_buffer.buffer(), 0, position_data);
+		// // self.queue.write_buffer(&self.indices_buffer.buffer(), 0, indice_data);
+		// self.position_buffer.store(position_data);
+		// self.indices_buffer.store(indice_data);
 
-		self.draw_instructions.push(DrawInstruction {
-			// position_range: first_mesh.positions.offset as u64..first_mesh.positions.offset as u64 + first_mesh.positions.size as u64,
-			// indices_range: first_mesh.incides.offset as u64..first_mesh.incides.offset as u64 + first_mesh.incides.size as u64,
-			instances_range: 0..1,
-			indices_range: 0..(cube.indices.len() * 2) as u32,
-			index_range: 0..indice_data.len() as u64,
-			position_range: 0..position_data.len() as u64,
-		});
+		// self.draw_instructions.push(DrawInstruction {
+		// 	// position_range: first_mesh.positions.offset as u64..first_mesh.positions.offset as u64 + first_mesh.positions.size as u64,
+		// 	// indices_range: first_mesh.incides.offset as u64..first_mesh.incides.offset as u64 + first_mesh.incides.size as u64,
+		// 	instances_range: 0..1,
+		// 	indices_range: 0..(cube.indices.len() * 2) as u32,
+		// 	index_range: 0..indice_data.len() as u64,
+		// 	position_range: 0..position_data.len() as u64,
+		// });
 
-		let args = RenderArgs {
-			camera_bind_group: &self.camera_bind_group,
-			node_bind_group: &self.node_bind_group,
-			positions_buffer: &self.position_buffer.buffer(),
-			indices_buffer: &self.indices_buffer.buffer(),
-			instructions: &self.draw_instructions
-		};
-		renderer.render(args).unwrap();
+		// let args = RenderArgs {
+		// 	camera_bind_group: &self.camera_bind_group,
+		// 	node_bind_group: &self.node_bind_group,
+		// 	positions_buffer: &self.position_buffer.buffer(),
+		// 	indices_buffer: &self.indices_buffer.buffer(),
+		// 	instructions: &self.draw_instructions
+		// };
+		// renderer.render(args).unwrap();
 
 
 		self.windows.insert(window.id(), WindowContext {
@@ -277,6 +280,7 @@ impl<'a> EngineHandler<'a> {
 				node_bind_group: &self.node_bind_group,
 				positions_buffer: &self.position_buffer.buffer(),
 				indices_buffer: &self.indices_buffer.buffer(),
+				instance_buffer: &self.instance_buffer,
 				instructions: &self.draw_instructions
 			};
 			window.renderer.render(args).unwrap();
@@ -305,84 +309,112 @@ impl ApplicationHandler<Command> for EngineHandler<'_> {
 				event_loop.exit();
 			}
 			Command::SaveScene(scene) => {
-				// println!("Saving scene {:?}", scene);
-				// for node in scene.nodes {
-				// 	if let Some(mesh) = node.mesh {
-				// 		let positions = mesh.positions;
-				// 		let normals = mesh.normals;
-				// 		println!("mesh: {}", mesh.id);
-				// 		println!("positions: {:?}", positions);
-				// 		println!("indices: {:?}", mesh.indices);
+				println!("Saving scene {:?}", scene);
+				for node in scene.nodes {
+					if let Some(mesh) = node.mesh {
+						let positions = mesh.positions;
+						let normals = mesh.normals;
+						println!("mesh: {}", mesh.id);
+						println!("positions: {:?}", positions);
+						println!("indices: {:?}", mesh.indices);
 
-				// 		match self.mesh_pointers.get(&mesh.id) {
-				// 			Some(pointer) => {
-				// 				println!("mesh pointer found");
-				// 				self.position_buffer.write(pointer.positions, bytemuck::cast_slice(&positions));
-				// 				self.normal_buffer.write(pointer.normals, bytemuck::cast_slice(&normals));
-				// 				self.indices_buffer.write(pointer.incides, bytemuck::cast_slice(&mesh.indices));
-				// 			}
-				// 			None => {
-				// 				println!("mesh pointer not found");
-				// 				let positions = self.position_buffer.store(bytemuck::cast_slice(&positions));
-				// 				let normals = self.normal_buffer.store(bytemuck::cast_slice(&normals));
-				// 				let incides = self.indices_buffer.store(bytemuck::cast_slice(&mesh.indices));
-				// 				let mesh_pointer = MeshPointer {
-				// 					positions,
-				// 					normals,
-				// 					incides,
-				// 					tex_coords: 0..0,
-				// 					indices_count: 0
-				// 				};
-				// 				println!("mesh pointer: {:?}", mesh_pointer);
-				// 				self.mesh_pointers.insert(mesh.id, mesh_pointer);
-				// 			}
-				// 		}
-				// 	}
+						match self.mesh_pointers.get(&mesh.id) {
+							Some(pointer) => {
+								println!("mesh pointer found");
+								self.position_buffer.write(pointer.positions, bytemuck::cast_slice(&positions));
+								self.normal_buffer.write(pointer.normals, bytemuck::cast_slice(&normals));
+								self.indices_buffer.write(pointer.incides, bytemuck::cast_slice(&mesh.indices));
+							}
+							None => {
+								println!("mesh pointer not found");
+								println!("positions len: {:?}", positions.len());
+								let positions_data = bytemuck::cast_slice(&positions);
+								println!("positions data len: {:?}", positions_data.len());
+								let positions = self.position_buffer.store(positions_data);
+								let normals = self.normal_buffer.store(bytemuck::cast_slice(&normals));
+								println!("indices len: {:?}", mesh.indices.len());
+								let indice_data = bytemuck::cast_slice(&mesh.indices);
+								println!("indice data len: {:?}", indice_data.len());
+								let incides = self.indices_buffer.store(indice_data);
+								let mesh_pointer = MeshPointer {
+									positions,
+									normals,
+									incides,
+									tex_coords: 0..0,
+									indices_count: mesh.indices.len() as u32
+								};
+								println!("mesh pointer: {:?}", mesh_pointer);
+								self.mesh_pointers.insert(mesh.id, mesh_pointer);
+							}
+						}
+					}
 
-				// 	let transformation = Mat4::translation(0.0, 0.0, 0.0);
+					let transformation = Mat4::translation(-0.5, -5.0, 0.0);
+					println!("transformation {:?}", transformation);
 
-				// 	let node_transfrom = NodeTransform {
-				// 		model: transformation.data,
-				// 		parent_index: -1
-				// 	};
-				// 	let data = &[node_transfrom];
-				// 	let data = bytemuck::cast_slice(data);
-				// 	self.queue.write_buffer(&self.node_buffer, 0, data);
+					let node_transfrom = NodeTransform {
+						model: transformation.data,
+						parent_index: -1,
+						_padding: [0; 3]
+					};
+					let data = &[node_transfrom];
+					let data = bytemuck::cast_slice(data);
+					self.queue.write_buffer(&self.node_buffer, 0, data);
 
-				// 	let instance = RawInstance {
-				// 		node_index: 0
-				// 	};
-				// 	let data = &[instance];
-				// 	let data = bytemuck::cast_slice(data);
-				// 	self.queue.write_buffer(&self.instance_buffer, 0, data);
+					let instance = RawInstance {
+						node_index: 0
+					};
+					let data = &[instance];
+					let data = bytemuck::cast_slice(data);
+					self.queue.write_buffer(&self.instance_buffer, 0, data);
 
-				// 	let (_,first_mesh) = self.mesh_pointers.iter().next().unwrap();
+					let (_,first_mesh) = self.mesh_pointers.iter().next().unwrap();
 
-				// 	self.draw_instructions.push(DrawInstruction {
-				// 		position_range: first_mesh.positions.offset as u64..first_mesh.positions.offset as u64 + first_mesh.positions.size as u64,
-				// 		indices_range: first_mesh.incides.offset as u64..first_mesh.incides.offset as u64 + first_mesh.incides.size as u64,
-				// 		instances_range: 0..1
-				// 	});
+					self.draw_instructions.push(DrawInstruction {
+						position_range: first_mesh.positions.offset as u64..first_mesh.positions.offset as u64 + first_mesh.positions.size as u64,
+						index_range: first_mesh.incides.offset as u64..first_mesh.incides.offset as u64 + first_mesh.incides.size as u64,
+						indices_range: 0..first_mesh.indices_count,
+						instances_range: 0..1
+					});
 
-				// 	self.render_every_window();
-				// }
+					let aspect = 16.0 / 9.0;
+					let fovy = std::f32::consts::PI / 3.0; // 60 degrees field of view
+					let znear = 0.1;
+					let zfar = 100.0;
+					let eye = glam::Vec3::new(3.0, 5.0, 6.0);
+					let center = glam::Vec3::new(0.0, 0.0, 0.0);
+					let up = glam::Vec3::new(0.0, 1.0, 0.0);
+
+					// Compute the view and projection matrices
+					let view_matrix = glam::Mat4::look_at_rh(eye, center, up);
+					let projection_matrix = glam::Mat4::perspective_rh(fovy, aspect, znear, zfar);
+					let camera = CameraUniform {
+						view: view_matrix.to_cols_array_2d(),
+						proj: projection_matrix.to_cols_array_2d()
+					};
+					self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[camera]));
+
+
+
+					self.render_every_window();
+				}
 			}
 			Command::SetTransformation { node_id, transformation } => {
 				println!("Setting transformation");
-				match self.node_offsets.get(&node_id) {
-					Some(offset) => {
-						let node_transfrom = NodeTransform {
-							model: transformation.data,
-							parent_index: -1
-						};
-						let data = &[node_transfrom];
-						let data = bytemuck::cast_slice(data);
-						self.nodes_buffer.write(Slot { offset: *offset as usize, size: data.len() }, data)
-					}
-					None => {
+				// match self.node_offsets.get(&node_id) {
+				// 	Some(offset) => {
+				// 		let node_transfrom = NodeTransform {
+				// 			model: transformation.data,
+				// 			parent_index: -1
+				// 		};
+				// 		let data = &[node_transfrom];
+				// 		let data = bytemuck::cast_slice(data);
+				// 		self.nodes_buffer.write(Slot { offset: *offset as usize, size: data.len() }, data)
+				// 	}
+				// 	None => {
 
-					}
-				}
+				// 	}
+				// }
 				// let node = self.nodes_buffer.get_mut::<Node>(node_id);
 				// node.transformation = transformation;
 			}
@@ -409,6 +441,7 @@ impl ApplicationHandler<Command> for EngineHandler<'_> {
 							node_bind_group: &self.node_bind_group,
 							positions_buffer: &self.position_buffer.buffer(),
 							indices_buffer: &self.indices_buffer.buffer(),
+							instance_buffer: &self.instance_buffer,
 							instructions: &self.draw_instructions
 						};
 						match renderer.render(args) {

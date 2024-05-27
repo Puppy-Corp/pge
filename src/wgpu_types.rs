@@ -80,7 +80,8 @@ struct MaterialUniform {
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct CameraUniform {
-    proj: [[f32; 4]; 4],
+	pub view: [[f32; 4]; 4],
+    pub proj: [[f32; 4]; 4],
 }
 
 impl CameraUniform {
@@ -98,7 +99,7 @@ impl CameraUniform {
 			label: Some("Camera Bind Group Layout"),
 			entries: &[
 				wgpu::BindGroupLayoutEntry {
-					binding: 0,
+					binding: 1,
 					visibility: wgpu::ShaderStages::VERTEX,
 					ty: wgpu::BindingType::Buffer {
 						ty: wgpu::BufferBindingType::Uniform,
@@ -116,7 +117,7 @@ impl CameraUniform {
 			layout,
 			entries: &[
 				wgpu::BindGroupEntry {
-					binding: 0,
+					binding: 1,
 					resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
 						buffer,
 						offset: 0,
@@ -222,45 +223,11 @@ struct LightUniform {
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct NodeTransform {
 	pub model: [[f32; 4]; 4],
-	pub parent_index: i32
+	pub parent_index: i32,
+	pub _padding: [u32; 3],
 }
 
 impl NodeTransform {
-	// pub fn desc() -> wgpu::VertexBufferLayout<'static> {
-	// 	use std::mem;
-	// 	wgpu::VertexBufferLayout {
-	// 		array_stride: mem::size_of::<NodeTransform>() as wgpu::BufferAddress,
-	// 		step_mode: wgpu::VertexStepMode::Instance,
-	// 		attributes: &[
-	// 			wgpu::VertexAttribute {
-	// 				offset: 0,
-	// 				shader_location: 3,
-	// 				format: wgpu::VertexFormat::Float32x4,
-	// 			},
-	// 			wgpu::VertexAttribute {
-	// 				offset: 16,
-	// 				shader_location: 4,
-	// 				format: wgpu::VertexFormat::Float32x4,
-	// 			},
-	// 			wgpu::VertexAttribute {
-	// 				offset: 32,
-	// 				shader_location: 5,
-	// 				format: wgpu::VertexFormat::Float32x4,
-	// 			},
-	// 			wgpu::VertexAttribute {
-	// 				offset: 48,
-	// 				shader_location: 6,
-	// 				format: wgpu::VertexFormat::Float32x4,
-	// 			},
-	// 			wgpu::VertexAttribute {
-	// 				offset: 64,
-	// 				shader_location: 7,
-	// 				format: wgpu::VertexFormat::Sint32,
-	// 			},
-	// 		],
-	// 	}
-	// }
-
 	pub fn create_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
 		device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
 			label: Some("Node Bind Group Layout"),

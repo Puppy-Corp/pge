@@ -109,7 +109,7 @@ pub struct Mesh {
 	pub positions: Vec<[f32; 3]>,
 	pub normals: Vec<[f32; 3]>,
 	pub text_coords: Vec<[f32; 2]>,
-	pub indices: Vec<u32>,
+	pub indices: Vec<u16>,
 }
 
 impl Mesh {

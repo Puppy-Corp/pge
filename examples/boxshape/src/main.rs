@@ -41,7 +41,7 @@ async fn main() -> anyhow::Result<()> {
 		handle.save_scene(&scene);
 
 
-		sleep(Duration::from_secs(10)).await;
+		sleep(Duration::from_secs(120)).await;
 	}).run().await?;
 	Ok(())
 }

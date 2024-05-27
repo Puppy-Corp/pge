@@ -15,3 +15,4 @@ anyhow = "1"
 bytemuck = { version = "1.15", features = ["derive"] }
 tokio = { version = "1", features = ["full"] }
 async-trait = "0.1"
+glam = "0.27.0"

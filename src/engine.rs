@@ -301,7 +301,7 @@ impl<'a> EngineHandler<'a> {
 		println!("write node transform");
 		let cube_node_transform = NodeTransform {
 			model: glam::Mat4::from_translation(glam::Vec3::new(0.0, 2.0, 0.0)).to_cols_array_2d(),
-			parent_index: 0,
+			parent_index: -1,
 			_padding: [0; 3]
 		};
 		let cube_node_transform_data = &[cube_node_transform];

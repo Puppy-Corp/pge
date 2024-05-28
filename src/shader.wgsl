@@ -98,6 +98,26 @@ struct Camera {
 @group(0) @binding(1)
 var<uniform> camera: Camera;
 
+fn get_cumulative_transform(node_index: i32) -> mat4x4<f32> {
+    var cumulative_transform = mat4x4<f32>(
+        vec4<f32>(1.0, 0.0, 0.0, 0.0),
+        vec4<f32>(0.0, 1.0, 0.0, 0.0),
+        vec4<f32>(0.0, 0.0, 1.0, 0.0),
+        vec4<f32>(0.0, 0.0, 0.0, 1.0)
+    ); // Start with identity matrix
+    var current_index = node_index;
+
+	//return node_transforms[current_index].model * cumulative_transform;
+
+    while (current_index != -1) {
+        let current_node = node_transforms[current_index];
+        cumulative_transform = current_node.model * cumulative_transform;
+        current_index = current_node.parent_index;
+    }
+
+    return cumulative_transform;
+}
+
 // @vertex
 // fn vs_main(input: VertexInput, instance: InstanceInput) -> VertexOutput {
 // 	var model = node_transforms[0].model;
@@ -177,8 +197,10 @@ var<uniform> camera: Camera;
 
 @vertex
 fn vs_main(input: VertexInput) -> VertexOutput {
-	var camera_transform = node_transforms[0].model;
-	var cube_transform = node_transforms[1].model;
+	var camera_transform = get_cumulative_transform(0);
+	var cube_transform = get_cumulative_transform(1);
+	// var camera_transform = node_transforms[0].model;
+	// var cube_transform = node_transforms[1].model;
 
     // Model matrix (identity in this simple case)
     let model_matrix = mat4x4<f32>(

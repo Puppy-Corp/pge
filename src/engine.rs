@@ -2,9 +2,11 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::ops::Range;
 use std::sync::Arc;
+use glam::Vec3;
 use log::error;
 use tokio::sync::oneshot::error;
 use wgpu::Backends;
+use wgpu::BufferAddress;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::EventLoop;
@@ -15,7 +17,6 @@ use crate::buffer::Slot;
 use crate::cube;
 use crate::gui;
 use crate::math::Mat4;
-use crate::math::Vec3;
 use crate::types::*;
 use crate::wgpu_renderer::*;
 use crate::wgpu_types::CameraUniform;
@@ -65,8 +66,8 @@ impl EngineHandle {
 		}
 	}
 
-	pub fn save_scene(&self, scene: &Scene) {
-		self.proxy.send_event(Command::SaveScene(scene.clone())).unwrap();
+	pub fn save_scene(&self, scene: Scene) {
+		self.proxy.send_event(Command::SaveScene(scene)).unwrap();
 	}
 
 	pub fn save_window(&self, window: &Window) {
@@ -257,6 +258,70 @@ impl<'a> EngineHandler<'a> {
 		// };
 		// renderer.render(args).unwrap();
 
+		let aspect = 16.0 / 9.0;
+		let fovy = std::f32::consts::PI / 3.0; // 60 degrees field of view
+		let znear = 0.1;
+		let zfar = 100.0;
+		let projection_matrix = glam::Mat4::perspective_rh(fovy, aspect, znear, zfar);
+
+		let eye = glam::Vec3::new(3.0, 5.0, 6.0);
+		let center = glam::Vec3::new(0.0, 0.0, 0.0);
+		let up = glam::Vec3::new(0.0, 1.0, 0.0);
+
+		// Compute the view and projection matrices
+		let view_matrix = glam::Mat4::look_at_rh(eye, center, up);
+
+		println!("write cameranode");
+		let camera_node = NodeTransform {
+			model: view_matrix.to_cols_array_2d(),
+			parent_index: -1,
+			_padding: [0; 3]
+		};
+		let camera_node_data = &[camera_node];
+		let camera_node_data = bytemuck::cast_slice(camera_node_data);
+		self.queue.write_buffer(&self.node_buffer, 0, camera_node_data);
+
+		println!("write camera uniform");
+		let camera_uniform = CameraUniform {
+			proj: projection_matrix.to_cols_array_2d(),
+			_padding: [0; 3],
+			node_inx: 0
+		};
+		let camera_uniform_data = &[camera_uniform];
+		let camera_uniform_data = bytemuck::cast_slice(camera_uniform_data);
+		self.queue.write_buffer(&self.camera_buffer, 0, camera_uniform_data);
+
+		println!("write cube");
+		let cube = cube(1.0);
+		let cube_positions_data = bytemuck::cast_slice(&cube.positions);
+		self.position_buffer.store(cube_positions_data);
+		let cube_indices_data = bytemuck::cast_slice(&cube.indices);
+		self.indices_buffer.store(cube_indices_data);
+
+		println!("write node transform");
+		let cube_node_transform = NodeTransform {
+			model: glam::Mat4::from_translation(glam::Vec3::new(0.0, 2.0, 0.0)).to_cols_array_2d(),
+			parent_index: 0,
+			_padding: [0; 3]
+		};
+		let cube_node_transform_data = &[cube_node_transform];
+		let cube_node_transform_data = bytemuck::cast_slice(cube_node_transform_data);
+		self.queue.write_buffer(&self.node_buffer, std::mem::size_of::<NodeTransform>() as BufferAddress, cube_node_transform_data);
+		let instance = RawInstance {
+			node_index: 1
+		};
+
+		println!("write instance");
+		let instance_data = &[instance];
+		let instance_data = bytemuck::cast_slice(instance_data);
+		self.queue.write_buffer(&self.instance_buffer, 0, instance_data);
+
+		self.draw_instructions.push(DrawInstruction {
+			position_range: 0..cube_positions_data.len() as u64,
+			index_range: 0..cube_indices_data.len() as u64,
+			indices_range: 0..cube.indices.len() as u32,
+			instances_range: 0..1
+		});
 
 		self.windows.insert(window.id(), WindowContext {
 			guid_id: gui_window.id,
@@ -268,6 +333,8 @@ impl<'a> EngineHandler<'a> {
 
 		println!("windows {:?}", self.windows);
 		println!("windows count {:?}", self.windows.len());
+
+		self.render_every_window();
 	}
 
 	fn render_every_window(&mut self) {
@@ -309,95 +376,95 @@ impl ApplicationHandler<Command> for EngineHandler<'_> {
 				event_loop.exit();
 			}
 			Command::SaveScene(scene) => {
-				println!("Saving scene {:?}", scene);
-				for node in scene.nodes {
-					if let Some(mesh) = node.mesh {
-						let positions = mesh.positions;
-						let normals = mesh.normals;
-						println!("mesh: {}", mesh.id);
-						println!("positions: {:?}", positions);
-						println!("indices: {:?}", mesh.indices);
+				// println!("Saving scene {:?}", scene);
+				// for node in scene.nodes {
+				// 	if let Some(mesh) = node.mesh {
+				// 		let positions = mesh.positions;
+				// 		let normals = mesh.normals;
+				// 		println!("mesh: {}", mesh.id);
+				// 		println!("positions: {:?}", positions);
+				// 		println!("indices: {:?}", mesh.indices);
 
-						match self.mesh_pointers.get(&mesh.id) {
-							Some(pointer) => {
-								println!("mesh pointer found");
-								self.position_buffer.write(pointer.positions, bytemuck::cast_slice(&positions));
-								self.normal_buffer.write(pointer.normals, bytemuck::cast_slice(&normals));
-								self.indices_buffer.write(pointer.incides, bytemuck::cast_slice(&mesh.indices));
-							}
-							None => {
-								println!("mesh pointer not found");
-								println!("positions len: {:?}", positions.len());
-								let positions_data = bytemuck::cast_slice(&positions);
-								println!("positions data len: {:?}", positions_data.len());
-								let positions = self.position_buffer.store(positions_data);
-								let normals = self.normal_buffer.store(bytemuck::cast_slice(&normals));
-								println!("indices len: {:?}", mesh.indices.len());
-								let indice_data = bytemuck::cast_slice(&mesh.indices);
-								println!("indice data len: {:?}", indice_data.len());
-								let incides = self.indices_buffer.store(indice_data);
-								let mesh_pointer = MeshPointer {
-									positions,
-									normals,
-									incides,
-									tex_coords: 0..0,
-									indices_count: mesh.indices.len() as u32
-								};
-								println!("mesh pointer: {:?}", mesh_pointer);
-								self.mesh_pointers.insert(mesh.id, mesh_pointer);
-							}
-						}
-					}
+				// 		match self.mesh_pointers.get(&mesh.id) {
+				// 			Some(pointer) => {
+				// 				println!("mesh pointer found");
+				// 				self.position_buffer.write(pointer.positions, bytemuck::cast_slice(&positions));
+				// 				self.normal_buffer.write(pointer.normals, bytemuck::cast_slice(&normals));
+				// 				self.indices_buffer.write(pointer.incides, bytemuck::cast_slice(&mesh.indices));
+				// 			}
+				// 			None => {
+				// 				println!("mesh pointer not found");
+				// 				println!("positions len: {:?}", positions.len());
+				// 				let positions_data = bytemuck::cast_slice(&positions);
+				// 				println!("positions data len: {:?}", positions_data.len());
+				// 				let positions = self.position_buffer.store(positions_data);
+				// 				let normals = self.normal_buffer.store(bytemuck::cast_slice(&normals));
+				// 				println!("indices len: {:?}", mesh.indices.len());
+				// 				let indice_data = bytemuck::cast_slice(&mesh.indices);
+				// 				println!("indice data len: {:?}", indice_data.len());
+				// 				let incides = self.indices_buffer.store(indice_data);
+				// 				let mesh_pointer = MeshPointer {
+				// 					positions,
+				// 					normals,
+				// 					incides,
+				// 					tex_coords: 0..0,
+				// 					indices_count: mesh.indices.len() as u32
+				// 				};
+				// 				println!("mesh pointer: {:?}", mesh_pointer);
+				// 				self.mesh_pointers.insert(mesh.id, mesh_pointer);
+				// 			}
+				// 		}
+				// 	}
 
-					let transformation = Mat4::translation(-0.5, -5.0, 0.0);
-					println!("transformation {:?}", transformation);
+				// 	let transformation = Mat4::translation(-0.5, -5.0, 0.0);
+				// 	println!("transformation {:?}", transformation);
 
-					let node_transfrom = NodeTransform {
-						model: transformation.data,
-						parent_index: -1,
-						_padding: [0; 3]
-					};
-					let data = &[node_transfrom];
-					let data = bytemuck::cast_slice(data);
-					self.queue.write_buffer(&self.node_buffer, 0, data);
+				// 	let node_transfrom = NodeTransform {
+				// 		model: transformation.data,
+				// 		parent_index: -1,
+				// 		_padding: [0; 3]
+				// 	};
+				// 	let data = &[node_transfrom];
+				// 	let data = bytemuck::cast_slice(data);
+				// 	self.queue.write_buffer(&self.node_buffer, 0, data);
 
-					let instance = RawInstance {
-						node_index: 0
-					};
-					let data = &[instance];
-					let data = bytemuck::cast_slice(data);
-					self.queue.write_buffer(&self.instance_buffer, 0, data);
+				// 	let instance = RawInstance {
+				// 		node_index: 0
+				// 	};
+				// 	let data = &[instance];
+				// 	let data = bytemuck::cast_slice(data);
+				// 	self.queue.write_buffer(&self.instance_buffer, 0, data);
 
-					let (_,first_mesh) = self.mesh_pointers.iter().next().unwrap();
+				// 	let (_,first_mesh) = self.mesh_pointers.iter().next().unwrap();
 
-					self.draw_instructions.push(DrawInstruction {
-						position_range: first_mesh.positions.offset as u64..first_mesh.positions.offset as u64 + first_mesh.positions.size as u64,
-						index_range: first_mesh.incides.offset as u64..first_mesh.incides.offset as u64 + first_mesh.incides.size as u64,
-						indices_range: 0..first_mesh.indices_count,
-						instances_range: 0..1
-					});
+				// 	self.draw_instructions.push(DrawInstruction {
+				// 		position_range: first_mesh.positions.offset as u64..first_mesh.positions.offset as u64 + first_mesh.positions.size as u64,
+				// 		index_range: first_mesh.incides.offset as u64..first_mesh.incides.offset as u64 + first_mesh.incides.size as u64,
+				// 		indices_range: 0..first_mesh.indices_count,
+				// 		instances_range: 0..1
+				// 	});
 
-					let aspect = 16.0 / 9.0;
-					let fovy = std::f32::consts::PI / 3.0; // 60 degrees field of view
-					let znear = 0.1;
-					let zfar = 100.0;
-					let eye = glam::Vec3::new(3.0, 5.0, 6.0);
-					let center = glam::Vec3::new(0.0, 0.0, 0.0);
-					let up = glam::Vec3::new(0.0, 1.0, 0.0);
+				// 	let aspect = 16.0 / 9.0;
+				// 	let fovy = std::f32::consts::PI / 3.0; // 60 degrees field of view
+				// 	let znear = 0.1;
+				// 	let zfar = 100.0;
+				// 	let eye = glam::Vec3::new(3.0, 5.0, 6.0);
+				// 	let center = glam::Vec3::new(0.0, 0.0, 0.0);
+				// 	let up = glam::Vec3::new(0.0, 1.0, 0.0);
 
-					// Compute the view and projection matrices
-					let view_matrix = glam::Mat4::look_at_rh(eye, center, up);
-					let projection_matrix = glam::Mat4::perspective_rh(fovy, aspect, znear, zfar);
-					let camera = CameraUniform {
-						view: view_matrix.to_cols_array_2d(),
-						proj: projection_matrix.to_cols_array_2d()
-					};
-					self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[camera]));
+				// 	// Compute the view and projection matrices
+				// 	let view_matrix = glam::Mat4::look_at_rh(eye, center, up);
+				// 	let projection_matrix = glam::Mat4::perspective_rh(fovy, aspect, znear, zfar);
+				// 	let camera = CameraUniform {
+				// 		view: view_matrix.to_cols_array_2d(),
+				// 		proj: projection_matrix.to_cols_array_2d()
+				// 	};
+				// 	self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[camera]));
 
 
 
-					self.render_every_window();
-				}
+				// 	self.render_every_window();
+				// }
 			}
 			Command::SetTransformation { node_id, transformation } => {
 				println!("Setting transformation");

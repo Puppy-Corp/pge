@@ -47,7 +47,7 @@ impl RenderPipelineBuilder {
 		});
 		let render_pipeline_layout = self.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
 			label: Some("Render Pipeline Layout"),
-			bind_group_layouts: &[&self.camera_bind_group_layout],
+			bind_group_layouts: &[&self.camera_bind_group_layout, &self.node_bind_group_layout],
 			push_constant_ranges: &[],
 		});
 		log::info!("creating render pipeline");
@@ -163,6 +163,7 @@ impl Renderer<'_> {
 			render_pass.set_pipeline(&self.pipeline);
 			//render_pass.set_bind_group(0, &args.node_bind_group, &[]);
 			render_pass.set_bind_group(0, &args.camera_bind_group, &[]);
+			render_pass.set_bind_group(1, &args.node_bind_group, &[]);
 
 			for draw in args.instructions {
 				println!("draw");

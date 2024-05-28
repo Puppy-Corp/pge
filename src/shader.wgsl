@@ -70,13 +70,13 @@
 //     return vec4<f32>(in.color, 1.0);
 // }
 
-// struct NodeTransform {
-//     model: mat4x4<f32>,
-//     parent_index: i32
-// };
+struct NodeTransform {
+    model: mat4x4<f32>,
+    parent_index: i32
+};
 
-// @group(1) @binding(0)
-// var<storage, read> node_transforms: array<NodeTransform>;
+@group(1) @binding(0)
+var<storage, read> node_transforms: array<NodeTransform>;
 
 struct InstanceInput {
     @location(5) node_index: u32,
@@ -92,8 +92,8 @@ struct VertexOutput {
 };
 
 struct Camera {
-    view: mat4x4<f32>,
-	proj: mat4x4<f32>,
+    proj: mat4x4<f32>,
+	node_inx: i32
 }
 @group(0) @binding(1)
 var<uniform> camera: Camera;
@@ -177,6 +177,9 @@ var<uniform> camera: Camera;
 
 @vertex
 fn vs_main(input: VertexInput) -> VertexOutput {
+	var camera_transform = node_transforms[0].model;
+	var cube_transform = node_transforms[1].model;
+
     // Model matrix (identity in this simple case)
     let model_matrix = mat4x4<f32>(
         1.0, 0.0, 0.0, 0.0,
@@ -188,7 +191,7 @@ fn vs_main(input: VertexInput) -> VertexOutput {
     // Initialize the output structure
     var out: VertexOutput;
     // Apply the model, view, and projection matrices to the input position
-    out.clip_position = camera.proj * camera.view * model_matrix * vec4<f32>(input.position, 1.0);
+    out.clip_position = camera.proj * camera_transform * cube_transform * vec4<f32>(input.position, 1.0);
     // Set the output color
     out.color = vec3(1.0, 1.0, 0.0);
     return out;

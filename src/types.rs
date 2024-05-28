@@ -1,5 +1,7 @@
 use std::time::Duration;
 
+use glam::DQuat;
+use glam::Vec3;
 use tokio::time::sleep;
 
 use crate::idgen::gen_id;
@@ -71,12 +73,16 @@ pub enum UserEvent {
 #[derive(Debug, Clone)]
 pub struct Node {
 	pub mesh: Option<Mesh>,
+	pub translation: Vec3,
+	pub rotation: DQuat 
 }
 
 impl Node {
 	pub fn new() -> Self {
 		Self {
 			mesh: None,
+			translation: Vec3::ZERO,
+			rotation: DQuat::IDENTITY
 		}
 	}
 

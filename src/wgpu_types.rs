@@ -80,8 +80,10 @@ struct MaterialUniform {
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct CameraUniform {
-	pub view: [[f32; 4]; 4],
+	//pub view: [[f32; 4]; 4],
     pub proj: [[f32; 4]; 4],
+	pub node_inx: i32,
+	pub _padding: [u32; 3],
 }
 
 impl CameraUniform {
@@ -249,7 +251,7 @@ impl NodeTransform {
 	pub fn create_buffer(device: &wgpu::Device) -> wgpu::Buffer {
 		device.create_buffer(&wgpu::BufferDescriptor {
 			label: Some("Node Buffer"),
-			size: std::mem::size_of::<NodeTransform>() as u64,
+			size: 1024,
 			usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
 			mapped_at_creation: false,
 		})

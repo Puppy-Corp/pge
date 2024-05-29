@@ -72,17 +72,21 @@ pub enum UserEvent {
 
 #[derive(Debug, Clone)]
 pub struct Node {
+	pub id: usize,
 	pub mesh: Option<Mesh>,
 	pub translation: Vec3,
-	pub rotation: DQuat 
+	pub rotation: glam::Quat,
+	pub children: Vec<Node>,
 }
 
 impl Node {
 	pub fn new() -> Self {
 		Self {
+			id: gen_id(),
 			mesh: None,
 			translation: Vec3::ZERO,
-			rotation: DQuat::IDENTITY
+			rotation: glam::Quat::IDENTITY,
+			children: vec![],
 		}
 	}
 
@@ -97,6 +101,7 @@ impl Node {
 
 	pub fn add_node(&mut self, node: Node) {
 		println!("Adding node");
+		self.children.push(node);
 	}
 
 	pub fn set_translation(&mut self, x: f32, y: f32, z: f32) {

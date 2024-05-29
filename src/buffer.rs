@@ -1,8 +1,6 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
-pub struct Pointer {
-	
-}
 
 #[derive(Debug, Clone, Copy)]
 pub struct Slot {
@@ -55,5 +53,219 @@ impl Buffer {
 
 	pub fn buffer(&self) -> &wgpu::Buffer {
 		&self.buffer
+	}
+}
+
+pub struct StaticBufferManager<T> {
+	blocks: Vec<T>,
+	free_list: Vec<usize>,
+	write_commands: Vec<usize>
+}
+
+impl<T> StaticBufferManager<T>
+where
+	T: Sized + bytemuck::Pod + bytemuck::Zeroable
+{
+	pub fn new(size: usize) -> Self {
+		Self {
+			blocks: Vec::with_capacity(size),
+			free_list: Vec::new(),
+			write_commands: Vec::new()
+		}
+	}
+
+	pub fn store(&mut self, id: usize, item: T) -> usize {
+		if let Some(index) = self.free_list.pop() {
+			self.blocks[index] = item;
+			self.write_commands.push(index);
+			index
+		} else {
+			self.blocks.push(item);
+			self.write_commands.push(self.blocks.len() - 1);
+			self.blocks.len() - 1
+		}
+	}
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Pointer {
+	offset: usize,
+	size: usize,
+}
+
+pub struct DynamicStagingBuffer {
+	write_commands: Vec<Pointer>,
+	pointers: HashMap<usize, Pointer>,
+	free_list: Vec<Pointer>,
+	largest_free: usize,
+	data: Vec<u8>
+}
+
+impl DynamicStagingBuffer {
+	pub fn new(size: usize) -> Self {
+		Self {
+			write_commands: Vec::new(),
+			pointers: HashMap::new(),
+			free_list: Vec::new(),
+			largest_free: 0,
+			data: Vec::with_capacity(size)
+		}
+	}
+
+	fn alloc(&mut self, size: usize) -> Pointer {
+        // Check if there is a free block that is large enough
+        if let Some(index) = self.free_list.iter().position(|p| p.size >= size) {
+            let mut free_block = self.free_list.remove(index);
+
+            // If the free block is larger than needed, split it
+            if free_block.size > size {
+                let remaining_size = free_block.size - size;
+                free_block.size = size;
+                self.free_list.push(Pointer {
+                    offset: free_block.offset + size,
+                    size: remaining_size,
+                });
+            }
+
+            self.largest_free = self.free_list.iter().map(|p| p.size).max().unwrap_or(0);
+            return free_block;
+        }
+
+        let offset = self.data.len();
+        self.largest_free += size;
+
+        Pointer {
+            offset,
+            size,
+        }
+    }
+
+	/// Stores data in the buffer and generates write commands.
+	/// Checks if new data can fit into old location and 
+	/// Moves it if it can't otherwise it updates the pointer.
+	pub fn store(&mut self, id: usize, data: &[u8]) -> Pointer {
+		match self.pointers.get(&id) {
+			Some(p) => {
+				if data.len() > p.size {
+					let new_pointer = self.alloc(data.len());
+					self.write_commands.push(new_pointer);
+					return new_pointer.clone();
+				}
+
+				let existing_data = &mut self.data[p.offset..p.offset + p.size];
+
+				if existing_data != data {
+					existing_data.copy_from_slice(data);
+					self.write_commands.push(Pointer {
+						offset: p.offset,
+						size: data.len()
+					});
+				}
+
+				return *p;
+			},
+			None => {
+				let pointer = self.alloc(data.len());
+				self.data.extend(data);
+				self.pointers.insert(id, pointer);
+				self.write_commands.push(pointer);
+				pointer
+			}
+		}
+	}
+
+	pub fn get(&self, id: usize) -> Option<&[u8]> {
+		if let Some(pointer) = self.pointers.get(&id) {
+			Some(&self.data[pointer.offset..pointer.offset + pointer.size])
+		} else {
+			None
+		}
+	}
+
+	pub fn delete(&mut self, id: usize) {
+		if let Some(pointer) = self.pointers.remove(&id) {
+			self.free_list.push(pointer);
+		}
+	}
+
+	fn merge_write_commands(&mut self) {
+		self.write_commands.sort_by_key(|p| p.offset);
+
+		let mut merged = Vec::new();
+		let mut current = self.write_commands[0];
+
+		for pointer in self.write_commands.iter().skip(1) {
+			if current.offset + current.size == pointer.offset {
+				current.size += pointer.size;
+			} else {
+				merged.push(current);
+				current = *pointer;
+			}
+		}
+
+		merged.push(current);
+		self.write_commands = merged;
+	}
+
+	pub fn clear_write_commands(&mut self) {
+		self.write_commands.clear();
+	}
+
+	pub fn iter(&self) -> WriteIterator {
+		WriteIterator {
+			data: &self.data,
+			pointers: self.write_commands.as_slice()
+		}
+	}
+}
+
+pub struct WriteIterator<'a> {
+	data: &'a [u8],
+	pointers: &'a [Pointer],
+}
+
+impl<'a> Iterator for WriteIterator<'a> {
+	type Item = (usize, &'a [u8]);
+
+	fn next(&mut self) -> Option<Self::Item> {
+		if self.pointers.len() == 0 {
+			return None;
+		}
+
+		let pointer = &self.pointers[0];
+		self.pointers = &self.pointers[1..];
+
+		let data = &self.data[pointer.offset..pointer.offset + pointer.size];
+
+		Some((pointer.offset, data))
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn test_allocation() {
+		let mut buff = DynamicStagingBuffer::new(1024);
+		let pointer1 = buff.store(1, &[1, 2, 3, 4]);
+		assert_eq!(pointer1.offset, 0);
+		assert_eq!(pointer1.size, 4);
+		let pointer2 =  buff.store(2, &[5, 6, 7, 8]);
+		assert_eq!(pointer2.offset, 4);
+		assert_eq!(pointer2.size, 4);
+		let data = buff.get(1).unwrap();
+		assert_eq!(data, &[1, 2, 3, 4]);
+		let data = buff.get(2).unwrap();
+		assert_eq!(data, &[5, 6, 7, 8]);
+
+		buff.merge_write_commands();
+
+		let iter: Vec<_> = buff.iter().collect();
+
+		assert_eq!(iter.len(), 1);
+		let (offset, data) = iter[0];
+		assert_eq!(offset, 0);
+		assert_eq!(data, &[1, 2, 3, 4, 5, 6, 7, 8]);
 	}
 }

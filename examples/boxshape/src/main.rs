@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use puppy_game_engine::*;
+use pge::*;
 use tokio::time::sleep;
 
 #[tokio::main]

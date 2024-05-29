@@ -7,6 +7,8 @@ mod wgpu_renderer;
 mod wgpu_types;
 mod buffer;
 mod math;
+mod node_manager;
+mod internal;
 
 pub use engine::Engine;
 pub use types::*;

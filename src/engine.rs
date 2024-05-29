@@ -2,9 +2,7 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::ops::Range;
 use std::sync::Arc;
-use glam::Vec3;
 use log::error;
-use tokio::sync::oneshot::error;
 use wgpu::Backends;
 use wgpu::BufferAddress;
 use winit::application::ApplicationHandler;
@@ -13,14 +11,19 @@ use winit::event_loop::EventLoop;
 use winit::event_loop::EventLoopProxy;
 use winit::window::WindowId;
 use crate::buffer::Buffer;
+use crate::buffer::DynamicStagingBuffer;
 use crate::buffer::Slot;
+use crate::buffer::StaticBufferManager;
 use crate::cube;
 use crate::gui;
 use crate::math::Mat4;
+use crate::node_manager::NodeManager;
+use crate::node_manager::NodeMetadata;
 use crate::types::*;
 use crate::wgpu_renderer::*;
 use crate::wgpu_types::CameraUniform;
 use crate::wgpu_types::NodeTransform;
+use crate::wgpu_types::Position;
 use crate::wgpu_types::RawInstance;
 use crate::Window;
 
@@ -127,13 +130,13 @@ pub struct EngineHandler<'a> {
 	queue: Arc<wgpu::Queue>,
 	adapter: Arc<wgpu::Adapter>,
 	instance: Arc<wgpu::Instance>,
-	position_buffer: Buffer,
+	position_buffer: wgpu::Buffer,
 	normal_buffer: Buffer,
 	tex_coord_buffer: Buffer,
-	indices_buffer: Buffer,
+	indices_buffer: wgpu::Buffer,
 	nodes_buffer: Buffer,
 	mesh_pointers: HashMap<usize, MeshPointer>,
-	node_offsets: HashMap<usize, u64>,
+	node_manager: NodeManager,
 	node_bind_group_layout: Arc<wgpu::BindGroupLayout>,
 	node_bind_group: wgpu::BindGroup,
 	node_buffer: wgpu::Buffer,
@@ -142,6 +145,9 @@ pub struct EngineHandler<'a> {
 	camera_buffer: wgpu::Buffer,
 	instance_buffer: wgpu::Buffer,
 	draw_instructions: Vec<DrawInstruction>,
+	position_staging_buffer: DynamicStagingBuffer,
+	index_staging_buffer: DynamicStagingBuffer,
+	instance_staging_buffer: StaticBufferManager<RawInstance>
 }
 
 impl Drop for EngineHandler<'_> {
@@ -167,10 +173,15 @@ impl<'a> EngineHandler<'a> {
 		let adapter = Arc::new(adapter);
 		let instance = Arc::new(instance);
 
-		let position_buffer = Buffer::new(device.clone(), queue.clone());
+		let position_buffer = Position::create_buffer(&device, 500);
+		let indices_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+			label: Some("Indices Buffer"),
+			size: 1024,
+			usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::INDEX,
+			mapped_at_creation: false
+		});
 		let normal_buffer = Buffer::new(device.clone(), queue.clone());
 		let tex_coord_buffer = Buffer::new(device.clone(), queue.clone());
-		let indices_buffer = Buffer::new(device.clone(), queue.clone());
 		let nodes_buffer = Buffer::new(device.clone(), queue.clone());
 
 		let node_bind_group_layout = NodeTransform::create_bind_group_layout(&device);
@@ -200,7 +211,7 @@ impl<'a> EngineHandler<'a> {
 			indices_buffer,
 			nodes_buffer,
 			mesh_pointers: HashMap::new(),
-			node_offsets: HashMap::new(),
+			node_manager: NodeManager::new(),
 			draw_instructions: Vec::new(),
 			camera_bind_group_layout: Arc::new(camera_bind_group_layout),
 			camera_bind_group,
@@ -208,7 +219,10 @@ impl<'a> EngineHandler<'a> {
 			node_bind_group_layout: Arc::new(node_bind_group_layout),
 			node_bind_group,
 			node_buffer,
-			instance_buffer
+			instance_buffer,
+			position_staging_buffer: DynamicStagingBuffer::new(1024),
+			index_staging_buffer: DynamicStagingBuffer::new(1024),
+			instance_staging_buffer: StaticBufferManager::new(1024)
 		}
 	}
 
@@ -272,14 +286,14 @@ impl<'a> EngineHandler<'a> {
 		let view_matrix = glam::Mat4::look_at_rh(eye, center, up);
 
 		println!("write cameranode");
-		let camera_node = NodeTransform {
-			model: view_matrix.to_cols_array_2d(),
-			parent_index: -1,
-			_padding: [0; 3]
-		};
-		let camera_node_data = &[camera_node];
-		let camera_node_data = bytemuck::cast_slice(camera_node_data);
-		self.queue.write_buffer(&self.node_buffer, 0, camera_node_data);
+		// let camera_node = NodeTransform {
+		// 	model: view_matrix.to_cols_array_2d(),
+		// 	parent_index: -1,
+		// 	_padding: [0; 3]
+		// };
+		// let camera_node_data = &[camera_node];
+		// let camera_node_data = bytemuck::cast_slice(camera_node_data);
+		// self.queue.write_buffer(&self.node_buffer, 0, camera_node_data);
 
 		println!("write camera uniform");
 		let camera_uniform = CameraUniform {
@@ -299,14 +313,14 @@ impl<'a> EngineHandler<'a> {
 		self.indices_buffer.store(cube_indices_data);
 
 		println!("write node transform");
-		let cube_node_transform = NodeTransform {
-			model: glam::Mat4::from_translation(glam::Vec3::new(0.0, 2.0, 0.0)).to_cols_array_2d(),
-			parent_index: -1,
-			_padding: [0; 3]
-		};
-		let cube_node_transform_data = &[cube_node_transform];
-		let cube_node_transform_data = bytemuck::cast_slice(cube_node_transform_data);
-		self.queue.write_buffer(&self.node_buffer, std::mem::size_of::<NodeTransform>() as BufferAddress, cube_node_transform_data);
+		// let cube_node_transform = NodeTransform {
+		// 	model: glam::Mat4::from_translation(glam::Vec3::new(0.0, 2.0, 0.0)).to_cols_array_2d(),
+		// 	parent_index: -1,
+		// 	_padding: [0; 3]
+		// };
+		// let cube_node_transform_data = &[cube_node_transform];
+		// let cube_node_transform_data = bytemuck::cast_slice(cube_node_transform_data);
+		// self.queue.write_buffer(&self.node_buffer, std::mem::size_of::<NodeTransform>() as BufferAddress, cube_node_transform_data);
 		let instance = RawInstance {
 			node_index: 1
 		};
@@ -338,19 +352,38 @@ impl<'a> EngineHandler<'a> {
 	}
 
 	fn render_every_window(&mut self) {
-		println!("rendering every window222 {:?}", self.windows);
 		for (window_id, window) in self.windows.iter() {
-			println!("WHAT IS THISSS ????");
-			println!("positions_buffer {:?}", self.position_buffer.buffer());
 			let args = RenderArgs {
 				camera_bind_group: &self.camera_bind_group,
 				node_bind_group: &self.node_bind_group,
-				positions_buffer: &self.position_buffer.buffer(),
-				indices_buffer: &self.indices_buffer.buffer(),
+				positions_buffer: &self.position_buffer,
+				indices_buffer: &self.indices_buffer,
 				instance_buffer: &self.instance_buffer,
 				instructions: &self.draw_instructions
 			};
 			window.renderer.render(args).unwrap();
+		}
+	}
+
+	fn update_node(&mut self, node: &Node, parent_id: Option<usize>) {
+		let model = glam::Mat4::from_translation(node.translation) * glam::Mat4::from_quat(node.rotation);
+		self.node_manager.upsert_node(NodeMetadata {
+			id: node.id,
+			model,
+			parent_id
+		});
+
+		if node.children.len() == 0 {
+			let instance = RawInstance {
+				node_index: node.id as i32
+			};
+			self.instance_staging_buffer.store(node.id, instance);
+
+			return;
+		}
+
+		for child in &node.children {
+			self.update_node(&child, Some(node.id));
 		}
 	}
 }
@@ -376,6 +409,34 @@ impl ApplicationHandler<Command> for EngineHandler<'_> {
 				event_loop.exit();
 			}
 			Command::SaveScene(scene) => {
+				for node in scene.nodes {
+					self.update_node(&node, None);
+
+					if let Some(mesh) = &node.mesh {
+						let cube_positions_data = bytemuck::cast_slice(&mesh.positions);
+						self.position_staging_buffer.store(mesh.id, cube_positions_data);
+						let cube_indices_data = bytemuck::cast_slice(&mesh.indices);
+						self.index_staging_buffer.store(mesh.id, cube_indices_data);
+					}	
+				}
+
+				for cmd in self.node_manager.get_write_commands() {
+					println!("write offset: {:?} data: {:?}", cmd.start, cmd.data);
+					self.queue.write_buffer(&self.node_buffer, cmd.start as u64, &cmd.data);
+				}
+
+				for (offset, data) in self.position_staging_buffer.iter() {
+					self.queue.write_buffer(&self.position_buffer, offset as u64, data);
+				}
+				self.position_staging_buffer.clear_write_commands();
+
+				for (offset, data) in self.index_staging_buffer.iter() {
+					self.queue.write_buffer(&self.indices_buffer, offset as u64, data);
+				}
+				self.index_staging_buffer.clear_write_commands();
+
+
+
 				// println!("Saving scene {:?}", scene);
 				// for node in scene.nodes {
 				// 	if let Some(mesh) = node.mesh {

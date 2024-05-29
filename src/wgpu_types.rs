@@ -22,6 +22,15 @@ impl Position {
 			]
 		}
 	}
+
+	pub fn create_buffer(device: &wgpu::Device, size: usize) -> wgpu::Buffer {
+		device.create_buffer(&wgpu::BufferDescriptor {
+			label: Some("Position Buffer"),
+			size: (std::mem::size_of::<Position>() * size) as u64,
+			usage: wgpu::BufferUsages::VERTEX,
+			mapped_at_creation: false,
+		})
+	}
 }
 
 #[repr(C)]

@@ -206,7 +206,7 @@ name = "boxshape"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "puppy_game_engine",
+ "pge",
  "tokio",
 ]
 
@@ -510,7 +510,7 @@ name = "fps"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "puppy_game_engine",
+ "pge",
  "tokio",
 ]
 
@@ -1093,6 +1093,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e3148f5046208a5d56bcfc03053e3ca6334e51da8dfb19b6cdc8b306fae3283e"
 
 [[package]]
+name = "pge"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "bytemuck",
+ "glam",
+ "log",
+ "tokio",
+ "wgpu",
+ "winit",
+]
+
+[[package]]
 name = "pin-project"
 version = "1.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1168,20 +1182,6 @@ name = "profiling"
 version = "1.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "43d84d1d7a6ac92673717f9f6d1518374ef257669c24ebc5ac25d5033828be58"
-
-[[package]]
-name = "puppy_game_engine"
-version = "0.0.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "bytemuck",
- "glam",
- "log",
- "tokio",
- "wgpu",
- "winit",
-]
 
 [[package]]
 name = "quick-xml"

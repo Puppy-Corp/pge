@@ -143,15 +143,7 @@ use std::clone;
 use std::future::Future;
 use std::time::Duration;
 
-use puppy_game_engine::engine::Engine;
-use puppy_game_engine::system::Context;
-use puppy_game_engine::traits::Actor;
-use puppy_game_engine::types::Camera;
-use puppy_game_engine::types::EngineContext;
-use puppy_game_engine::types::Event;
-use puppy_game_engine::types::InputEvent;
-use puppy_game_engine::types::KeyboardKey;
-use puppy_game_engine::types::Recevier;
+use pge::*;
 use tokio::time::sleep;
 
 // struct Matrix4x4 {

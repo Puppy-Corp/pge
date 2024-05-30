@@ -171,9 +171,10 @@ impl Renderer<'_> {
 				// println!("position range {:?}", instruction.position_range);
 				println!("indices range {:?}", draw.indices_range);
 				println!("index range {:?}", draw.index_range);
+				println!("instances range {:?}", draw.instances_range);
 				render_pass.set_vertex_buffer(0, args.positions_buffer.slice(draw.position_range.clone()));
-				render_pass.set_vertex_buffer(1, args.positions_buffer.slice(..));
-				render_pass.set_vertex_buffer(5, args.instance_buffer.slice(..));
+				//render_pass.set_vertex_buffer(1, args.positions_buffer.slice(..));
+				render_pass.set_vertex_buffer(1, args.instance_buffer.slice(..));
 				render_pass.set_index_buffer(args.indices_buffer.slice(draw.index_range.clone()), wgpu::IndexFormat::Uint16);
 				render_pass.draw_indexed(draw.indices_range.clone(), 0, draw.instances_range.clone());
 			}

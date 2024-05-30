@@ -35,7 +35,14 @@ async fn main() -> anyhow::Result<()> {
 
 		let cube_mesh = cube(1.0);
 		let mut node = Node::new();
+		node.set_translation(-2.0, 1.0, 0.0);
 		node.set_mesh(cube_mesh);
+		root.add_node(node);
+		
+		let cube_mesh = cube(1.0);
+		let mut node = Node::new();
+		node.set_translation(2.0, 1.0, 0.0);
+		node.set_mesh(cube_mesh);		
 		root.add_node(node);
 
 		scene.add_node(root);

@@ -15,6 +15,7 @@ use crate::buffer::DynamicStagingBuffer;
 use crate::buffer::Slot;
 use crate::buffer::StaticBufferManager;
 use crate::cube;
+use crate::draw_queue::DrawQueue;
 use crate::gui;
 use crate::math::Mat4;
 use crate::node_manager::NodeManager;
@@ -131,12 +132,10 @@ pub struct EngineHandler<'a> {
 	adapter: Arc<wgpu::Adapter>,
 	instance: Arc<wgpu::Instance>,
 	position_buffer: wgpu::Buffer,
-	normal_buffer: Buffer,
-	tex_coord_buffer: Buffer,
+	// normal_buffer: Buffer,
+	// tex_coord_buffer: Buffer,
 	indices_buffer: wgpu::Buffer,
-	nodes_buffer: Buffer,
-	mesh_pointers: HashMap<usize, MeshPointer>,
-	node_manager: NodeManager,
+	// mesh_pointers: HashMap<usize, MeshPointer>,
 	node_bind_group_layout: Arc<wgpu::BindGroupLayout>,
 	node_bind_group: wgpu::BindGroup,
 	node_buffer: wgpu::Buffer,
@@ -147,7 +146,9 @@ pub struct EngineHandler<'a> {
 	draw_instructions: Vec<DrawInstruction>,
 	position_staging_buffer: DynamicStagingBuffer,
 	index_staging_buffer: DynamicStagingBuffer,
-	instance_staging_buffer: StaticBufferManager<RawInstance>
+	instance_staging_buffer: StaticBufferManager<RawInstance>,
+	node_staging_buffer: StaticBufferManager<NodeTransform>,
+	// draw_queue: DrawQueue
 }
 
 impl Drop for EngineHandler<'_> {
@@ -180,9 +181,8 @@ impl<'a> EngineHandler<'a> {
 			usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::INDEX,
 			mapped_at_creation: false
 		});
-		let normal_buffer = Buffer::new(device.clone(), queue.clone());
-		let tex_coord_buffer = Buffer::new(device.clone(), queue.clone());
-		let nodes_buffer = Buffer::new(device.clone(), queue.clone());
+		// let normal_buffer = Buffer::new(device.clone(), queue.clone());
+		// let tex_coord_buffer = Buffer::new(device.clone(), queue.clone());
 
 		let node_bind_group_layout = NodeTransform::create_bind_group_layout(&device);
 		let node_buffer = NodeTransform::create_buffer(&device);
@@ -206,12 +206,10 @@ impl<'a> EngineHandler<'a> {
 			adapter,
 			instance,
 			position_buffer,
-			normal_buffer,
-			tex_coord_buffer,
+			// normal_buffer,
+			// tex_coord_buffer,
 			indices_buffer,
-			nodes_buffer,
-			mesh_pointers: HashMap::new(),
-			node_manager: NodeManager::new(),
+			// mesh_pointers: HashMap::new(),
 			draw_instructions: Vec::new(),
 			camera_bind_group_layout: Arc::new(camera_bind_group_layout),
 			camera_bind_group,
@@ -222,7 +220,9 @@ impl<'a> EngineHandler<'a> {
 			instance_buffer,
 			position_staging_buffer: DynamicStagingBuffer::new(1024),
 			index_staging_buffer: DynamicStagingBuffer::new(1024),
-			instance_staging_buffer: StaticBufferManager::new(1024)
+			instance_staging_buffer: StaticBufferManager::new(1024),
+			node_staging_buffer: StaticBufferManager::new(1024),
+			// draw_queue: DrawQueue::new()
 		}
 	}
 
@@ -272,70 +272,70 @@ impl<'a> EngineHandler<'a> {
 		// };
 		// renderer.render(args).unwrap();
 
-		let aspect = 16.0 / 9.0;
-		let fovy = std::f32::consts::PI / 3.0; // 60 degrees field of view
-		let znear = 0.1;
-		let zfar = 100.0;
-		let projection_matrix = glam::Mat4::perspective_rh(fovy, aspect, znear, zfar);
+		// let aspect = 16.0 / 9.0;
+		// let fovy = std::f32::consts::PI / 3.0; // 60 degrees field of view
+		// let znear = 0.1;
+		// let zfar = 100.0;
+		// let projection_matrix = glam::Mat4::perspective_rh(fovy, aspect, znear, zfar);
 
-		let eye = glam::Vec3::new(3.0, 5.0, 6.0);
-		let center = glam::Vec3::new(0.0, 0.0, 0.0);
-		let up = glam::Vec3::new(0.0, 1.0, 0.0);
+		// let eye = glam::Vec3::new(3.0, 5.0, 6.0);
+		// let center = glam::Vec3::new(0.0, 0.0, 0.0);
+		// let up = glam::Vec3::new(0.0, 1.0, 0.0);
 
-		// Compute the view and projection matrices
-		let view_matrix = glam::Mat4::look_at_rh(eye, center, up);
+		// // Compute the view and projection matrices
+		// let view_matrix = glam::Mat4::look_at_rh(eye, center, up);
 
-		println!("write cameranode");
-		// let camera_node = NodeTransform {
-		// 	model: view_matrix.to_cols_array_2d(),
-		// 	parent_index: -1,
-		// 	_padding: [0; 3]
+		// println!("write cameranode");
+		// // let camera_node = NodeTransform {
+		// // 	model: view_matrix.to_cols_array_2d(),
+		// // 	parent_index: -1,
+		// // 	_padding: [0; 3]
+		// // };
+		// // let camera_node_data = &[camera_node];
+		// // let camera_node_data = bytemuck::cast_slice(camera_node_data);
+		// // self.queue.write_buffer(&self.node_buffer, 0, camera_node_data);
+
+		// println!("write camera uniform");
+		// let camera_uniform = CameraUniform {
+		// 	proj: projection_matrix.to_cols_array_2d(),
+		// 	_padding: [0; 3],
+		// 	node_inx: 0
 		// };
-		// let camera_node_data = &[camera_node];
-		// let camera_node_data = bytemuck::cast_slice(camera_node_data);
-		// self.queue.write_buffer(&self.node_buffer, 0, camera_node_data);
+		// let camera_uniform_data = &[camera_uniform];
+		// let camera_uniform_data = bytemuck::cast_slice(camera_uniform_data);
+		// self.queue.write_buffer(&self.camera_buffer, 0, camera_uniform_data);
 
-		println!("write camera uniform");
-		let camera_uniform = CameraUniform {
-			proj: projection_matrix.to_cols_array_2d(),
-			_padding: [0; 3],
-			node_inx: 0
-		};
-		let camera_uniform_data = &[camera_uniform];
-		let camera_uniform_data = bytemuck::cast_slice(camera_uniform_data);
-		self.queue.write_buffer(&self.camera_buffer, 0, camera_uniform_data);
+		// println!("write cube");
+		// let cube = cube(1.0);
+		// let cube_positions_data = bytemuck::cast_slice(&cube.positions);
+		// self.position_buffer.store(cube_positions_data);
+		// let cube_indices_data = bytemuck::cast_slice(&cube.indices);
+		// self.indices_buffer.store(cube_indices_data);
 
-		println!("write cube");
-		let cube = cube(1.0);
-		let cube_positions_data = bytemuck::cast_slice(&cube.positions);
-		self.position_buffer.store(cube_positions_data);
-		let cube_indices_data = bytemuck::cast_slice(&cube.indices);
-		self.indices_buffer.store(cube_indices_data);
-
-		println!("write node transform");
-		// let cube_node_transform = NodeTransform {
-		// 	model: glam::Mat4::from_translation(glam::Vec3::new(0.0, 2.0, 0.0)).to_cols_array_2d(),
-		// 	parent_index: -1,
-		// 	_padding: [0; 3]
+		// println!("write node transform");
+		// // let cube_node_transform = NodeTransform {
+		// // 	model: glam::Mat4::from_translation(glam::Vec3::new(0.0, 2.0, 0.0)).to_cols_array_2d(),
+		// // 	parent_index: -1,
+		// // 	_padding: [0; 3]
+		// // };
+		// // let cube_node_transform_data = &[cube_node_transform];
+		// // let cube_node_transform_data = bytemuck::cast_slice(cube_node_transform_data);
+		// // self.queue.write_buffer(&self.node_buffer, std::mem::size_of::<NodeTransform>() as BufferAddress, cube_node_transform_data);
+		// let instance = RawInstance {
+		// 	node_index: 1
 		// };
-		// let cube_node_transform_data = &[cube_node_transform];
-		// let cube_node_transform_data = bytemuck::cast_slice(cube_node_transform_data);
-		// self.queue.write_buffer(&self.node_buffer, std::mem::size_of::<NodeTransform>() as BufferAddress, cube_node_transform_data);
-		let instance = RawInstance {
-			node_index: 1
-		};
 
-		println!("write instance");
-		let instance_data = &[instance];
-		let instance_data = bytemuck::cast_slice(instance_data);
-		self.queue.write_buffer(&self.instance_buffer, 0, instance_data);
+		// println!("write instance");
+		// let instance_data = &[instance];
+		// let instance_data = bytemuck::cast_slice(instance_data);
+		// self.queue.write_buffer(&self.instance_buffer, 0, instance_data);
 
-		self.draw_instructions.push(DrawInstruction {
-			position_range: 0..cube_positions_data.len() as u64,
-			index_range: 0..cube_indices_data.len() as u64,
-			indices_range: 0..cube.indices.len() as u32,
-			instances_range: 0..1
-		});
+		// self.draw_instructions.push(DrawInstruction {
+		// 	position_range: 0..cube_positions_data.len() as u64,
+		// 	index_range: 0..cube_indices_data.len() as u64,
+		// 	indices_range: 0..cube.indices.len() as u32,
+		// 	instances_range: 0..1
+		// });
 
 		self.windows.insert(window.id(), WindowContext {
 			guid_id: gui_window.id,
@@ -366,20 +366,100 @@ impl<'a> EngineHandler<'a> {
 	}
 
 	fn update_node(&mut self, node: &Node, parent_id: Option<usize>) {
+		println!("node {} has parent {:?}", node.id, parent_id);
+		println!("translation: {:?}", node.translation);
+		println!("rotation: {:?}", node.rotation);
 		let model = glam::Mat4::from_translation(node.translation) * glam::Mat4::from_quat(node.rotation);
-		self.node_manager.upsert_node(NodeMetadata {
-			id: node.id,
-			model,
-			parent_id
-		});
+		let n = NodeTransform {
+			model: model.to_cols_array_2d(),
+			parent_index: parent_id.map_or(-1, |p| p as i32),
+			_padding: [0; 3]
+		};
+		let node_index = self.node_staging_buffer.store(node.id, n);
+		println!("node index: {:?}", node_index);
 
-		if node.children.len() == 0 {
+		if let Some(mesh) = &node.mesh {
+			println!("write cube");
+
+			let cube_positions_data = bytemuck::cast_slice(&mesh.positions);
+			let pos_ptr = self.position_staging_buffer.store(mesh.id, cube_positions_data);
+			let cube_indices_data = bytemuck::cast_slice(&mesh.indices);
+			let index_ptr = self.index_staging_buffer.store(mesh.id, cube_indices_data);
+
 			let instance = RawInstance {
-				node_index: node.id as i32
+				node_index: node_index as i32
 			};
-			self.instance_staging_buffer.store(node.id, instance);
+			let index = self.instance_staging_buffer.store(node.id, instance);
+			// let instance_data = &[instance];
+			// let instance_data = bytemuck::cast_slice(instance_data);
+			// self.queue.write_buffer(&self.instance_buffer, 0, instance_data);
 
-			return;
+			self.draw_instructions.push(DrawInstruction {
+				index_range: index_ptr.offset as u64..index_ptr.offset as u64 + index_ptr.size as u64,
+				position_range: pos_ptr.offset as u64..pos_ptr.offset as u64 + pos_ptr.size as u64,
+				indices_range: 0..mesh.indices.len() as u32,
+				instances_range: index as u32..index as u32 + 1
+			});
+
+
+			// let instance = RawInstance {
+			// 	node_index: node_index as i32
+			// };
+			// self.instance_staging_buffer.store(node.id, instance);
+			// self.draw_instructions.push(DrawInstruction {
+			// 	index_range: index_ptr.offset as u64..index_ptr.offset as u64 + index_ptr.size as u64,
+			// 	position_range: pos_ptr.offset as u64..pos_ptr.offset as u64 + pos_ptr.size as u64,
+			// 	indices_range: 0..mesh.indices.len() as u32,
+			// 	instances_range: 0..1
+			// })
+		}
+
+		if let Some(camera) = &node.camera {
+			println!("write camera uniform");
+
+			let eye = glam::Vec3::new(3.0, 5.0, 6.0);
+			let center = glam::Vec3::new(0.0, 0.0, 0.0);
+			let up = glam::Vec3::new(0.0, 1.0, 0.0);
+
+			// Compute the view and projection matrices
+			let view_matrix = glam::Mat4::look_at_rh(eye, center, up);
+			println!("write cameranode");
+		// let camera_node = NodeTransform {
+		// 	model: view_matrix.to_cols_array_2d(),
+		// 	parent_index: -1,
+		// 	_padding: [0; 3]
+		// };
+		// // let camera_node_data = &[camera_node];
+		// // let camera_node_data = bytemuck::cast_slice(camera_node_data);
+		// // self.queue.write_buffer(&self.node_buffer, 0, camera_node_data);
+
+			println!("write cameranode");
+			let camera_node = NodeTransform {
+				model: view_matrix.to_cols_array_2d(),
+				parent_index: -1,
+				_padding: [0; 3]
+			};
+			let node_index = self.node_staging_buffer.store(node.id, camera_node);
+			// let camera_node_data = &[camera_node];
+			// let camera_node_data = bytemuck::cast_slice(camera_node_data);
+			// self.queue.write_buffer(&self.node_buffer, 0, camera_node_data);
+
+			// let node_index = 0;
+
+			let aspect = 16.0 / 9.0;
+			let fovy = std::f32::consts::PI / 3.0; // 60 degrees field of view
+			let znear = 0.1;
+			let zfar = 100.0;
+			let projection_matrix = glam::Mat4::perspective_rh(fovy, aspect, znear, zfar);
+			println!("camera node_index: {:?}", node_index);
+			let camera_uniform = CameraUniform {
+				proj: projection_matrix.to_cols_array_2d(),
+				_padding: [0; 3],
+				node_inx: node_index as i32
+			};
+			let camera_uniform_data = &[camera_uniform];
+			let camera_uniform_data = bytemuck::cast_slice(camera_uniform_data);
+			self.queue.write_buffer(&self.camera_buffer, 0, camera_uniform_data);
 		}
 
 		for child in &node.children {
@@ -411,29 +491,55 @@ impl ApplicationHandler<Command> for EngineHandler<'_> {
 			Command::SaveScene(scene) => {
 				for node in scene.nodes {
 					self.update_node(&node, None);
-
-					if let Some(mesh) = &node.mesh {
-						let cube_positions_data = bytemuck::cast_slice(&mesh.positions);
-						self.position_staging_buffer.store(mesh.id, cube_positions_data);
-						let cube_indices_data = bytemuck::cast_slice(&mesh.indices);
-						self.index_staging_buffer.store(mesh.id, cube_indices_data);
-					}	
 				}
 
-				for cmd in self.node_manager.get_write_commands() {
-					println!("write offset: {:?} data: {:?}", cmd.start, cmd.data);
-					self.queue.write_buffer(&self.node_buffer, cmd.start as u64, &cmd.data);
+				println!("write node buffer");
+				for (offset, data) in self.node_staging_buffer.iter() {
+					println!("write offset: {:?} data: {:?}", offset, data);
+					self.queue.write_buffer(&self.node_buffer, offset as u64, bytemuck::cast_slice(&[*data]));
 				}
+				self.node_staging_buffer.clear_write_commands();
 
+				println!("write instance buffer");
+				for (offset, data) in self.instance_staging_buffer.iter() {
+					println!("write offset: {:?} data: {:?}", offset, data);
+					self.queue.write_buffer(&self.instance_buffer, offset as u64, bytemuck::cast_slice(&[*data]));
+				}
+				self.instance_staging_buffer.clear_write_commands();
+
+				println!("write position buffer");
 				for (offset, data) in self.position_staging_buffer.iter() {
+					println!("write offset: {:?} data: {:?}", offset, data);
 					self.queue.write_buffer(&self.position_buffer, offset as u64, data);
 				}
 				self.position_staging_buffer.clear_write_commands();
 
+				println!("write index buffer");
 				for (offset, data) in self.index_staging_buffer.iter() {
+					println!("write offset: {:?} data: {:?}", offset, data);
 					self.queue.write_buffer(&self.indices_buffer, offset as u64, data);
 				}
 				self.index_staging_buffer.clear_write_commands();
+				println!("buffers written");
+
+				self.render_every_window();
+
+				// for cmd in self.draw_queue.queue {
+				// 	let pos_ptr = self.position_staging_buffer.get_pointer(cmd.mesh_id).unwrap();
+				// 	let indice_ptr = self.index_staging_buffer.get_pointer(cmd.mesh_id).unwrap();
+
+				// 	RawInstance {
+				// 		 node_index: cmd.node_id as i32
+				// 	}
+
+				// 	self.draw_instructions.push(DrawInstruction {
+				// 		position_range: pos_ptr.offset as u64..pos_ptr.offset as u64 + pos_ptr.size as u64,
+				// 		index_range: indice_ptr.offset as u64..indice_ptr.offset as u64 + indice_ptr.size as u64,
+				// 		indices_range: 0..cmd.indices_count,
+				// 		instances_range: 0..1
+				// 	});
+				// }
+
 
 
 
@@ -567,8 +673,8 @@ impl ApplicationHandler<Command> for EngineHandler<'_> {
 						let args = RenderArgs {
 							camera_bind_group: &self.camera_bind_group,
 							node_bind_group: &self.node_bind_group,
-							positions_buffer: &self.position_buffer.buffer(),
-							indices_buffer: &self.indices_buffer.buffer(),
+							positions_buffer: &self.position_buffer,
+							indices_buffer: &self.indices_buffer,
 							instance_buffer: &self.instance_buffer,
 							instructions: &self.draw_instructions
 						};

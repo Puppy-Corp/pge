@@ -79,7 +79,7 @@ struct NodeTransform {
 var<storage, read> node_transforms: array<NodeTransform>;
 
 struct InstanceInput {
-    @location(5) node_index: u32,
+    @location(5) node_index: i32,
 }
 
 struct VertexInput {
@@ -105,6 +105,9 @@ fn get_cumulative_transform(node_index: i32) -> mat4x4<f32> {
         vec4<f32>(0.0, 0.0, 1.0, 0.0),
         vec4<f32>(0.0, 0.0, 0.0, 1.0)
     ); // Start with identity matrix
+
+	//return cumulative_transform;
+
     var current_index = node_index;
 
 	//return node_transforms[current_index].model * cumulative_transform;
@@ -196,9 +199,9 @@ fn get_cumulative_transform(node_index: i32) -> mat4x4<f32> {
 // }
 
 @vertex
-fn vs_main(input: VertexInput) -> VertexOutput {
-	var camera_transform = get_cumulative_transform(0);
-	var cube_transform = get_cumulative_transform(1);
+fn vs_main(input: VertexInput, instance: InstanceInput) -> VertexOutput {
+	var camera_transform = get_cumulative_transform(camera.node_inx);
+	var cube_transform = get_cumulative_transform(instance.node_index);
 	// var camera_transform = node_transforms[0].model;
 	// var cube_transform = node_transforms[1].model;
 
@@ -215,7 +218,7 @@ fn vs_main(input: VertexInput) -> VertexOutput {
     // Apply the model, view, and projection matrices to the input position
     out.clip_position = camera.proj * camera_transform * cube_transform * vec4<f32>(input.position, 1.0);
     // Set the output color
-    out.color = vec3(1.0, 1.0, 0.0);
+    out.color = vec3(1.0, 0.0, 0.0);
     return out;
 }
 

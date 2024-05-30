@@ -74,6 +74,7 @@ pub enum UserEvent {
 pub struct Node {
 	pub id: usize,
 	pub mesh: Option<Mesh>,
+	pub camera: Option<Camera>,
 	pub translation: Vec3,
 	pub rotation: glam::Quat,
 	pub children: Vec<Node>,
@@ -84,6 +85,7 @@ impl Node {
 		Self {
 			id: gen_id(),
 			mesh: None,
+			camera: None,
 			translation: Vec3::ZERO,
 			rotation: glam::Quat::IDENTITY,
 			children: vec![],
@@ -95,8 +97,9 @@ impl Node {
 		self.mesh = Some(mesh);
 	}
 
-	pub fn set_camera(&self, camera: Camera) {
+	pub fn set_camera(&mut self, camera: Camera) {
 		println!("Setting camera");
+		self.camera = Some(camera);
 	}
 
 	pub fn add_node(&mut self, node: Node) {
@@ -106,11 +109,20 @@ impl Node {
 
 	pub fn set_translation(&mut self, x: f32, y: f32, z: f32) {
 		println!("Setting translation: x: {}, y: {}, z: {}", x, y, z);
+		self.translation = Vec3::new(x, y, z);
 	}
 
-	pub fn looking_at(&mut self, x: f32, y: f32, z: f32) {
-		println!("Looking at: x: {}, y: {}, z: {}", x, y, z);
-	}
+	pub fn looking_at(&mut self, target_x: f32, target_y: f32, target_z: f32) {
+        println!("Looking at: x: {}, y: {}, z: {}", target_x, target_y, target_z);
+        let target = Vec3::new(target_x, target_y, target_z);
+        let direction = (target - self.translation).normalize();
+        
+        // Assuming the node's up vector is (0, 1, 0)
+        let up = Vec3::Y;
+        
+        // Compute the quaternion rotation
+        self.rotation = glam::Quat::from_rotation_arc(Vec3::Z, direction);
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -236,12 +248,13 @@ impl Location {
 }
 
 
+#[derive(Debug, Clone)]
 pub struct Camera {
 	pub id: usize,
-    aspect: f32,
-    fovy: f32,
-    znear: f32,
-    zfar: f32,
+    pub aspect: f32,
+    pub fovy: f32,
+    pub znear: f32,
+    pub zfar: f32,
 }
 
 impl Camera {

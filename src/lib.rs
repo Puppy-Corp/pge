@@ -9,6 +9,7 @@ mod buffer;
 mod math;
 mod node_manager;
 mod internal;
+mod draw_queue;
 
 pub use engine::Engine;
 pub use types::*;

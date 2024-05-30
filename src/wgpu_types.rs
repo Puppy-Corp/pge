@@ -27,7 +27,7 @@ impl Position {
 		device.create_buffer(&wgpu::BufferDescriptor {
 			label: Some("Position Buffer"),
 			size: (std::mem::size_of::<Position>() * size) as u64,
-			usage: wgpu::BufferUsages::VERTEX,
+			usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
 			mapped_at_creation: false,
 		})
 	}
@@ -142,7 +142,7 @@ impl CameraUniform {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable, Debug)]
 pub struct RawInstance {
     pub node_index: i32
 }
@@ -157,7 +157,7 @@ impl RawInstance {
                 wgpu::VertexAttribute {
                     offset: 0,
                     shader_location: 5,
-                    format: wgpu::VertexFormat::Uint32,
+                    format: wgpu::VertexFormat::Sint32,
                 },
             ],
         }
@@ -231,7 +231,7 @@ struct LightUniform {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable, Debug)]
 pub struct NodeTransform {
 	pub model: [[f32; 4]; 4],
 	pub parent_index: i32,

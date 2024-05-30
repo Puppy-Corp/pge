@@ -85,12 +85,45 @@ where
 			self.blocks.len() - 1
 		}
 	}
+
+	pub fn iter(&self) -> StaticBufferIterator<T> {
+		StaticBufferIterator {
+			data: &self.blocks,
+			pointers: &self.write_commands
+		}
+	}
+
+	pub fn clear_write_commands(&mut self) {
+		self.write_commands.clear();
+	}
+}
+
+pub struct StaticBufferIterator<'a, T> {
+	data: &'a [T],
+	pointers: &'a [usize]
+}
+
+impl<'a, T> Iterator for StaticBufferIterator<'a, T> {
+	type Item = (usize, &'a T);
+
+	fn next(&mut self) -> Option<Self::Item> {
+		if self.pointers.len() == 0 {
+			return None;
+		}
+
+		let pointer = self.pointers[0];
+		self.pointers = &self.pointers[1..];
+
+		let data = &self.data[pointer];
+
+		Some((pointer * std::mem::size_of::<T>(), data))
+	}
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct Pointer {
-	offset: usize,
-	size: usize,
+	pub offset: usize,
+	pub size: usize,
 }
 
 pub struct DynamicStagingBuffer {

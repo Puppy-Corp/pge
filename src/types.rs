@@ -8,25 +8,36 @@ use crate::idgen::gen_id;
 use crate::math::Point3D;
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum MouseEvent {
 	Moved { dx: f32, dy: f32 }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum KeyboardKey {
 	Up,
 	Down,
 	Left,
 	Right,
+	W,
+	A,
+	S,
+	D,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
+pub enum KeyAction {
+	Pressed,
+	Released
+}
+
+#[derive(Debug, Clone)]
 pub struct KeyboardEvent {
 	pub key: KeyboardKey,
+	pub action: KeyAction
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum InputEvent {
 	MouseEvent(MouseEvent),
 	KeyboardEvent(KeyboardEvent) ,
@@ -36,7 +47,7 @@ pub enum PhycicsEvent {
 	Collision { id: usize }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Event {
 	InputEvent(InputEvent),
 	Redraw,
@@ -78,6 +89,7 @@ pub struct Node {
 	pub translation: Vec3,
 	pub rotation: glam::Quat,
 	pub children: Vec<Node>,
+	pub animation: Animation
 }
 
 impl Node {
@@ -89,6 +101,7 @@ impl Node {
 			translation: Vec3::ZERO,
 			rotation: glam::Quat::IDENTITY,
 			children: vec![],
+			animation: Animation::new()
 		}
 	}
 
@@ -261,10 +274,10 @@ impl Camera {
 	pub fn new() -> Self {
 		Self {
 			id: 0,
-			aspect: 1.0,
-			fovy: 1.0,
-			znear: 1.0,
-			zfar: 1.0,
+			aspect: 16.0 / 9.0,
+			fovy: std::f32::consts::PI / 3.0,
+			znear: 0.1,
+			zfar: 100.0,
 		}
 	}
 
@@ -289,15 +302,39 @@ pub struct Sampler {
 	pub interpolation: Interpolation,
 }
 
+#[derive(Debug, Clone)]
 pub struct Animation {
 	pub id: usize,
-	pub channels: Vec<Channel>,
-	pub samplers: Vec<Sampler>,
+	pub transform: glam::Mat4,
+	// pub channels: Vec<Channel>,
+	// pub samplers: Vec<Sampler>,
 }
 
 impl Animation {
+	pub fn new() -> Self {
+		Self {
+			id: gen_id(),
+			transform: glam::Mat4::IDENTITY,
+			// channels: vec![],
+			// samplers: vec![],
+		}
+	}
+
 	pub fn play() {
 		println!("Playing animation");
+	}
+
+	pub fn every(mut self, duration: Duration) -> Self {
+		self
+	}
+
+	pub fn with(mut self, interpolation: Interpolation) -> Self {
+		self
+	}
+
+	pub fn transform(mut self, mat: glam::Mat4) -> Self {
+		self.transform = mat;
+		self
 	}
 }
 

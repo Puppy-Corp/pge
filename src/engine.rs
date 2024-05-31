@@ -3,12 +3,15 @@ use std::future::Future;
 use std::ops::Range;
 use std::sync::Arc;
 use log::error;
+use tokio::sync::broadcast;
+use tokio::sync::broadcast::error::RecvError;
 use wgpu::Backends;
 use wgpu::BufferAddress;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::EventLoop;
 use winit::event_loop::EventLoopProxy;
+use winit::keyboard::KeyCode;
 use winit::window::WindowId;
 use crate::buffer::Buffer;
 use crate::buffer::DynamicStagingBuffer;
@@ -36,6 +39,10 @@ pub enum Command {
 		node_id: usize,
 		transformation: Mat4
 	},
+	SetAnimation {
+		node_id: usize,
+		animation: Animation
+	},
 	Exit
 }
 
@@ -56,17 +63,19 @@ impl Drop for Inner {
 
 pub struct EngineHandle {
 	proxy: EventLoopProxy<Command>,
-	inner: Inner
+	inner: Inner,
+	rx: broadcast::Receiver<Event>
 }
 
 impl EngineHandle {
-	pub fn new(proxy: EventLoopProxy<Command>) -> Self {
+	pub fn new(proxy: EventLoopProxy<Command>, rx: broadcast::Receiver<Event>) -> Self {
 		let inner = Inner {
 			proxy: proxy.clone()
 		};
 		Self {
 			proxy,
-			inner
+			inner,
+			rx
 		}
 	}
 
@@ -77,10 +86,27 @@ impl EngineHandle {
 	pub fn save_window(&self, window: &Window) {
 		self.proxy.send_event(Command::SaveWindow(window.clone())).unwrap();
 	}
+
+	pub fn set_animation(&self, node_id: usize, animation: Animation) {
+		self.proxy.send_event(Command::SetAnimation { node_id, animation }).unwrap();
+	}
+
+	pub async fn next_event(&mut self) -> Option<Event> {
+		match self.rx.recv().await {
+			Ok(event) => Some(event),
+			Err(err) =>  {
+				match err {
+					RecvError::Closed => todo!(),
+					RecvError::Lagged(_) => todo!(),
+				}
+			}
+		}
+	}
 }
 
 pub struct Engine {
 	eventloop: EventLoop<Command>,
+	tx: broadcast::Sender<Event>
 }
 
 impl Engine {
@@ -92,16 +118,18 @@ impl Engine {
 		let eventloop = EventLoop::<Command>::with_user_event().build().unwrap();
 		let proxy = eventloop.create_proxy();
 		// let (tx, rx) = mpsc::unbounded_channel();
-		let handle = EngineHandle::new(proxy);
+		let (tx, _) = broadcast::channel(100);
+		let handle = EngineHandle::new(proxy, tx.subscribe());
 		tokio::spawn(f(handle));
 
 		Self {
-			eventloop
+			eventloop,
+			tx
 		}
 	}
 
 	pub async fn run(self) -> anyhow::Result<()> {
-		let mut handler = EngineHandler::new().await;
+		let mut handler = EngineHandler::new(self.tx).await;
 		Ok(self.eventloop.run_app(&mut handler)?)
 	}
 }
@@ -149,6 +177,7 @@ pub struct EngineHandler<'a> {
 	instance_staging_buffer: StaticBufferManager<RawInstance>,
 	node_staging_buffer: StaticBufferManager<NodeTransform>,
 	// draw_queue: DrawQueue
+	tx: broadcast::Sender<Event>
 }
 
 impl Drop for EngineHandler<'_> {
@@ -158,7 +187,7 @@ impl Drop for EngineHandler<'_> {
 }
 
 impl<'a> EngineHandler<'a> {
-	pub async fn new() -> Self {
+	pub async fn new(tx: broadcast::Sender<Event>) -> Self {
 		let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::default());
 		let adapters = instance.enumerate_adapters(Backends::all());
 		for adapter in adapters {
@@ -222,6 +251,7 @@ impl<'a> EngineHandler<'a> {
 			index_staging_buffer: DynamicStagingBuffer::new(1024),
 			instance_staging_buffer: StaticBufferManager::new(1024),
 			node_staging_buffer: StaticBufferManager::new(1024),
+			tx
 			// draw_queue: DrawQueue::new()
 		}
 	}
@@ -242,100 +272,6 @@ impl<'a> EngineHandler<'a> {
 			camera_bind_group_layout: self.camera_bind_group_layout.clone(),
 		};
 		let renderer = builder.build();
-
-		// let cube = cube(3.0);
-		// println!("cute indices count: {}", cube.indices.len());
-		// let indice_data = bytemuck::cast_slice(&cube.indices);
-		// println!("indice data len: {:?}", indice_data.len());
-		// let position_data = bytemuck::cast_slice(&cube.positions);
-		// println!("position data len: {:?}", position_data.len());
-		// // self.queue.write_buffer(&self.position_buffer.buffer(), 0, position_data);
-		// // self.queue.write_buffer(&self.indices_buffer.buffer(), 0, indice_data);
-		// self.position_buffer.store(position_data);
-		// self.indices_buffer.store(indice_data);
-
-		// self.draw_instructions.push(DrawInstruction {
-		// 	// position_range: first_mesh.positions.offset as u64..first_mesh.positions.offset as u64 + first_mesh.positions.size as u64,
-		// 	// indices_range: first_mesh.incides.offset as u64..first_mesh.incides.offset as u64 + first_mesh.incides.size as u64,
-		// 	instances_range: 0..1,
-		// 	indices_range: 0..(cube.indices.len() * 2) as u32,
-		// 	index_range: 0..indice_data.len() as u64,
-		// 	position_range: 0..position_data.len() as u64,
-		// });
-
-		// let args = RenderArgs {
-		// 	camera_bind_group: &self.camera_bind_group,
-		// 	node_bind_group: &self.node_bind_group,
-		// 	positions_buffer: &self.position_buffer.buffer(),
-		// 	indices_buffer: &self.indices_buffer.buffer(),
-		// 	instructions: &self.draw_instructions
-		// };
-		// renderer.render(args).unwrap();
-
-		// let aspect = 16.0 / 9.0;
-		// let fovy = std::f32::consts::PI / 3.0; // 60 degrees field of view
-		// let znear = 0.1;
-		// let zfar = 100.0;
-		// let projection_matrix = glam::Mat4::perspective_rh(fovy, aspect, znear, zfar);
-
-		// let eye = glam::Vec3::new(3.0, 5.0, 6.0);
-		// let center = glam::Vec3::new(0.0, 0.0, 0.0);
-		// let up = glam::Vec3::new(0.0, 1.0, 0.0);
-
-		// // Compute the view and projection matrices
-		// let view_matrix = glam::Mat4::look_at_rh(eye, center, up);
-
-		// println!("write cameranode");
-		// // let camera_node = NodeTransform {
-		// // 	model: view_matrix.to_cols_array_2d(),
-		// // 	parent_index: -1,
-		// // 	_padding: [0; 3]
-		// // };
-		// // let camera_node_data = &[camera_node];
-		// // let camera_node_data = bytemuck::cast_slice(camera_node_data);
-		// // self.queue.write_buffer(&self.node_buffer, 0, camera_node_data);
-
-		// println!("write camera uniform");
-		// let camera_uniform = CameraUniform {
-		// 	proj: projection_matrix.to_cols_array_2d(),
-		// 	_padding: [0; 3],
-		// 	node_inx: 0
-		// };
-		// let camera_uniform_data = &[camera_uniform];
-		// let camera_uniform_data = bytemuck::cast_slice(camera_uniform_data);
-		// self.queue.write_buffer(&self.camera_buffer, 0, camera_uniform_data);
-
-		// println!("write cube");
-		// let cube = cube(1.0);
-		// let cube_positions_data = bytemuck::cast_slice(&cube.positions);
-		// self.position_buffer.store(cube_positions_data);
-		// let cube_indices_data = bytemuck::cast_slice(&cube.indices);
-		// self.indices_buffer.store(cube_indices_data);
-
-		// println!("write node transform");
-		// // let cube_node_transform = NodeTransform {
-		// // 	model: glam::Mat4::from_translation(glam::Vec3::new(0.0, 2.0, 0.0)).to_cols_array_2d(),
-		// // 	parent_index: -1,
-		// // 	_padding: [0; 3]
-		// // };
-		// // let cube_node_transform_data = &[cube_node_transform];
-		// // let cube_node_transform_data = bytemuck::cast_slice(cube_node_transform_data);
-		// // self.queue.write_buffer(&self.node_buffer, std::mem::size_of::<NodeTransform>() as BufferAddress, cube_node_transform_data);
-		// let instance = RawInstance {
-		// 	node_index: 1
-		// };
-
-		// println!("write instance");
-		// let instance_data = &[instance];
-		// let instance_data = bytemuck::cast_slice(instance_data);
-		// self.queue.write_buffer(&self.instance_buffer, 0, instance_data);
-
-		// self.draw_instructions.push(DrawInstruction {
-		// 	position_range: 0..cube_positions_data.len() as u64,
-		// 	index_range: 0..cube_indices_data.len() as u64,
-		// 	indices_range: 0..cube.indices.len() as u32,
-		// 	instances_range: 0..1
-		// });
 
 		self.windows.insert(window.id(), WindowContext {
 			guid_id: gui_window.id,
@@ -370,6 +306,7 @@ impl<'a> EngineHandler<'a> {
 		println!("translation: {:?}", node.translation);
 		println!("rotation: {:?}", node.rotation);
 		let model = glam::Mat4::from_translation(node.translation) * glam::Mat4::from_quat(node.rotation);
+		println!("model: {:?}", model.to_cols_array_2d());
 		let n = NodeTransform {
 			model: model.to_cols_array_2d(),
 			parent_index: parent_id.map_or(-1, |p| p as i32),
@@ -390,9 +327,6 @@ impl<'a> EngineHandler<'a> {
 				node_index: node_index as i32
 			};
 			let index = self.instance_staging_buffer.store(node.id, instance);
-			// let instance_data = &[instance];
-			// let instance_data = bytemuck::cast_slice(instance_data);
-			// self.queue.write_buffer(&self.instance_buffer, 0, instance_data);
 
 			self.draw_instructions.push(DrawInstruction {
 				index_range: index_ptr.offset as u64..index_ptr.offset as u64 + index_ptr.size as u64,
@@ -400,58 +334,11 @@ impl<'a> EngineHandler<'a> {
 				indices_range: 0..mesh.indices.len() as u32,
 				instances_range: index as u32..index as u32 + 1
 			});
-
-
-			// let instance = RawInstance {
-			// 	node_index: node_index as i32
-			// };
-			// self.instance_staging_buffer.store(node.id, instance);
-			// self.draw_instructions.push(DrawInstruction {
-			// 	index_range: index_ptr.offset as u64..index_ptr.offset as u64 + index_ptr.size as u64,
-			// 	position_range: pos_ptr.offset as u64..pos_ptr.offset as u64 + pos_ptr.size as u64,
-			// 	indices_range: 0..mesh.indices.len() as u32,
-			// 	instances_range: 0..1
-			// })
 		}
 
 		if let Some(camera) = &node.camera {
-			println!("write camera uniform");
-
-			let eye = glam::Vec3::new(3.0, 5.0, 6.0);
-			let center = glam::Vec3::new(0.0, 0.0, 0.0);
-			let up = glam::Vec3::new(0.0, 1.0, 0.0);
-
-			// Compute the view and projection matrices
-			let view_matrix = glam::Mat4::look_at_rh(eye, center, up);
-			println!("write cameranode");
-		// let camera_node = NodeTransform {
-		// 	model: view_matrix.to_cols_array_2d(),
-		// 	parent_index: -1,
-		// 	_padding: [0; 3]
-		// };
-		// // let camera_node_data = &[camera_node];
-		// // let camera_node_data = bytemuck::cast_slice(camera_node_data);
-		// // self.queue.write_buffer(&self.node_buffer, 0, camera_node_data);
-
-			println!("write cameranode");
-			let camera_node = NodeTransform {
-				model: view_matrix.to_cols_array_2d(),
-				parent_index: -1,
-				_padding: [0; 3]
-			};
-			let node_index = self.node_staging_buffer.store(node.id, camera_node);
-			// let camera_node_data = &[camera_node];
-			// let camera_node_data = bytemuck::cast_slice(camera_node_data);
-			// self.queue.write_buffer(&self.node_buffer, 0, camera_node_data);
-
-			// let node_index = 0;
-
-			let aspect = 16.0 / 9.0;
-			let fovy = std::f32::consts::PI / 3.0; // 60 degrees field of view
-			let znear = 0.1;
-			let zfar = 100.0;
-			let projection_matrix = glam::Mat4::perspective_rh(fovy, aspect, znear, zfar);
-			println!("camera node_index: {:?}", node_index);
+			let projection_matrix = glam::Mat4::perspective_rh(
+				camera.fovy, camera.aspect, camera.znear, camera.zfar);
 			let camera_uniform = CameraUniform {
 				proj: projection_matrix.to_cols_array_2d(),
 				_padding: [0; 3],
@@ -465,6 +352,10 @@ impl<'a> EngineHandler<'a> {
 		for child in &node.children {
 			self.update_node(&child, Some(node.id));
 		}
+	}
+
+	fn send_keyboard_event(&self, event: KeyboardEvent) {
+		self.tx.send(Event::InputEvent(InputEvent::KeyboardEvent(event))).unwrap();
 	}
 }
 
@@ -523,115 +414,6 @@ impl ApplicationHandler<Command> for EngineHandler<'_> {
 				println!("buffers written");
 
 				self.render_every_window();
-
-				// for cmd in self.draw_queue.queue {
-				// 	let pos_ptr = self.position_staging_buffer.get_pointer(cmd.mesh_id).unwrap();
-				// 	let indice_ptr = self.index_staging_buffer.get_pointer(cmd.mesh_id).unwrap();
-
-				// 	RawInstance {
-				// 		 node_index: cmd.node_id as i32
-				// 	}
-
-				// 	self.draw_instructions.push(DrawInstruction {
-				// 		position_range: pos_ptr.offset as u64..pos_ptr.offset as u64 + pos_ptr.size as u64,
-				// 		index_range: indice_ptr.offset as u64..indice_ptr.offset as u64 + indice_ptr.size as u64,
-				// 		indices_range: 0..cmd.indices_count,
-				// 		instances_range: 0..1
-				// 	});
-				// }
-
-
-
-
-				// println!("Saving scene {:?}", scene);
-				// for node in scene.nodes {
-				// 	if let Some(mesh) = node.mesh {
-				// 		let positions = mesh.positions;
-				// 		let normals = mesh.normals;
-				// 		println!("mesh: {}", mesh.id);
-				// 		println!("positions: {:?}", positions);
-				// 		println!("indices: {:?}", mesh.indices);
-
-				// 		match self.mesh_pointers.get(&mesh.id) {
-				// 			Some(pointer) => {
-				// 				println!("mesh pointer found");
-				// 				self.position_buffer.write(pointer.positions, bytemuck::cast_slice(&positions));
-				// 				self.normal_buffer.write(pointer.normals, bytemuck::cast_slice(&normals));
-				// 				self.indices_buffer.write(pointer.incides, bytemuck::cast_slice(&mesh.indices));
-				// 			}
-				// 			None => {
-				// 				println!("mesh pointer not found");
-				// 				println!("positions len: {:?}", positions.len());
-				// 				let positions_data = bytemuck::cast_slice(&positions);
-				// 				println!("positions data len: {:?}", positions_data.len());
-				// 				let positions = self.position_buffer.store(positions_data);
-				// 				let normals = self.normal_buffer.store(bytemuck::cast_slice(&normals));
-				// 				println!("indices len: {:?}", mesh.indices.len());
-				// 				let indice_data = bytemuck::cast_slice(&mesh.indices);
-				// 				println!("indice data len: {:?}", indice_data.len());
-				// 				let incides = self.indices_buffer.store(indice_data);
-				// 				let mesh_pointer = MeshPointer {
-				// 					positions,
-				// 					normals,
-				// 					incides,
-				// 					tex_coords: 0..0,
-				// 					indices_count: mesh.indices.len() as u32
-				// 				};
-				// 				println!("mesh pointer: {:?}", mesh_pointer);
-				// 				self.mesh_pointers.insert(mesh.id, mesh_pointer);
-				// 			}
-				// 		}
-				// 	}
-
-				// 	let transformation = Mat4::translation(-0.5, -5.0, 0.0);
-				// 	println!("transformation {:?}", transformation);
-
-				// 	let node_transfrom = NodeTransform {
-				// 		model: transformation.data,
-				// 		parent_index: -1,
-				// 		_padding: [0; 3]
-				// 	};
-				// 	let data = &[node_transfrom];
-				// 	let data = bytemuck::cast_slice(data);
-				// 	self.queue.write_buffer(&self.node_buffer, 0, data);
-
-				// 	let instance = RawInstance {
-				// 		node_index: 0
-				// 	};
-				// 	let data = &[instance];
-				// 	let data = bytemuck::cast_slice(data);
-				// 	self.queue.write_buffer(&self.instance_buffer, 0, data);
-
-				// 	let (_,first_mesh) = self.mesh_pointers.iter().next().unwrap();
-
-				// 	self.draw_instructions.push(DrawInstruction {
-				// 		position_range: first_mesh.positions.offset as u64..first_mesh.positions.offset as u64 + first_mesh.positions.size as u64,
-				// 		index_range: first_mesh.incides.offset as u64..first_mesh.incides.offset as u64 + first_mesh.incides.size as u64,
-				// 		indices_range: 0..first_mesh.indices_count,
-				// 		instances_range: 0..1
-				// 	});
-
-				// 	let aspect = 16.0 / 9.0;
-				// 	let fovy = std::f32::consts::PI / 3.0; // 60 degrees field of view
-				// 	let znear = 0.1;
-				// 	let zfar = 100.0;
-				// 	let eye = glam::Vec3::new(3.0, 5.0, 6.0);
-				// 	let center = glam::Vec3::new(0.0, 0.0, 0.0);
-				// 	let up = glam::Vec3::new(0.0, 1.0, 0.0);
-
-				// 	// Compute the view and projection matrices
-				// 	let view_matrix = glam::Mat4::look_at_rh(eye, center, up);
-				// 	let projection_matrix = glam::Mat4::perspective_rh(fovy, aspect, znear, zfar);
-				// 	let camera = CameraUniform {
-				// 		view: view_matrix.to_cols_array_2d(),
-				// 		proj: projection_matrix.to_cols_array_2d()
-				// 	};
-				// 	self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[camera]));
-
-
-
-				// 	self.render_every_window();
-				// }
 			}
 			Command::SetTransformation { node_id, transformation } => {
 				println!("Setting transformation");
@@ -651,10 +433,31 @@ impl ApplicationHandler<Command> for EngineHandler<'_> {
 				// }
 				// let node = self.nodes_buffer.get_mut::<Node>(node_id);
 				// node.transformation = transformation;
+			},
+			Command::SetAnimation { node_id, animation } => {
+				println!("set animation node: {:?}", node_id);
+
+				let node_transform = self.node_staging_buffer.get(node_id).unwrap();
+				let new_transform = (glam::Mat4::from_cols_array_2d(&node_transform.model) * animation.transform).to_cols_array_2d();
+    
+				// Update the model matrix of the node_transform
+
+				let node_transform = NodeTransform {
+					model: new_transform,
+					parent_index: -1,
+					_padding: [0; 3]
+				};
+				self.node_staging_buffer.store(node_id, node_transform);
+				for (offset, n) in self.node_staging_buffer.iter() {
+					println!("write offset: {:?} data: {:?}", offset, n);
+					self.queue.write_buffer(&self.node_buffer, offset as u64, bytemuck::cast_slice(&[*n]));
+				}
+				self.node_staging_buffer.clear_write_commands();
+
+				self.render_every_window();
 			}
 		}
 	}
-
 	fn window_event(
 		&mut self,
 		event_loop: &winit::event_loop::ActiveEventLoop,
@@ -687,6 +490,94 @@ impl ApplicationHandler<Command> for EngineHandler<'_> {
 					}
 					None => {
 						log::error!("Window not found: {:?}", window_id);
+					}
+				}
+			}
+			WindowEvent::KeyboardInput { device_id, event, is_synthetic } => {
+				match event {
+					winit::event::KeyEvent {
+						state,
+						location,
+						physical_key,
+						repeat,
+						..
+					} => {
+						// println!("keyboard input: {:?}", virtual_keycode);
+						if !repeat {
+							match physical_key {
+								winit::keyboard::PhysicalKey::Code(code) => {
+									match code {
+										KeyCode::KeyW => {
+											match state {
+												winit::event::ElementState::Pressed => {
+													self.send_keyboard_event(KeyboardEvent {
+														key: KeyboardKey::W,
+														action: KeyAction::Pressed
+													})
+												}
+												winit::event::ElementState::Released => {
+													self.send_keyboard_event(KeyboardEvent {
+														key: KeyboardKey::W,
+														action: KeyAction::Released
+													})
+												}
+											}
+										},
+										KeyCode::KeyA => {
+											match state {
+												winit::event::ElementState::Pressed => {
+													self.send_keyboard_event(KeyboardEvent {
+														key: KeyboardKey::A,
+														action: KeyAction::Pressed
+													})
+												}
+												winit::event::ElementState::Released => {
+													self.send_keyboard_event(KeyboardEvent {
+														key: KeyboardKey::A,
+														action: KeyAction::Released
+													})
+												}
+											}
+										},
+										KeyCode::KeyS => {
+											match state {
+												winit::event::ElementState::Pressed => {
+													self.send_keyboard_event(KeyboardEvent {
+														key: KeyboardKey::S,
+														action: KeyAction::Pressed
+													})
+												}
+												winit::event::ElementState::Released => {
+													self.send_keyboard_event(KeyboardEvent {
+														key: KeyboardKey::S,
+														action: KeyAction::Released
+													})
+												}
+											}
+										},
+										KeyCode::KeyD => {
+											match state {
+												winit::event::ElementState::Pressed => {
+													self.send_keyboard_event(KeyboardEvent {
+														key: KeyboardKey::D,
+														action: KeyAction::Pressed
+													})
+												}
+												winit::event::ElementState::Released => {
+													self.send_keyboard_event(KeyboardEvent {
+														key: KeyboardKey::D,
+														action: KeyAction::Released
+													})
+												}
+											}
+										},
+										_ => {}
+									}
+								},
+								winit::keyboard::PhysicalKey::Unidentified(_) => {},
+							}
+						}
+							
 					}
 				}
 			}

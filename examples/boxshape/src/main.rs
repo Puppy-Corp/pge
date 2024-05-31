@@ -3,9 +3,45 @@ use std::time::Duration;
 use pge::*;
 use tokio::time::sleep;
 
+#[derive(Debug, Clone)]
+struct PressedKeys {
+	forward: bool,
+	backward: bool,
+	left: bool,
+	right: bool,
+}
+
+impl PressedKeys {
+	pub fn new() -> Self {
+		Self {
+			forward: false,
+			backward: false,
+			left: false,
+			right: false,
+		}
+	}
+
+	pub fn to_mat4(&self) -> glam::Mat4 {
+		let mut mat = glam::Mat4::IDENTITY;
+		if self.forward {
+			mat = mat * glam::Mat4::from_translation(glam::Vec3::new(0.0, 0.0, 1.0));
+		}
+		if self.backward {
+			mat = mat * glam::Mat4::from_translation(glam::Vec3::new(0.0, 0.0, -1.0));
+		}
+		if self.left {
+			mat = mat * glam::Mat4::from_translation(glam::Vec3::new(-1.0, 0.0, 0.0));
+		}
+		if self.right {
+			mat = mat * glam::Mat4::from_translation(glam::Vec3::new(1.0, 0.0, 0.0));
+		}
+		mat
+	}
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    Engine::new(|handle| async move {
+    Engine::new(|mut handle| async move {
 		let mut scene = Scene::new();
 
 
@@ -19,12 +55,13 @@ async fn main() -> anyhow::Result<()> {
 		// root.add_node(cube_node);
 
 		let mut camera_node = Node::new();
+		let camera_node_id = camera_node.id;
 		let camera = Camera::new();
 		let scene_cam = SceneCam::new(&camera);
 		camera_node.set_camera(camera);
-		camera_node.set_translation(0.0, 2.0, 3.0);
+		camera_node.set_translation(0.0, 0.0, -6.0);
 		camera_node.looking_at(0.0, 0.0, 0.0);
-		root.add_node(camera_node);
+		root.add_node(camera_node.clone());
 
 		
 
@@ -47,7 +84,58 @@ async fn main() -> anyhow::Result<()> {
 
 		scene.add_node(root);
 		handle.save_scene(scene);
+		
+		let mut pressed_keys = PressedKeys {
+			forward: false,
+			backward: false,
+			left: false,
+			right: false,
+		};
 
+		loop {
+			match handle.next_event().await {
+				Some(e) => {
+					match e {
+						Event::InputEvent(e) => {
+							match e {
+								InputEvent::KeyboardEvent(k) => {
+									match k.action {
+										KeyAction::Pressed => {
+											match k.key {
+												KeyboardKey::W => pressed_keys.forward = true,
+												KeyboardKey::S => pressed_keys.backward = true,
+												KeyboardKey::A => pressed_keys.left = true,
+												KeyboardKey::D => pressed_keys.right = true,
+												_ => {}
+											}
+										},
+										KeyAction::Released => {
+											match k.key {
+												KeyboardKey::W => pressed_keys.forward = false,
+												KeyboardKey::S => pressed_keys.backward = false,
+												KeyboardKey::A => pressed_keys.left = false,
+												KeyboardKey::D => pressed_keys.right = false,
+												_ => {}
+											}
+										},
+									}
+								},
+								InputEvent::MouseEvent(m) => {},
+							}
+							println!("presed keys: {:?}", pressed_keys);
+
+							let animation = Animation::new()
+								.every(Duration::from_secs(1))
+								.transform(pressed_keys.to_mat4());
+
+							handle.set_animation(camera_node_id, animation);
+						},
+						_ => {}
+					}
+				},
+				None => todo!(),
+			}
+		}
 
 		sleep(Duration::from_secs(120)).await;
 	}).run().await?;

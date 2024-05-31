@@ -58,6 +58,7 @@ impl Buffer {
 
 pub struct StaticBufferManager<T> {
 	blocks: Vec<T>,
+	id_block_map: HashMap<usize, usize>,
 	free_list: Vec<usize>,
 	write_commands: Vec<usize>
 }
@@ -69,20 +70,41 @@ where
 	pub fn new(size: usize) -> Self {
 		Self {
 			blocks: Vec::with_capacity(size),
+			id_block_map: HashMap::new(),
 			free_list: Vec::new(),
 			write_commands: Vec::new()
 		}
 	}
 
 	pub fn store(&mut self, id: usize, item: T) -> usize {
-		if let Some(index) = self.free_list.pop() {
-			self.blocks[index] = item;
-			self.write_commands.push(index);
-			index
+		match self.id_block_map.get(&id) {
+			Some(&index) => {
+				self.blocks[index] = item;
+				self.write_commands.push(index);
+				index
+			},
+			None => {
+				if let Some(index) = self.free_list.pop() {
+					self.blocks[index] = item;
+					self.id_block_map.insert(id, index);
+					self.write_commands.push(index);
+					index
+				} else {
+					self.blocks.push(item);
+					let index = self.blocks.len() - 1;
+					self.id_block_map.insert(id, index);
+					self.write_commands.push(index);
+					index
+				}
+			}
+		}
+	}
+
+	pub fn get(&self, id: usize) -> Option<&T> {
+		if let Some(&index) = self.id_block_map.get(&id) {
+			Some(&self.blocks[index])
 		} else {
-			self.blocks.push(item);
-			self.write_commands.push(self.blocks.len() - 1);
-			self.blocks.len() - 1
+			None
 		}
 	}
 

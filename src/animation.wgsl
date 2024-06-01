@@ -9,12 +9,19 @@ struct NodeTransform {
     parent_index: i32
 };
 
+struct NodeChange {
+    model: mat4x4<f32>,
+    waiting: u32
+}
+
 @group(0) @binding(0) 
 var<storage, read> keyframes: array<Keyframe>;
 @group(0) @binding(1)
 var<uniform> current_time: f32;
 @group(1) @binding(0)
 var<storage, read_write> node_transforms: array<NodeTransform>;
+@group(2) @binding(0)
+var<storage, read_write> node_changes: array<NodeChange>
 
 // Linear Interpolation Function for mat4x4
 fn mat4_lerp(a: mat4x4<f32>, b: mat4x4<f32>, t: f32) -> mat4x4<f32> {
@@ -62,6 +69,13 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 	scaled_transform[3][0] = keyframe.value[3][0] * scaling_factor;
 	scaled_transform[3][1] = keyframe.value[3][1] * scaling_factor;
 	scaled_transform[3][2] = keyframe.value[3][2] * scaling_factor;
+
+    var node_change = node_changes[index];
+    if node_change.waiting != 0u {
+        node_change.waiting = 0u;
+        scaled_transform = node_change.model * scaled_transform;
+        return;
+    }
 	
     node_transforms[index].model = node_transforms[index].model * scaled_transform;
 }

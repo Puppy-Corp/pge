@@ -100,6 +100,11 @@ where
 		}
 	}
 
+	pub fn store_at_inx(&mut self, index: usize, item: T) {
+		self.blocks[index] = item;
+		self.write_commands.push(index);
+	}
+
 	pub fn get(&self, id: usize) -> Option<&T> {
 		if let Some(&index) = self.id_block_map.get(&id) {
 			Some(&self.blocks[index])

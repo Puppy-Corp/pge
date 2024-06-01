@@ -41,7 +41,7 @@ use crate::wgpu_types::Keyframe;
 use crate::wgpu_types::NodeTransform;
 use crate::wgpu_types::Position;
 use crate::wgpu_types::RawInstance;
-use crate::wgpu_types::WaitingNodeTransformation;
+use crate::wgpu_types::ChangedNode;
 use crate::Window;
 
 #[derive(Debug, Clone)]
@@ -206,7 +206,10 @@ pub struct EngineHandler<'a> {
 	animation_pipeline: AnimationPipeline,
 	animation_bind_group_layout: Arc<wgpu::BindGroupLayout>,
 	animation_bind_group: wgpu::BindGroup,
-	waiting_node_transforations_bind_group_layout: Arc<wgpu::BindGroupLayout>,
+	changed_node_bind_group_layout: Arc<wgpu::BindGroupLayout>,
+	changed_node_bind_group: wgpu::BindGroup,
+	changed_node_buffer: wgpu::Buffer,
+	changed_node_stage_buffer: StaticBufferManager<ChangedNode>
 }
 
 impl Drop for EngineHandler<'_> {
@@ -332,9 +335,9 @@ impl<'a> EngineHandler<'a> {
 			node_bind_group_layout: node_bind_group_layout.clone()
 		});
 
-		let waiting_node_transforations_bind_group_layout = WaitingNodeTransformation::create_bind_group_layout(&device);
-		let waiting_node_transforations_buffer = WaitingNodeTransformation::create_buffer(&device);
-		let waiting_node_transforations_bind_group = WaitingNodeTransformation::create_bind_group(&device, &waiting_node_transforations_buffer, &waiting_node_transforations_bind_group_layout);
+		let change_node_bind_group_layout = ChangedNode::create_bind_group_layout(&device);
+		let change_node_buffer = ChangedNode::create_buffer(&device);
+		let change_node_bind_group = ChangedNode::create_bind_group(&device, &change_node_buffer, &change_node_bind_group_layout);
 
 		Self {
 			windows: HashMap::new(),
@@ -366,7 +369,11 @@ impl<'a> EngineHandler<'a> {
 			key_frames_buffer,
 			animation_pipeline,
 			animation_bind_group,
-			animation_bind_group_layout
+			animation_bind_group_layout,
+			changed_node_bind_group_layout: Arc::new(change_node_bind_group_layout),
+			changed_node_bind_group: change_node_bind_group,
+			changed_node_buffer: change_node_buffer,
+			changed_node_stage_buffer: StaticBufferManager::new(1024)
 			// draw_queue: DrawQueue::new()
 		}
 	}
@@ -504,6 +511,14 @@ impl<'a> EngineHandler<'a> {
 		}
 		self.node_staging_buffer.clear_write_commands();
 	}
+
+	fn flush_changed_node_staging_buffer(&mut self) {
+		for (offset, n) in self.changed_node_stage_buffer.iter() {
+			println!("write offset: {:?}", offset);
+			self.queue.write_buffer(&self.changed_node_buffer, offset as u64, bytemuck::cast_slice(&[*n]));
+		}
+		self.changed_node_stage_buffer.clear_write_commands();
+	}
 }
 
 impl ApplicationHandler<Command> for EngineHandler<'_> {
@@ -629,6 +644,7 @@ impl ApplicationHandler<Command> for EngineHandler<'_> {
 			},
 			Command::ApplyTransformation { node_id, transformation } => {
 				println!("apply transformation node: {:?}", node_id);
+				let inx = self.node_staging_buffer.get_inx(node_id).unwrap();
 				let node = self.node_staging_buffer.get(node_id).unwrap();
 				let new_transform = (transformation * glam::Mat4::from_cols_array_2d(&node.model)).to_cols_array_2d();
 				let node_transform = NodeTransform {
@@ -636,8 +652,12 @@ impl ApplicationHandler<Command> for EngineHandler<'_> {
 					parent_index: node.parent_index,
 					_padding: [0; 3]
 				};
+				self.changed_node_stage_buffer.store_at_inx(inx, ChangedNode {
+					model: new_transform,
+					waiting: 1
+				});
 				self.node_staging_buffer.store(node_id, node_transform);
-				self.flush_node_staging_buffer();
+				self.flush_changed_node_staging_buffer();
 
 				// let node_inx = self.node_staging_buffer.get_inx(node_id).unwrap();
 				// let m = [

@@ -286,12 +286,12 @@ impl NodeTransform {
 
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct WaitingNodeTransformation {
-	pub transformation: NodeTransform,
+pub struct ChangedNode {
+	pub model: [[f32; 4]; 4],
 	pub waiting: u32
 }
 
-impl WaitingNodeTransformation {
+impl ChangedNode {
 	pub fn create_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
 		device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
 			label: Some("Waiting Node Bind Group Layout"),

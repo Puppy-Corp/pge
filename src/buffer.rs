@@ -108,6 +108,10 @@ where
 		}
 	}
 
+	pub fn get_inx(&self, id: usize) -> Option<usize> {
+		self.id_block_map.get(&id).copied()
+	}
+
 	pub fn iter(&self) -> StaticBufferIterator<T> {
 		StaticBufferIterator {
 			data: &self.blocks,

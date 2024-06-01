@@ -129,6 +129,7 @@ pub struct RenderArgs<'a> {
 	pub positions_buffer: &'a wgpu::Buffer,
 	pub indices_buffer: &'a wgpu::Buffer,
 	pub instance_buffer: &'a wgpu::Buffer,
+	pub encoder: &'a mut wgpu::CommandEncoder,
 }
 
 impl Renderer<'_> {
@@ -136,12 +137,12 @@ impl Renderer<'_> {
 		println!("rendering");
 		let output = self.surface.get_current_texture()?;
 		let view  = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
-		let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-			label: Some("Render Encoder"),
-		});
+		// let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+		// 	label: Some("Render Encoder"),
+		// });
 		
 		{
-			let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+			let mut render_pass = args.encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
 				label: Some("Render Pass"),
 				color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
@@ -180,7 +181,7 @@ impl Renderer<'_> {
 			}
 		}
 
-		self.queue.submit(std::iter::once(encoder.finish()));
+		// self.queue.submit(std::iter::once(encoder.finish()));
 		output.present();
 		Ok(())
 	}

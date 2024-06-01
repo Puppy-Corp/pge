@@ -39,6 +39,14 @@ impl PressedKeys {
 	}
 }
 
+struct App {
+
+}
+
+impl AppHandler for App {
+	
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     Engine::new(|mut handle| async move {

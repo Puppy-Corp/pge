@@ -290,6 +290,7 @@ pub struct Channel {
 	pub sampler: usize
 }
 
+#[derive(Debug, Clone)]
 pub enum Interpolation {
 	Linear,
 	Stepm,
@@ -303,9 +304,17 @@ pub struct Sampler {
 }
 
 #[derive(Debug, Clone)]
+pub struct Step {
+	pub duration: Duration,
+	pub transform: glam::Mat4,
+	pub interpolation: Interpolation,
+}
+
+#[derive(Debug, Clone)]
 pub struct Animation {
 	pub id: usize,
-	pub transform: glam::Mat4,
+	pub steps: Vec<Step>,
+	// pub transform: glam::Mat4,
 	// pub channels: Vec<Channel>,
 	// pub samplers: Vec<Sampler>,
 }
@@ -314,7 +323,8 @@ impl Animation {
 	pub fn new() -> Self {
 		Self {
 			id: gen_id(),
-			transform: glam::Mat4::IDENTITY,
+			steps: vec![],
+			// transform: glam::Mat4::IDENTITY,
 			// channels: vec![],
 			// samplers: vec![],
 		}
@@ -333,7 +343,7 @@ impl Animation {
 	}
 
 	pub fn transform(mut self, mat: glam::Mat4) -> Self {
-		self.transform = mat;
+		// self.transform = mat;
 		self
 	}
 }
@@ -378,4 +388,8 @@ impl Material {
 			emissive_factor: [1.0, 1.0, 1.0],
 		}
 	}
+}
+
+pub trait AppHandler {
+
 }

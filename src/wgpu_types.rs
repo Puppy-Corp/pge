@@ -245,9 +245,9 @@ impl NodeTransform {
 			entries: &[
 				wgpu::BindGroupLayoutEntry {
 					binding: 0,
-					visibility: wgpu::ShaderStages::VERTEX,
+					visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::COMPUTE,
 					ty: wgpu::BindingType::Buffer {
-						ty: wgpu::BufferBindingType::Storage { read_only: true },
+						ty: wgpu::BufferBindingType::Storage { read_only: false },
 						has_dynamic_offset: false,
 						min_binding_size: None,
 					},
@@ -288,4 +288,17 @@ pub struct WgpuState {
 	node_bind_group_layout: wgpu::BindGroupLayout,
 	camera_bind_group_layout: wgpu::BindGroupLayout,
 	position_buffer: Buffer,
+}
+
+
+#[repr(C)]
+#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct Keyframe {
+	//pub time: f32,
+	pub value: [[f32; 4]; 4],
+	//pub start_time: f32,
+	//pub repeat: u32,
+	//pub animation_id: u32,
+	pub is_running: u32,
+	// pub node_id: u32,
 }

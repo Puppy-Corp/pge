@@ -76,7 +76,7 @@ struct NodeTransform {
 };
 
 @group(1) @binding(0)
-var<storage, read> node_transforms: array<NodeTransform>;
+var<storage, read_write> node_transforms: array<NodeTransform>;
 
 struct InstanceInput {
     @location(5) node_index: i32,

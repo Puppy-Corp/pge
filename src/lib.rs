@@ -10,6 +10,8 @@ mod math;
 mod node_manager;
 mod internal;
 mod draw_queue;
+mod animation_manager;
+mod animation_pipeline;
 
 pub use engine::Engine;
 pub use types::*;

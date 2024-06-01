@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use glam::Quat;
 use pge::*;
 use tokio::time::sleep;
 
@@ -44,7 +45,7 @@ struct App {
 }
 
 impl AppHandler for App {
-	
+
 }
 
 #[tokio::main]
@@ -86,6 +87,7 @@ async fn main() -> anyhow::Result<()> {
 		
 		let cube_mesh = cube(1.0);
 		let mut node = Node::new();
+		let cube_node_id = node.id;
 		node.set_translation(2.0, 1.0, 0.0);
 		node.set_mesh(cube_mesh);		
 		root.add_node(node);
@@ -127,16 +129,30 @@ async fn main() -> anyhow::Result<()> {
 											}
 										},
 									}
+
+									println!("presed keys: {:?}", pressed_keys);
+
+									let animation = Animation::new()
+										.every(Duration::from_secs(1))
+										.transform(pressed_keys.to_mat4());
+		
+									handle.set_animation(camera_node_id, animation);
 								},
-								InputEvent::MouseEvent(m) => {},
+								InputEvent::MouseEvent(m) => {
+									match m {
+										MouseEvent::Moved { dx, dy } => {
+											let sensitivity = 0.0001;
+											let dx = dx * sensitivity;
+											let dy = dy * sensitivity;
+											let rot = Quat::from_euler(glam::EulerRot::XYZ, dx, dy, 0.0);
+											let mat = glam::Mat4::from_quat(rot);
+											handle.apply_transformation(camera_node_id, mat);
+										},
+									}
+									
+								},
 							}
-							println!("presed keys: {:?}", pressed_keys);
 
-							let animation = Animation::new()
-								.every(Duration::from_secs(1))
-								.transform(pressed_keys.to_mat4());
-
-							handle.set_animation(camera_node_id, animation);
 						},
 						_ => {}
 					}

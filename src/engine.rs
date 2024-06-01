@@ -17,6 +17,7 @@ use winit::event_loop::ControlFlow;
 use winit::event_loop::EventLoop;
 use winit::event_loop::EventLoopProxy;
 use winit::keyboard::KeyCode;
+use winit::window;
 use winit::window::WindowId;
 use crate::animation_pipeline;
 use crate::animation_pipeline::AnimateArgs;
@@ -48,6 +49,10 @@ pub enum Command {
 	SetTransformation {
 		node_id: usize,
 		transformation: Mat4
+	},
+	ApplyTransformation {
+		node_id: usize,
+		transformation: glam::Mat4
 	},
 	SetAnimation {
 		node_id: usize,
@@ -99,6 +104,10 @@ impl EngineHandle {
 
 	pub fn set_animation(&self, node_id: usize, animation: Animation) {
 		self.proxy.send_event(Command::SetAnimation { node_id, animation }).unwrap();
+	}
+
+	pub fn apply_transformation(&self, node_id: usize, transformation: glam::Mat4) {
+		self.proxy.send_event(Command::ApplyTransformation { node_id, transformation }).unwrap();
 	}
 
 	pub async fn next_event(&mut self) -> Option<Event> {
@@ -191,7 +200,7 @@ pub struct EngineHandler<'a> {
 	// draw_queue: DrawQueue
 	tx: broadcast::Sender<Event>,
 	i: usize,
-	framer_timer: Instant,
+	since_last_frame: Instant,
 	animation_pipeline: AnimationPipeline,
 	animation_bind_group_layout: Arc<wgpu::BindGroupLayout>,
 	animation_bind_group: wgpu::BindGroup
@@ -345,7 +354,7 @@ impl<'a> EngineHandler<'a> {
 			node_staging_buffer: StaticBufferManager::new(1024),
 			tx,
 			i: 0,
-			framer_timer: Instant::now(),
+			since_last_frame: Instant::now(),
 			time_buffer,
 			key_frames_buffer,
 			animation_pipeline,
@@ -391,7 +400,9 @@ impl<'a> EngineHandler<'a> {
 			label: Some("Render Encoder")
 		});
 
-		let seconds = self.framer_timer.elapsed().as_secs_f32();
+		let seconds = self.since_last_frame.elapsed().as_secs_f32();
+		// println!("since last frame: {:?}", seconds);
+		self.since_last_frame = Instant::now();
 		self.queue.write_buffer(&self.time_buffer, 0, bytemuck::cast_slice(&[seconds]));
 
 		self.animation_pipeline.animate(AnimateArgs {
@@ -474,6 +485,18 @@ impl<'a> EngineHandler<'a> {
 	fn send_keyboard_event(&self, event: KeyboardEvent) {
 		self.tx.send(Event::InputEvent(InputEvent::KeyboardEvent(event))).unwrap();
 	}
+
+	fn send_mouse_event(&self, event: MouseEvent) {
+		self.tx.send(Event::InputEvent(InputEvent::MouseEvent(event))).unwrap();
+	}
+
+	fn flush_node_staging_buffer(&mut self) {
+		for (offset, n) in self.node_staging_buffer.iter() {
+			println!("write offset: {:?} data: {:?}", offset, n);
+			self.queue.write_buffer(&self.node_buffer, offset as u64, bytemuck::cast_slice(&[*n]));
+		}
+		self.node_staging_buffer.clear_write_commands();
+	}
 }
 
 impl ApplicationHandler<Command> for EngineHandler<'_> {
@@ -481,7 +504,7 @@ impl ApplicationHandler<Command> for EngineHandler<'_> {
 		println!("resumed");
 
 		let timer = Instant::now();
-		let timer = timer.checked_add(Duration::from_millis(500)).unwrap();
+		let timer = timer.checked_add(Duration::from_millis(16)).unwrap();
 		event_loop
 			.set_control_flow(ControlFlow::WaitUntil(timer));
 	}
@@ -560,17 +583,23 @@ impl ApplicationHandler<Command> for EngineHandler<'_> {
 				println!("set animation node: {:?}", node_id);
 
 				let node_inx = self.node_staging_buffer.get_inx(node_id).unwrap();
-				let m = glam::Mat4::from_translation(glam::Vec3::new(0.01, 0.0, 0.0)).to_cols_array_2d();
+				let m = [
+					[1.0, 0.0, 0.0, 0.0],
+					[0.0, 1.0, 0.0, 0.0],
+					[0.0, 0.0, 1.0, 0.0],
+					[0.001, 0.001, 0.0, 1.0]
+				];
+				let value = animation.transform.to_cols_array_2d();
+				println!("value {:?}", value);
 				let keyframe = Keyframe {
-					//animation_id: 0,
+					value,
 					is_running: 1,
-					//node_id: node_inx as u32,
-					//repeat: 1,
-					//start_time: 1.0,
-					//time: 0.0,
-					value: m
+					node_inx: node_inx as u32
 				};
-				self.queue.write_buffer(&self.key_frames_buffer, 0, bytemuck::cast_slice(&[keyframe]));
+				let keyframe = &[keyframe];
+				let data = bytemuck::cast_slice(keyframe);
+				self.queue.write_buffer(&self.key_frames_buffer, 0, data);
+				// panic!("aa");
 
 				// let node_transform = self.node_staging_buffer.get(node_id).unwrap();
 				// let new_transform = (glam::Mat4::from_cols_array_2d(&node_transform.model) * animation.transform).to_cols_array_2d();
@@ -590,24 +619,54 @@ impl ApplicationHandler<Command> for EngineHandler<'_> {
 				// self.node_staging_buffer.clear_write_commands();
 
 				// self.render_every_window();
+			},
+			Command::ApplyTransformation { node_id, transformation } => {
+				println!("apply transformation node: {:?}", node_id);
+				let node = self.node_staging_buffer.get(node_id).unwrap();
+				let new_transform = (glam::Mat4::from_cols_array_2d(&node.model) * transformation).to_cols_array_2d();
+				let node_transform = NodeTransform {
+					model: new_transform,
+					parent_index: node.parent_index,
+					_padding: [0; 3]
+				};
+				self.node_staging_buffer.store(node_id, node_transform);
+				self.flush_node_staging_buffer();
+
+				// let node_inx = self.node_staging_buffer.get_inx(node_id).unwrap();
+				// let m = [
+				// 	[1.0, 0.0, 0.0, 0.0],
+				// 	[0.0, 1.0, 0.0, 0.0],
+				// 	[0.0, 0.0, 1.0, 0.0],
+				// 	[0.001, 0.001, 0.0, 1.0]
+				// ];
+				// let value = transformation.to_cols_array_2d();
+				// println!("value {:?}", value);
+				// let keyframe = Keyframe {
+				// 	value,
+				// 	is_running: 1,
+				// 	node_inx: node_inx as u32
+				// };
+				// let keyframe = &[keyframe];
+				// let data = bytemuck::cast_slice(keyframe);
+				// self.queue.write_buffer(&self.key_frames_buffer, 0, data);
 			}
 		}
 	}
 
 	fn about_to_wait(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
-		println!("about to wait {}", self.i);
+		// println!("about to wait {}", self.i);
 		self.i += 1;
 
 		let timer = Instant::now();
 		let timer = timer.checked_add(Duration::from_millis(500)).unwrap();
 		event_loop
-			.set_control_flow(ControlFlow::WaitUntil(Instant::now() + Duration::from_millis(2000)));
+			.set_control_flow(ControlFlow::WaitUntil(Instant::now() + Duration::from_millis(16)));
 
 		self.render_every_window();
 	}
 
 	fn new_events(&mut self, event_loop: &winit::event_loop::ActiveEventLoop, cause: winit::event::StartCause) {
-		println!("new events {}", self.i);
+		// println!("new events {}", self.i);
 		
 	}
 
@@ -617,7 +676,7 @@ impl ApplicationHandler<Command> for EngineHandler<'_> {
 		window_id: winit::window::WindowId,
 		event: winit::event::WindowEvent,
 	) {
-		println!("window event");
+		// println!("window event");
 
 		match event {
 			WindowEvent::CloseRequested => {
@@ -651,6 +710,18 @@ impl ApplicationHandler<Command> for EngineHandler<'_> {
 					None => {
 						log::error!("Window not found: {:?}", window_id);
 					}
+				}
+			}
+			WindowEvent::CursorMoved { device_id, position } => {
+				if let Some(window) = self.windows.get(&window_id) {
+					let size = &window.window.inner_size();
+					let middle_x = size.width as f64 / 2.0;
+					let middle_y = size.height as f64 / 2.0;
+					let dx = middle_x - position.x;
+					let dy = middle_y - position.y;
+					let dx = dx as f32;
+					let dy = dy as f32;
+					self.send_mouse_event(MouseEvent::Moved { dx, dy });
 				}
 			}
 			WindowEvent::KeyboardInput { device_id, event, is_synthetic } => {

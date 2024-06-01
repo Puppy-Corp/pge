@@ -51,7 +51,7 @@ impl AnimationPipeline {
 	}
 
 	pub fn animate(&self, args: AnimateArgs) {
-		println!("animating {:?}", args);
+		// println!("animating {:?}", args);
 		let mut cpass = args.encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { 
 			label: None,
 			timestamp_writes: None 

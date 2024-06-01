@@ -134,7 +134,7 @@ pub struct RenderArgs<'a> {
 
 impl Renderer<'_> {
 	pub fn render(&self, args: RenderArgs) -> anyhow::Result<()> {
-		println!("rendering");
+		// println!("rendering");
 		let output = self.surface.get_current_texture()?;
 		let view  = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
 		// let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -167,12 +167,12 @@ impl Renderer<'_> {
 			render_pass.set_bind_group(1, &args.node_bind_group, &[]);
 
 			for draw in args.instructions {
-				println!("draw");
-				// println!("instances range {:?}", instruction.instances_range);
-				// println!("position range {:?}", instruction.position_range);
-				println!("indices range {:?}", draw.indices_range);
-				println!("index range {:?}", draw.index_range);
-				println!("instances range {:?}", draw.instances_range);
+				// println!("draw");
+				// // println!("instances range {:?}", instruction.instances_range);
+				// // println!("position range {:?}", instruction.position_range);
+				// println!("indices range {:?}", draw.indices_range);
+				// println!("index range {:?}", draw.index_range);
+				// println!("instances range {:?}", draw.instances_range);
 				render_pass.set_vertex_buffer(0, args.positions_buffer.slice(draw.position_range.clone()));
 				//render_pass.set_vertex_buffer(1, args.positions_buffer.slice(..));
 				render_pass.set_vertex_buffer(1, args.instance_buffer.slice(..));

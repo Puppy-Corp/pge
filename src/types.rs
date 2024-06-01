@@ -314,7 +314,7 @@ pub struct Step {
 pub struct Animation {
 	pub id: usize,
 	pub steps: Vec<Step>,
-	// pub transform: glam::Mat4,
+	pub transform: glam::Mat4,
 	// pub channels: Vec<Channel>,
 	// pub samplers: Vec<Sampler>,
 }
@@ -324,7 +324,7 @@ impl Animation {
 		Self {
 			id: gen_id(),
 			steps: vec![],
-			// transform: glam::Mat4::IDENTITY,
+			transform: glam::Mat4::IDENTITY,
 			// channels: vec![],
 			// samplers: vec![],
 		}
@@ -343,7 +343,7 @@ impl Animation {
 	}
 
 	pub fn transform(mut self, mat: glam::Mat4) -> Self {
-		// self.transform = mat;
+		self.transform = mat;
 		self
 	}
 }

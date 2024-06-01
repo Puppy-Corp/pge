@@ -294,11 +294,7 @@ pub struct WgpuState {
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Keyframe {
-	//pub time: f32,
 	pub value: [[f32; 4]; 4],
-	//pub start_time: f32,
-	//pub repeat: u32,
-	//pub animation_id: u32,
 	pub is_running: u32,
-	// pub node_id: u32,
+	pub node_inx: u32
 }

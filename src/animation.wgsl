@@ -1,11 +1,7 @@
 struct Keyframe {
-    //time: f32,
     value: mat4x4<f32>,
-    // start_time: f32,
-    // repeat: u32,
-    // animation_id: u32,
     is_running: u32,
-    //node_id: u32
+	node_inx: u32
 };
 
 struct NodeTransform {
@@ -48,12 +44,58 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 		return;
 	}
 
-	// if keyframe.node_id != index {
-	// 	return;
-	// }
+	if keyframe.node_inx != index {
+		return;
+	}
+
+	let sensitivity = 10.0;
+	let scaling_factor = sensitivity * current_time;
+
+	let scaling_matrix: mat4x4<f32> = mat4x4<f32>(
+		vec4<f32>(1.0, 0.0, 0.0, 0.0),
+		vec4<f32>(0.0, 1.0, 0.0, 0.0),
+		vec4<f32>(0.0, 0.0, 1.0, 0.0),
+		vec4<f32>(0.0, 0.0, 0.0, 1.0)
+	);
+
+	var scaled_transform: mat4x4<f32> = keyframe.value * scaling_matrix;
+	scaled_transform[3][0] = keyframe.value[3][0] * scaling_factor;
+	scaled_transform[3][1] = keyframe.value[3][1] * scaling_factor;
+	scaled_transform[3][2] = keyframe.value[3][2] * scaling_factor;
+
+
+	// let translation_scale: f32 = if keyframe.value == mat4x4<f32>(1.0) { 1.0 } else { current_time };
+
+	// let translation_vector: vec4<f32> = vec4<f32>(
+	// 	keyframe.value[3][0] * scaling_factor,
+	// 	keyframe.value[3][1] * scaling_factor,
+	// 	keyframe.value[3][2] * scaling_factor,
+	// 	1.0
+	// );
+
+	// scaled_transform[3] = translation_vector;
 
 	// let v = keyframe.value;
-	node_transforms[index].model *= keyframe.value;
+	// let scaling_matrix: mat4x4<f32> = mat4x4<f32>(
+	// 	vec4<f32>(1.0, 0.0, 0.0, 0.0),
+	// 	vec4<f32>(0.0, 1.0, 0.0, 0.0),
+	// 	vec4<f32>(0.0, 0.0, 1.0, 0.0),
+	// 	vec4<f32>(current_time, current_time, current_time, 1.0)
+	// );
+    // let scaled_transform: mat4x4<f32> = keyframe.value * scaling_matrix;
+    node_transforms[index].model = node_transforms[index].model * scaled_transform;
+
+    // let fixed_transform: mat4x4<f32> = mat4x4<f32>(
+    //     vec4<f32>(1.0, 0.0, 0.0, 0.0),
+    //     vec4<f32>(0.0, 1.0, 0.0, 0.0),
+    //     vec4<f32>(0.0, 0.0, 1.0, 0.0),
+    //     vec4<f32>(0.1 * current_time, 0.1 * current_time, 0.0, 1.0) // Small translation
+    // );
+
+    // node_transforms[index].model *= fixed_transform;
+
+}
+
 
     // var i = 0u;
     // while (i < arrayLength(&keyframes) - 1u && keyframes[i + 1u].start_time <= current_time) {
@@ -91,4 +133,3 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 
     // // Apply the interpolated value to the node transformation
     // node_transforms[index].model = interpolated_value;
-}

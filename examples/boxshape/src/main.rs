@@ -141,11 +141,12 @@ async fn main() -> anyhow::Result<()> {
 								InputEvent::MouseEvent(m) => {
 									match m {
 										MouseEvent::Moved { dx, dy } => {
-											let sensitivity = 0.0001;
+											println!("mouse moved: dx: {}, dy: {}", dx, dy);
+											let sensitivity = 0.01;
 											let dx = dx * sensitivity;
 											let dy = dy * sensitivity;
-											let rot = Quat::from_euler(glam::EulerRot::XYZ, dx, dy, 0.0);
-											let mat = glam::Mat4::from_quat(rot);
+											// let rot = Quat::from_euler(glam::EulerRot::XYZ, dx, dy, 0.0);
+											let mat = glam::Mat4::from_euler(glam::EulerRot::XYZ, dy, dx, 0.0);
 											handle.apply_transformation(camera_node_id, mat);
 										},
 									}

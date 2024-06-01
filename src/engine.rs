@@ -12,6 +12,7 @@ use wgpu::Backends;
 use wgpu::BufferAddress;
 use wgpu::Features;
 use winit::application::ApplicationHandler;
+use winit::dpi::PhysicalPosition;
 use winit::event::WindowEvent;
 use winit::event_loop::ControlFlow;
 use winit::event_loop::EventLoop;
@@ -40,6 +41,7 @@ use crate::wgpu_types::Keyframe;
 use crate::wgpu_types::NodeTransform;
 use crate::wgpu_types::Position;
 use crate::wgpu_types::RawInstance;
+use crate::wgpu_types::WaitingNodeTransformation;
 use crate::Window;
 
 #[derive(Debug, Clone)]
@@ -203,7 +205,8 @@ pub struct EngineHandler<'a> {
 	since_last_frame: Instant,
 	animation_pipeline: AnimationPipeline,
 	animation_bind_group_layout: Arc<wgpu::BindGroupLayout>,
-	animation_bind_group: wgpu::BindGroup
+	animation_bind_group: wgpu::BindGroup,
+	waiting_node_transforations_bind_group_layout: Arc<wgpu::BindGroupLayout>,
 }
 
 impl Drop for EngineHandler<'_> {
@@ -328,6 +331,10 @@ impl<'a> EngineHandler<'a> {
 			animation_bind_group_layout: animation_bind_group_layout.clone(),
 			node_bind_group_layout: node_bind_group_layout.clone()
 		});
+
+		let waiting_node_transforations_bind_group_layout = WaitingNodeTransformation::create_bind_group_layout(&device);
+		let waiting_node_transforations_buffer = WaitingNodeTransformation::create_buffer(&device);
+		let waiting_node_transforations_bind_group = WaitingNodeTransformation::create_bind_group(&device, &waiting_node_transforations_buffer, &waiting_node_transforations_bind_group_layout);
 
 		Self {
 			windows: HashMap::new(),
@@ -623,7 +630,7 @@ impl ApplicationHandler<Command> for EngineHandler<'_> {
 			Command::ApplyTransformation { node_id, transformation } => {
 				println!("apply transformation node: {:?}", node_id);
 				let node = self.node_staging_buffer.get(node_id).unwrap();
-				let new_transform = (glam::Mat4::from_cols_array_2d(&node.model) * transformation).to_cols_array_2d();
+				let new_transform = (transformation * glam::Mat4::from_cols_array_2d(&node.model)).to_cols_array_2d();
 				let node_transform = NodeTransform {
 					model: new_transform,
 					parent_index: node.parent_index,
@@ -722,6 +729,7 @@ impl ApplicationHandler<Command> for EngineHandler<'_> {
 					let dx = dx as f32;
 					let dy = dy as f32;
 					self.send_mouse_event(MouseEvent::Moved { dx, dy });
+					window.window.set_cursor_position(PhysicalPosition::new(middle_x, middle_y)).unwrap();
 				}
 			}
 			WindowEvent::KeyboardInput { device_id, event, is_synthetic } => {

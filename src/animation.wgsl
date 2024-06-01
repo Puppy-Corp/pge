@@ -62,38 +62,8 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 	scaled_transform[3][0] = keyframe.value[3][0] * scaling_factor;
 	scaled_transform[3][1] = keyframe.value[3][1] * scaling_factor;
 	scaled_transform[3][2] = keyframe.value[3][2] * scaling_factor;
-
-
-	// let translation_scale: f32 = if keyframe.value == mat4x4<f32>(1.0) { 1.0 } else { current_time };
-
-	// let translation_vector: vec4<f32> = vec4<f32>(
-	// 	keyframe.value[3][0] * scaling_factor,
-	// 	keyframe.value[3][1] * scaling_factor,
-	// 	keyframe.value[3][2] * scaling_factor,
-	// 	1.0
-	// );
-
-	// scaled_transform[3] = translation_vector;
-
-	// let v = keyframe.value;
-	// let scaling_matrix: mat4x4<f32> = mat4x4<f32>(
-	// 	vec4<f32>(1.0, 0.0, 0.0, 0.0),
-	// 	vec4<f32>(0.0, 1.0, 0.0, 0.0),
-	// 	vec4<f32>(0.0, 0.0, 1.0, 0.0),
-	// 	vec4<f32>(current_time, current_time, current_time, 1.0)
-	// );
-    // let scaled_transform: mat4x4<f32> = keyframe.value * scaling_matrix;
+	
     node_transforms[index].model = node_transforms[index].model * scaled_transform;
-
-    // let fixed_transform: mat4x4<f32> = mat4x4<f32>(
-    //     vec4<f32>(1.0, 0.0, 0.0, 0.0),
-    //     vec4<f32>(0.0, 1.0, 0.0, 0.0),
-    //     vec4<f32>(0.0, 0.0, 1.0, 0.0),
-    //     vec4<f32>(0.1 * current_time, 0.1 * current_time, 0.0, 1.0) // Small translation
-    // );
-
-    // node_transforms[index].model *= fixed_transform;
-
 }
 
 

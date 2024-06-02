@@ -31,10 +31,10 @@ impl PressedKeys {
 			mat = mat * glam::Mat4::from_translation(glam::Vec3::new(0.0, 0.0, -1.0));
 		}
 		if self.left {
-			mat = mat * glam::Mat4::from_translation(glam::Vec3::new(-1.0, 0.0, 0.0));
+			mat = mat * glam::Mat4::from_translation(glam::Vec3::new(1.0, 0.0, 0.0));
 		}
 		if self.right {
-			mat = mat * glam::Mat4::from_translation(glam::Vec3::new(1.0, 0.0, 0.0));
+			mat = mat * glam::Mat4::from_translation(glam::Vec3::new(-1.0, 0.0, 0.0));
 		}
 		mat
 	}
@@ -142,12 +142,13 @@ async fn main() -> anyhow::Result<()> {
 									match m {
 										MouseEvent::Moved { dx, dy } => {
 											println!("mouse moved: dx: {}, dy: {}", dx, dy);
-											let sensitivity = 0.01;
+											let sensitivity = 0.001;
 											let dx = dx * sensitivity;
 											let dy = dy * sensitivity;
-											// let rot = Quat::from_euler(glam::EulerRot::XYZ, dx, dy, 0.0);
-											let mat = glam::Mat4::from_euler(glam::EulerRot::XYZ, dy, dx, 0.0);
-											handle.apply_transformation(camera_node_id, mat);
+											// // let rot = Quat::from_euler(glam::EulerRot::XYZ, dx, dy, 0.0);
+											// let mat = glam::Mat4::from_euler(glam::EulerRot::XYZ, dy, dx, 0.0);
+											// handle.apply_transformation(camera_node_id, mat);
+											handle.rotate_node(camera_node_id, dx, dy);
 										},
 									}
 									

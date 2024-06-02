@@ -20,6 +20,7 @@ use winit::event_loop::EventLoopProxy;
 use winit::keyboard::KeyCode;
 use winit::window;
 use winit::window::WindowId;
+use crate::acumalator::TransformationAcumalator;
 use crate::animation_pipeline;
 use crate::animation_pipeline::AnimateArgs;
 use crate::animation_pipeline::AnimationPipeline;
@@ -110,6 +111,11 @@ impl EngineHandle {
 
 	pub fn apply_transformation(&self, node_id: usize, transformation: glam::Mat4) {
 		self.proxy.send_event(Command::ApplyTransformation { node_id, transformation }).unwrap();
+	}
+
+	pub fn rotate_node(&self, node_id: usize, dx: f32, dy: f32) {
+		let transformation = glam::Mat4::from_rotation_x(-dy) * glam::Mat4::from_rotation_y(-dx);
+		self.apply_transformation(node_id, transformation);
 	}
 
 	pub async fn next_event(&mut self) -> Option<Event> {
@@ -209,7 +215,8 @@ pub struct EngineHandler<'a> {
 	changed_node_bind_group_layout: Arc<wgpu::BindGroupLayout>,
 	changed_node_bind_group: wgpu::BindGroup,
 	changed_node_buffer: wgpu::Buffer,
-	changed_node_stage_buffer: StaticBufferManager<ChangedNode>
+	changed_node_stage_buffer: StaticBufferManager<ChangedNode>,
+	node_transformations: TransformationAcumalator
 }
 
 impl Drop for EngineHandler<'_> {
@@ -326,18 +333,20 @@ impl<'a> EngineHandler<'a> {
 			],
 		});
 
+		let changed_node_bind_group_layout = ChangedNode::create_bind_group_layout(&device);
+		let changed_node_buffer = ChangedNode::create_buffer(&device);
+		let changed_node_bind_group = ChangedNode::create_bind_group(&device, &changed_node_buffer, &changed_node_bind_group_layout);
+		let changed_node_bind_group_layout = Arc::new(changed_node_bind_group_layout);
+
 		let animation_pipeline = AnimationPipeline::new(AnimationPipelineArgs {
 			instance: instance.clone(),
 			queue: queue.clone(),
 			device: device.clone(),
 			adapter: adapter.clone(),
 			animation_bind_group_layout: animation_bind_group_layout.clone(),
-			node_bind_group_layout: node_bind_group_layout.clone()
+			node_bind_group_layout: node_bind_group_layout.clone(),
+			change_node_bind_group_layout: changed_node_bind_group_layout.clone()
 		});
-
-		let change_node_bind_group_layout = ChangedNode::create_bind_group_layout(&device);
-		let change_node_buffer = ChangedNode::create_buffer(&device);
-		let change_node_bind_group = ChangedNode::create_bind_group(&device, &change_node_buffer, &change_node_bind_group_layout);
 
 		Self {
 			windows: HashMap::new(),
@@ -370,10 +379,11 @@ impl<'a> EngineHandler<'a> {
 			animation_pipeline,
 			animation_bind_group,
 			animation_bind_group_layout,
-			changed_node_bind_group_layout: Arc::new(change_node_bind_group_layout),
-			changed_node_bind_group: change_node_bind_group,
-			changed_node_buffer: change_node_buffer,
-			changed_node_stage_buffer: StaticBufferManager::new(1024)
+			changed_node_bind_group_layout,
+			changed_node_bind_group,
+			changed_node_buffer,
+			changed_node_stage_buffer: StaticBufferManager::new(1024),
+			node_transformations: TransformationAcumalator::new()
 			// draw_queue: DrawQueue::new()
 		}
 	}
@@ -419,10 +429,30 @@ impl<'a> EngineHandler<'a> {
 		self.since_last_frame = Instant::now();
 		self.queue.write_buffer(&self.time_buffer, 0, bytemuck::cast_slice(&[seconds]));
 
+		for (node_id, mat) in self.node_transformations.get_items() {
+			println!("writing node {:?} change {:?}", node_id, mat);
+			let inx = self.node_staging_buffer.get_inx(node_id).unwrap();
+			println!("node inx: {:?}", inx);
+
+			let changed_node = ChangedNode {
+				model: mat.to_cols_array_2d(),
+				waiting: 1,
+				_padding: [0; 3]
+			};
+			let changed_node = &[changed_node];
+			let data = bytemuck::cast_slice(changed_node);
+			let offset = inx * std::mem::size_of::<ChangedNode>();
+			let offset = offset as u64;
+			println!("offset: {:?}", offset);
+			self.queue.write_buffer(&self.changed_node_buffer, offset, data);
+		}
+		self.node_transformations.clear();
+
 		self.animation_pipeline.animate(AnimateArgs {
 			encoder: &mut encoder,
 			animation_bind_group: &self.animation_bind_group,
-			node_bind_group: &self.node_bind_group
+			node_bind_group: &self.node_bind_group,
+			change_node_bind_group: &self.changed_node_bind_group
 		});
 
 
@@ -551,12 +581,14 @@ impl ApplicationHandler<Command> for EngineHandler<'_> {
 					self.update_node(&node, None);
 				}
 
-				println!("write node buffer");
-				for (offset, data) in self.node_staging_buffer.iter() {
-					println!("write offset: {:?} data: {:?}", offset, data);
-					self.queue.write_buffer(&self.node_buffer, offset as u64, bytemuck::cast_slice(&[*data]));
-				}
-				self.node_staging_buffer.clear_write_commands();
+				// println!("write node buffer");
+				// for (offset, data) in self.node_staging_buffer.iter() {
+				// 	println!("write offset: {:?} data: {:?}", offset, data);
+				// 	self.queue.write_buffer(&self.node_buffer, offset as u64, bytemuck::cast_slice(&[*data]));
+				// }
+				// self.node_staging_buffer.clear_write_commands();
+
+				self.flush_node_staging_buffer();
 
 				println!("write instance buffer");
 				for (offset, data) in self.instance_staging_buffer.iter() {
@@ -604,7 +636,7 @@ impl ApplicationHandler<Command> for EngineHandler<'_> {
 			Command::SetAnimation { node_id, animation } => {
 				println!("set animation node: {:?}", node_id);
 
-				let node_inx = self.node_staging_buffer.get_inx(node_id).unwrap();
+				let node_inx = self.node_staging_buffer.get_inx(&node_id).unwrap();
 				let m = [
 					[1.0, 0.0, 0.0, 0.0],
 					[0.0, 1.0, 0.0, 0.0],
@@ -613,7 +645,8 @@ impl ApplicationHandler<Command> for EngineHandler<'_> {
 				];
 				let value = animation.transform.to_cols_array_2d();
 				println!("value {:?}", value);
-				let keyframe = Keyframe {
+				println!("node inx {:?}", node_inx);
+				let keyframe: Keyframe = Keyframe {
 					value,
 					is_running: 1,
 					node_inx: node_inx as u32
@@ -644,20 +677,21 @@ impl ApplicationHandler<Command> for EngineHandler<'_> {
 			},
 			Command::ApplyTransformation { node_id, transformation } => {
 				println!("apply transformation node: {:?}", node_id);
-				let inx = self.node_staging_buffer.get_inx(node_id).unwrap();
-				let node = self.node_staging_buffer.get(node_id).unwrap();
-				let new_transform = (transformation * glam::Mat4::from_cols_array_2d(&node.model)).to_cols_array_2d();
-				let node_transform = NodeTransform {
-					model: new_transform,
-					parent_index: node.parent_index,
-					_padding: [0; 3]
-				};
-				self.changed_node_stage_buffer.store_at_inx(inx, ChangedNode {
-					model: new_transform,
-					waiting: 1
-				});
-				self.node_staging_buffer.store(node_id, node_transform);
-				self.flush_changed_node_staging_buffer();
+				// let inx = self.node_staging_buffer.get_inx(node_id).unwrap();
+				// let node = self.node_staging_buffer.get(node_id).unwrap();
+				// let new_transform = (transformation * glam::Mat4::from_cols_array_2d(&node.model)).to_cols_array_2d();
+				// let node_transform = NodeTransform {
+				// 	model: new_transform,
+				// 	parent_index: node.parent_index,
+				// 	_padding: [0; 3]
+				// };
+				self.node_transformations.accumulate(node_id, transformation);
+				// self.node_transformations.
+				// self.changed_node_stage_buffer.store_at_inx(inx, ChangedNode {
+				// 	model: transformation.to_cols_array_2d(),
+				// 	waiting: 1
+				// });
+				// self.flush_changed_node_staging_buffer();
 
 				// let node_inx = self.node_staging_buffer.get_inx(node_id).unwrap();
 				// let m = [
@@ -842,10 +876,5 @@ impl ApplicationHandler<Command> for EngineHandler<'_> {
 			}
 			_ => {}
 		}
-
-		// let timer = Instant::now();
-		// let timer = timer.checked_add(Duration::from_millis(500)).unwrap();
-		// event_loop
-		// 		.set_control_flow(ControlFlow::WaitUntil(timer));
 	}
 }

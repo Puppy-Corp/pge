@@ -12,6 +12,7 @@ pub struct AnimationPipelineArgs {
 	pub adapter: Arc<wgpu::Adapter>,
 	pub animation_bind_group_layout: Arc<wgpu::BindGroupLayout>,
 	pub node_bind_group_layout: Arc<wgpu::BindGroupLayout>,
+	pub change_node_bind_group_layout: Arc<wgpu::BindGroupLayout>,
 }
 
 #[derive(Debug)]
@@ -19,6 +20,7 @@ pub struct AnimateArgs<'a> {
 	pub encoder: &'a mut wgpu::CommandEncoder,
 	pub animation_bind_group: &'a wgpu::BindGroup,
 	pub node_bind_group: &'a wgpu::BindGroup,
+	pub change_node_bind_group: &'a wgpu::BindGroup,
 }
 
 impl AnimationPipeline {
@@ -31,7 +33,7 @@ impl AnimationPipeline {
 
 		let pipeline_layout = args.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
 			label: Some("Animation Pipeline Layout"),
-			bind_group_layouts: &[&args.animation_bind_group_layout, &args.node_bind_group_layout],
+			bind_group_layouts: &[&args.animation_bind_group_layout, &args.node_bind_group_layout, &args.change_node_bind_group_layout],
 			push_constant_ranges: &[],
 		});
 
@@ -59,6 +61,7 @@ impl AnimationPipeline {
 		cpass.set_pipeline(&self.pipeline);
 		cpass.set_bind_group(0, &args.animation_bind_group, &[]);
 		cpass.set_bind_group(1, &args.node_bind_group, &[]);
+		cpass.set_bind_group(2, &args.change_node_bind_group, &[]);
 		cpass.dispatch_workgroups(64, 1, 1);
 	}
 }

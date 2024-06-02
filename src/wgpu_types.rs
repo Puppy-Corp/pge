@@ -288,7 +288,8 @@ impl NodeTransform {
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct ChangedNode {
 	pub model: [[f32; 4]; 4],
-	pub waiting: u32
+	pub waiting: u32,
+	pub _padding: [u32; 3],
 }
 
 impl ChangedNode {

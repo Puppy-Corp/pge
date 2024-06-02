@@ -48,7 +48,7 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 
 	var node_change = node_changes[index];
     if node_change.waiting == 1u {
-        node_change.waiting = 0u;
+        node_changes[index].waiting = 0u;
 		node_transforms[index].model = node_change.model * node_transforms[index].model;
     }
 

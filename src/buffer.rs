@@ -346,6 +346,10 @@ where
 		index
 	}
 
+	pub fn get_inx(&self, id: &usize) -> Option<usize> {
+		self.staging_buffer.get_inx(id)
+	}
+
 	pub fn flush(&mut self) {
 		// self.staging_buffer.merge_write_commands();
 		for (offset, data) in self.staging_buffer.iter() {

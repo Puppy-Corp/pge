@@ -16,8 +16,8 @@ struct NodeChange {
 
 @group(0) @binding(0) 
 var<storage, read> keyframes: array<Keyframe>;
-@group(0) @binding(1)
-var<uniform> current_time: f32;
+// @group(0) @binding(1)
+// var<uniform> current_time: f32;
 @group(1) @binding(0)
 var<storage, read_write> node_transforms: array<NodeTransform>;
 @group(2) @binding(0)
@@ -52,32 +52,32 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 		node_transforms[index].model = node_change.model * node_transforms[index].model;
     }
 
-	let keyframe = keyframes[0];
+	// let keyframe = keyframes[0];
 
-	if keyframe.is_running == 0u {
-		return;
-	}
+	// if keyframe.is_running == 0u {
+	// 	return;
+	// }
 
-	if keyframe.node_inx != index {
-		return;
-	}
+	// if keyframe.node_inx != index {
+	// 	return;
+	// }
 
-	let sensitivity = 10.0;
-	let scaling_factor = sensitivity * current_time;
+	// let sensitivity = 10.0;
+	// let scaling_factor = sensitivity * current_time;
 
-	let scaling_matrix: mat4x4<f32> = mat4x4<f32>(
-		vec4<f32>(1.0, 0.0, 0.0, 0.0),
-		vec4<f32>(0.0, 1.0, 0.0, 0.0),
-		vec4<f32>(0.0, 0.0, 1.0, 0.0),
-		vec4<f32>(0.0, 0.0, 0.0, 1.0)
-	);
+	// let scaling_matrix: mat4x4<f32> = mat4x4<f32>(
+	// 	vec4<f32>(1.0, 0.0, 0.0, 0.0),
+	// 	vec4<f32>(0.0, 1.0, 0.0, 0.0),
+	// 	vec4<f32>(0.0, 0.0, 1.0, 0.0),
+	// 	vec4<f32>(0.0, 0.0, 0.0, 1.0)
+	// );
 
-	var scaled_transform: mat4x4<f32> = keyframe.value * scaling_matrix;
-	scaled_transform[3][0] = keyframe.value[3][0] * scaling_factor;
-	scaled_transform[3][1] = keyframe.value[3][1] * scaling_factor;
-	scaled_transform[3][2] = keyframe.value[3][2] * scaling_factor;
+	// var scaled_transform: mat4x4<f32> = keyframe.value * scaling_matrix;
+	// scaled_transform[3][0] = keyframe.value[3][0] * scaling_factor;
+	// scaled_transform[3][1] = keyframe.value[3][1] * scaling_factor;
+	// scaled_transform[3][2] = keyframe.value[3][2] * scaling_factor;
 	
-    node_transforms[index].model = scaled_transform * node_transforms[index].model;
+    // node_transforms[index].model = scaled_transform * node_transforms[index].model;
 }
 
 

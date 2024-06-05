@@ -352,7 +352,7 @@ impl BufferRecipe for NodeTransformation {
 	fn create_buffer(device: &wgpu::Device) -> wgpu::Buffer {
 		device.create_buffer(&wgpu::BufferDescriptor {
 			label: Some("Node Transformation Buffer"),
-			size: std::mem::size_of::<NodeTransformation>() as u64,
+			size: 1024,
 			usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
 			mapped_at_creation: false,
 		})
@@ -483,7 +483,7 @@ impl BufferRecipe for RawAnimation {
 					binding: 0,
 					visibility: wgpu::ShaderStages::COMPUTE,
 					ty: wgpu::BindingType::Buffer {
-						ty: wgpu::BufferBindingType::Storage { read_only: false },
+						ty: wgpu::BufferBindingType::Storage { read_only: true },
 						has_dynamic_offset: false,
 						min_binding_size: None,
 					},

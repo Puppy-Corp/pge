@@ -56,17 +56,17 @@ async fn main() -> anyhow::Result<()> {
 		// root.add_node(cube_node);
 
 		let mut light_node = Node::new();
-		light_node.set_translation(2.0, 2.0, -2.0);
+		light_node.set_translation(0.0, 10.0, 1.0);
 		let light = PointLight::new();
 		light_node.set_point_light(light);
-		root.add_node(light_node);
+		scene.add_node(light_node);
 
 		let mut camera_node = Node::new();
 		let camera_node_id = camera_node.id;
 		let camera = Camera::new();
 		let scene_cam = SceneCam::new(&camera);
 		camera_node.set_camera(camera);
-		camera_node.set_translation(2.0, 0.0, -6.0);
+		camera_node.set_translation(0.0, 0.0, -6.0);
 		camera_node.looking_at(0.0, 0.0, 0.0);
 		root.add_node(camera_node.clone());
 
@@ -143,8 +143,10 @@ async fn main() -> anyhow::Result<()> {
 									// let animation = Animation::new()
 									// 	.every(Duration::from_secs(1))
 									// 	.transform(pressed_keys.to_mat4());
+
+									let mat = pressed_keys.to_mat4();
 		
-									// handle.set_animation(camera_node_id, animation);
+									handle.apply_transformation(camera_node_id, mat);
 								},
 								InputEvent::MouseEvent(m) => {
 									match m {

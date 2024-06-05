@@ -281,28 +281,28 @@ impl<'a> EngineHandler<'a> {
 			usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::STORAGE,
 			mapped_at_creation: false
 		});
-		let animation_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-			label: Some("Animation Bind Group"),
-			layout: &animation_bind_group_layout,
-			entries: &[
-				wgpu::BindGroupEntry {
-					binding: 0,
-					resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-						buffer: &key_frames_buffer,
-						offset: 0,
-						size: None,
-					}),
-				},
-				wgpu::BindGroupEntry {
-					binding: 1,
-					resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-						buffer: &time_buffer,
-						offset: 0,
-						size: None,
-					}),
-				},
-			],
-		});
+		// let animation_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+		// 	label: Some("Animation Bind Group"),
+		// 	layout: &animation_bind_group_layout,
+		// 	entries: &[
+		// 		wgpu::BindGroupEntry {
+		// 			binding: 0,
+		// 			resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+		// 				buffer: &key_frames_buffer,
+		// 				offset: 0,
+		// 				size: None,
+		// 			}),
+		// 		},
+		// 		wgpu::BindGroupEntry {
+		// 			binding: 1,
+		// 			resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+		// 				buffer: &time_buffer,
+		// 				offset: 0,
+		// 				size: None,
+		// 			}),
+		// 		},
+		// 	],
+		// });
 
 		// let changed_node_bind_group_layout = NodeTransformation::create_bind_group_layout(&device);
 		// let changed_node_buffer = NodeTransformation::create_buffer(&device);
@@ -328,7 +328,7 @@ impl<'a> EngineHandler<'a> {
 			queue: queue.clone(),
 			device: device.clone(),
 			adapter: adapter.clone(),
-			animation_bind_group_layout: animation_bind_group_layout.clone(),
+			animation_bind_group_layout: animation_buffer.bind_group_layout(),
 			node_bind_group_layout: node_buffer.bind_group_layout(),
 			change_node_bind_group_layout: node_transformation_buffer.bind_group_layout(),
 		});
@@ -407,31 +407,32 @@ impl<'a> EngineHandler<'a> {
 		self.since_last_frame = Instant::now();
 		self.queue.write_buffer(&self.time_buffer, 0, bytemuck::cast_slice(&[seconds]));
 
-		// for (node_id, mat) in self.node_transformations.get_items() {
-		// 	println!("writing node {:?} change {:?}", node_id, mat);
-		// 	let inx = self.node_staging_buffer.get_inx(node_id).unwrap();
-		// 	println!("node inx: {:?}", inx);
+		for (node_id, mat) in self.node_transformations.get_items() {
+			println!("writing node {:?} change {:?}", node_id, mat);
+			let inx = self.node_buffer.get_inx(node_id).unwrap();
+			println!("node inx: {:?}", inx);
 
-		// 	let changed_node = NodeTransformation {
-		// 		model: mat.to_cols_array_2d(),
-		// 		waiting: 1,
-		// 		_padding: [0; 3]
-		// 	};
-		// 	let changed_node = &[changed_node];
-		// 	let data = bytemuck::cast_slice(changed_node);
-		// 	let offset = inx * std::mem::size_of::<NodeTransformation>();
-		// 	let offset = offset as u64;
-		// 	println!("offset: {:?}", offset);
-		// 	self.queue.write_buffer(&self.changed_node_buffer, offset, data);
-		// }
-		// self.node_transformations.clear();
+			let changed_node = NodeTransformation {
+				model: mat.to_cols_array_2d(),
+				waiting: 1,
+				_padding: [0; 3]
+			};
+			let changed_node = &[changed_node];
+			let data = bytemuck::cast_slice(changed_node);
+			let offset = inx * std::mem::size_of::<NodeTransformation>();
+			let offset = offset as u64;
+			println!("offset: {:?}", offset);
 
-		// self.animation_pipeline.animate(AnimateArgs {
-		// 	encoder: &mut encoder,
-		// 	animation_bind_group: &self.animation_buffer.bind_group(),
-		// 	node_bind_group: &self.node_buffer.bind_group(),
-		// 	change_node_bind_group: &self.node_transformation_buffer.bind_group(),
-		// });
+			self.queue.write_buffer(&self.node_transformation_buffer.buffer(), offset, data);
+		}
+		self.node_transformations.clear();
+
+		self.animation_pipeline.animate(AnimateArgs {
+			encoder: &mut encoder,
+			animation_bind_group: &self.animation_buffer.bind_group(),
+			node_bind_group: &self.node_buffer.bind_group(),
+			change_node_bind_group: &self.node_transformation_buffer.bind_group(),
+		});
 
 
 
@@ -454,7 +455,7 @@ impl<'a> EngineHandler<'a> {
 		self.queue.submit(std::iter::once(encoder.finish()));
 	}
 
-	fn update_node(&mut self, node: &Node, parent_id: Option<usize>) {
+	fn update_node(&mut self, node: &Node, parent_inx: Option<usize>) {
 		// println!("node {} has parent {:?}", node.id, parent_id);
 		// println!("translation: {:?}", node.translation);
 		// println!("rotation: {:?}", node.rotation);
@@ -462,11 +463,11 @@ impl<'a> EngineHandler<'a> {
 		// println!("model: {:?}", model.to_cols_array_2d());
 		let n = RawNode {
 			model: model.to_cols_array_2d(),
-			parent_index: parent_id.map_or(-1, |p| p as i32),
+			parent_index: parent_inx.map_or(-1, |p| p as i32),
 			_padding: [0; 3]
 		};
 		let node_index = self.node_buffer.store(node.id, n);
-		println!("node index: {:?}", node_index);
+		println!("node index: {:?} data: {:?}", node_index, n);
 
 		if let Some(mesh) = &node.mesh {
 			// println!("write cube");
@@ -506,7 +507,7 @@ impl<'a> EngineHandler<'a> {
 		}
 
 		if let Some(point_light) = &node.point_light {
-			println!("{:?}", point_light);
+			// println!("{:?}", point_light);
 			// let light = RawPointLight {
 			// 	color: point_light.color,
 			// 	intensity: point_light.intensity,
@@ -522,15 +523,13 @@ impl<'a> EngineHandler<'a> {
 				// node_inx: node_index as i32,
 				// _padding2: [0.0; 3]
 			};
-			
-			println!("raw light: {:?}", light);
-			// assert_eq!(std::mem::size_of::<RawPointLight>(), 32);
+			println!("point light: {:?}", light);
 			self.point_light_buffer.store(point_light.id, light);
-			//self.queue.write_buffer(&self.point_light_buffer.buffer(), 0, bytemuck::cast_slice(&[light]));
 		}
 
 		for child in &node.children {
-			self.update_node(&child, Some(node.id));
+			println!("child id: {:?} parent_inx: {}", child.id, node_index);
+			self.update_node(&child, Some(node_index));
 		}
 	}
 
@@ -570,6 +569,7 @@ impl ApplicationHandler<Command> for EngineHandler<'_> {
 			}
 			Command::SaveScene(scene) => {
 				for node in scene.nodes {
+					println!("scene node: {}", node.id);
 					self.update_node(&node, None);
 				}
 
@@ -711,15 +711,15 @@ impl ApplicationHandler<Command> for EngineHandler<'_> {
 			}
 			WindowEvent::CursorMoved { device_id, position } => {
 				if let Some(window) = self.windows.get(&window_id) {
-					// let size = &window.window.inner_size();
-					// let middle_x = size.width as f64 / 2.0;
-					// let middle_y = size.height as f64 / 2.0;
-					// let dx = middle_x - position.x;
-					// let dy = middle_y - position.y;
-					// let dx = dx as f32;
-					// let dy = dy as f32;
-					// self.send_mouse_event(MouseEvent::Moved { dx, dy });
-					// window.window.set_cursor_position(PhysicalPosition::new(middle_x, middle_y)).unwrap();
+					let size = &window.window.inner_size();
+					let middle_x = size.width as f64 / 2.0;
+					let middle_y = size.height as f64 / 2.0;
+					let dx = middle_x - position.x;
+					let dy = middle_y - position.y;
+					let dx = dx as f32;
+					let dy = dy as f32;
+					self.send_mouse_event(MouseEvent::Moved { dx, dy });
+					window.window.set_cursor_position(PhysicalPosition::new(middle_x, middle_y)).unwrap();
 				}
 			}
 			WindowEvent::KeyboardInput { device_id, event, is_synthetic } => {

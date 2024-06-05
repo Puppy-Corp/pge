@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::internal::WriteCommand;
-use crate::wgpu_types::NodeTransform;
+use crate::wgpu_types::RawNode;
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct NodeMetadata {
@@ -12,7 +12,7 @@ pub struct NodeMetadata {
 
 impl NodeMetadata {
 	pub fn to_bytes(&self) -> Vec<u8> {
-		let n = NodeTransform {
+		let n = RawNode {
 			_padding: [0; 3],
 			model: self.model.to_cols_array_2d(),
 			parent_index: self.parent_id.map_or(-1, |p| p as i32),

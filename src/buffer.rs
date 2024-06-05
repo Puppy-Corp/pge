@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-
+use crate::wgpu_types::BufferRecipe;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Slot {
@@ -56,14 +56,14 @@ impl Buffer {
 	}
 }
 
-pub struct StaticBufferManager<T> {
+pub struct StaticStagingBuffer<T> {
 	blocks: Vec<T>,
 	id_block_map: HashMap<usize, usize>,
 	free_list: Vec<usize>,
 	write_commands: Vec<usize>
 }
 
-impl<T> StaticBufferManager<T>
+impl<T> StaticStagingBuffer<T>
 where
 	T: Sized + bytemuck::Pod + bytemuck::Zeroable
 {
@@ -122,6 +122,10 @@ where
 			data: &self.blocks,
 			pointers: &self.write_commands
 		}
+	}
+
+	pub fn merge_write_commands(&mut self) {
+
 	}
 
 	pub fn clear_write_commands(&mut self) {
@@ -253,6 +257,10 @@ impl DynamicStagingBuffer {
 	}
 
 	fn merge_write_commands(&mut self) {
+		if self.write_commands.len() == 0 {
+			return;
+		}
+
 		self.write_commands.sort_by_key(|p| p.offset);
 
 		let mut merged = Vec::new();
@@ -302,6 +310,149 @@ impl<'a> Iterator for WriteIterator<'a> {
 		let data = &self.data[pointer.offset..pointer.offset + pointer.size];
 
 		Some((pointer.offset, data))
+	}
+}
+
+pub struct StaticBufferManager<T> {
+	pub device: Arc<wgpu::Device>,
+	pub queue: Arc<wgpu::Queue>,
+	pub bind_group: wgpu::BindGroup,
+	pub buffer: wgpu::Buffer,
+	pub layout: Arc<wgpu::BindGroupLayout>,
+	pub staging_buffer: StaticStagingBuffer<T>
+}
+
+impl<T> StaticBufferManager<T>
+where
+	T: Sized + bytemuck::Pod + bytemuck::Zeroable + BufferRecipe
+{
+	pub fn new(device: Arc<wgpu::Device>, queue: Arc<wgpu::Queue>) -> Self {
+		let layout = Arc::new(T::create_bind_group_layout(&device));
+		let buffer = T::create_buffer(&device);
+		let bind_group = T::create_bind_group(&device, &buffer, &layout);
+
+		Self {
+			device,
+			queue,
+			bind_group,
+			buffer,
+			layout,
+			staging_buffer: StaticStagingBuffer::new(1024)
+		}
+	}
+
+	pub fn store(&mut self, id: usize, item: T) -> usize {
+		let index = self.staging_buffer.store(id, item);
+		index
+	}
+
+	pub fn flush(&mut self) {
+		// self.staging_buffer.merge_write_commands();
+		for (offset, data) in self.staging_buffer.iter() {
+			let bytes = bytemuck::bytes_of(data);
+			println!("write offset: {}, bytes: {:?}", offset, bytes);
+			self.queue.write_buffer(&self.buffer, offset as u64, bytes);
+		}
+		self.staging_buffer.clear_write_commands();
+	}
+
+	pub fn bind_group_layout(&self) -> Arc<wgpu::BindGroupLayout> {
+		self.layout.clone()
+	}
+
+	pub fn bind_group(&self) -> &wgpu::BindGroup {
+		&self.bind_group
+	}
+
+	pub fn buffer(&self) -> &wgpu::Buffer {
+		&self.buffer
+	}
+}
+
+pub struct DynamicVertexBuffer {
+	pub device: Arc<wgpu::Device>,
+	pub queue: Arc<wgpu::Queue>,
+	pub buffer: wgpu::Buffer,
+	pub staging_buffer: DynamicStagingBuffer
+}
+
+impl DynamicVertexBuffer
+{
+	pub fn new(device: Arc<wgpu::Device>, queue: Arc<wgpu::Queue>) -> Self {
+		let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+			label: Some("Dynamic Vertex Buffer"),
+			size: 1024,
+			usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC | wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::INDEX,
+			mapped_at_creation: false
+		});
+		Self {
+			device,
+			queue,
+			buffer,
+			staging_buffer: DynamicStagingBuffer::new(1024)
+		}
+	}
+
+	pub fn store(&mut self, id: usize, data: &[u8]) -> Pointer {
+		self.staging_buffer.store(id, data)
+	}
+
+	pub fn flush(&mut self) {
+		// self.staging_buffer.merge_write_commands();
+		for (offset, data) in self.staging_buffer.iter() {
+			println!("write offset: {}, bytes: {:?}", offset, data);
+			self.queue.write_buffer(&self.buffer, offset as u64, data);
+		}
+		self.staging_buffer.clear_write_commands();
+	}
+
+	pub fn buffer(&self) -> &wgpu::Buffer {
+		&self.buffer
+	}
+}
+
+pub struct FixedVertexBuffer<T> {
+	pub device: Arc<wgpu::Device>,
+	pub queue: Arc<wgpu::Queue>,
+	pub buffer: wgpu::Buffer,
+	pub staging_buffer: StaticStagingBuffer<T>
+}
+
+impl<T> FixedVertexBuffer<T>
+where
+	T: Sized + bytemuck::Pod + bytemuck::Zeroable
+{
+	pub fn new(device: Arc<wgpu::Device>, queue: Arc<wgpu::Queue>) -> Self {
+		let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+			label: Some("Fixed Vertex Buffer"),
+			size: 1024,
+			usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC | wgpu::BufferUsages::VERTEX,
+			mapped_at_creation: false
+		});
+		Self {
+			device,
+			queue,
+			buffer,
+			staging_buffer: StaticStagingBuffer::new(1024)
+		}
+	}
+
+	pub fn store(&mut self, id: usize, item: T) -> usize {
+		self.staging_buffer.store(id, item)
+	}
+
+	pub fn flush(&mut self) {
+		// self.staging_buffer.merge_write_commands();
+		for (offset, data) in self.staging_buffer.iter() {
+			let bytes = bytemuck::bytes_of(data);
+			println!("write offset: {}, bytes: {:?}", offset, bytes);
+			self.queue.write_buffer(&self.buffer, offset as u64, bytes);
+		}
+		self.staging_buffer.clear_write_commands();
+	}
+
+	pub fn buffer(&self) -> &wgpu::Buffer {
+		&self.buffer
 	}
 }
 

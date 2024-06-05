@@ -89,7 +89,8 @@ pub struct Node {
 	pub translation: Vec3,
 	pub rotation: glam::Quat,
 	pub children: Vec<Node>,
-	pub animation: Animation
+	pub animation: Animation,
+	pub point_light: Option<PointLight>,
 }
 
 impl Node {
@@ -98,6 +99,7 @@ impl Node {
 			id: gen_id(),
 			mesh: None,
 			camera: None,
+			point_light: None,
 			translation: Vec3::ZERO,
 			rotation: glam::Quat::IDENTITY,
 			children: vec![],
@@ -106,27 +108,22 @@ impl Node {
 	}
 
 	pub fn set_mesh(&mut self, mesh: Mesh) {
-		println!("Setting mesh");
 		self.mesh = Some(mesh);
 	}
 
 	pub fn set_camera(&mut self, camera: Camera) {
-		println!("Setting camera");
 		self.camera = Some(camera);
 	}
 
 	pub fn add_node(&mut self, node: Node) {
-		println!("Adding node");
 		self.children.push(node);
 	}
 
 	pub fn set_translation(&mut self, x: f32, y: f32, z: f32) {
-		println!("Setting translation: x: {}, y: {}, z: {}", x, y, z);
 		self.translation = Vec3::new(x, y, z);
 	}
 
 	pub fn looking_at(&mut self, target_x: f32, target_y: f32, target_z: f32) {
-        println!("Looking at: x: {}, y: {}, z: {}", target_x, target_y, target_z);
         let target = Vec3::new(target_x, target_y, target_z);
         let direction = (target - self.translation).normalize();
         
@@ -136,6 +133,10 @@ impl Node {
         // Compute the quaternion rotation
         self.rotation = glam::Quat::from_rotation_arc(Vec3::Z, direction);
     }
+
+	pub fn set_point_light(&mut self, light: PointLight) {
+		self.point_light = Some(light);
+	}
 }
 
 #[derive(Debug, Clone)]
@@ -390,6 +391,19 @@ impl Material {
 	}
 }
 
-pub trait AppHandler {
+#[derive(Debug, Clone)]
+pub struct PointLight {
+	pub id: usize,
+	pub color: [f32; 3],
+	pub intensity: f32,
+}
 
+impl PointLight {
+	pub fn new() -> Self {
+		Self {
+			id: gen_id(),
+			color: [1.0, 1.0, 1.0],
+			intensity: 1.0,
+		}
+	}
 }

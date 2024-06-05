@@ -11,6 +11,7 @@ pub struct RenderPipelineBuilder {
 	pub adapter: Arc<wgpu::Adapter>,
 	pub node_bind_group_layout: Arc<wgpu::BindGroupLayout>,
 	pub camera_bind_group_layout: Arc<wgpu::BindGroupLayout>,
+	pub point_light_bind_group_layout: Arc<wgpu::BindGroupLayout>,
 }
 
 impl RenderPipelineBuilder {
@@ -47,7 +48,7 @@ impl RenderPipelineBuilder {
 		});
 		let render_pipeline_layout = self.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
 			label: Some("Render Pipeline Layout"),
-			bind_group_layouts: &[&self.camera_bind_group_layout, &self.node_bind_group_layout],
+			bind_group_layouts: &[&self.camera_bind_group_layout, &self.node_bind_group_layout, &self.point_light_bind_group_layout],
 			push_constant_ranges: &[],
 		});
 		log::info!("creating render pipeline");
@@ -57,7 +58,7 @@ impl RenderPipelineBuilder {
 			vertex: wgpu::VertexState {
 				module: &shader,
 				entry_point: "vs_main",
-				buffers: &[Position::desc(), RawInstance::desc()],
+				buffers: &[Positions::desc(), RawInstance::desc(), Normal::desc(), TexCoords::desc()],
 				compilation_options: Default::default()
 			},
 			fragment: Some(wgpu::FragmentState {
@@ -118,6 +119,7 @@ pub struct Renderer<'a> {
 pub struct DrawInstruction {
 	pub position_range: Range<u64>,
 	pub index_range: Range<u64>,
+	pub normal_range: Range<u64>,
 	pub instances_range: Range<u32>,
 	pub indices_range: Range<u32>,
 }
@@ -126,8 +128,11 @@ pub struct RenderArgs<'a> {
 	pub instructions: &'a [DrawInstruction],
 	pub node_bind_group: &'a wgpu::BindGroup,
 	pub camera_bind_group: &'a wgpu::BindGroup,
+	pub point_light_bind_group: &'a wgpu::BindGroup,
 	pub positions_buffer: &'a wgpu::Buffer,
-	pub indices_buffer: &'a wgpu::Buffer,
+	pub index_buffer: &'a wgpu::Buffer,
+	pub normal_buffer: &'a wgpu::Buffer,
+	pub tex_coords_buffer: &'a wgpu::Buffer,
 	pub instance_buffer: &'a wgpu::Buffer,
 	pub encoder: &'a mut wgpu::CommandEncoder,
 }
@@ -165,6 +170,7 @@ impl Renderer<'_> {
 			//render_pass.set_bind_group(0, &args.node_bind_group, &[]);
 			render_pass.set_bind_group(0, &args.camera_bind_group, &[]);
 			render_pass.set_bind_group(1, &args.node_bind_group, &[]);
+			render_pass.set_bind_group(2, &args.point_light_bind_group, &[]);
 
 			for draw in args.instructions {
 				// println!("draw");
@@ -176,7 +182,9 @@ impl Renderer<'_> {
 				render_pass.set_vertex_buffer(0, args.positions_buffer.slice(draw.position_range.clone()));
 				//render_pass.set_vertex_buffer(1, args.positions_buffer.slice(..));
 				render_pass.set_vertex_buffer(1, args.instance_buffer.slice(..));
-				render_pass.set_index_buffer(args.indices_buffer.slice(draw.index_range.clone()), wgpu::IndexFormat::Uint16);
+				render_pass.set_vertex_buffer(2, args.normal_buffer.slice(draw.normal_range.clone()));
+				render_pass.set_vertex_buffer(3, args.tex_coords_buffer.slice(..));
+				render_pass.set_index_buffer(args.index_buffer.slice(draw.index_range.clone()), wgpu::IndexFormat::Uint16);
 				render_pass.draw_indexed(draw.indices_range.clone(), 0, draw.instances_range.clone());
 			}
 		}

@@ -2,6 +2,7 @@ use core::time;
 use std::collections::HashMap;
 use std::future::Future;
 use std::ops::Range;
+use std::os::macos::raw;
 use std::sync::Arc;
 use std::time::Duration;
 use std::time::Instant;
@@ -13,6 +14,7 @@ use wgpu::BufferAddress;
 use wgpu::Features;
 use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalPosition;
+use winit::dpi::Position;
 use winit::event::WindowEvent;
 use winit::event_loop::ControlFlow;
 use winit::event_loop::EventLoop;
@@ -27,6 +29,8 @@ use crate::animation_pipeline::AnimationPipeline;
 use crate::animation_pipeline::AnimationPipelineArgs;
 use crate::buffer::Buffer;
 use crate::buffer::DynamicStagingBuffer;
+use crate::buffer::DynamicVertexBuffer;
+use crate::buffer::FixedVertexBuffer;
 use crate::buffer::Slot;
 use crate::buffer::StaticBufferManager;
 use crate::cube;
@@ -37,12 +41,15 @@ use crate::node_manager::NodeManager;
 use crate::node_manager::NodeMetadata;
 use crate::types::*;
 use crate::wgpu_renderer::*;
-use crate::wgpu_types::CameraUniform;
+use crate::wgpu_types::RawAnimation;
+use crate::wgpu_types::RawCamera;
 use crate::wgpu_types::Keyframe;
-use crate::wgpu_types::NodeTransform;
-use crate::wgpu_types::Position;
+use crate::wgpu_types::RawKeyFrame;
+use crate::wgpu_types::RawNode;
+use crate::wgpu_types::Positions;
 use crate::wgpu_types::RawInstance;
-use crate::wgpu_types::ChangedNode;
+use crate::wgpu_types::NodeTransformation;
+use crate::wgpu_types::RawPointLight;
 use crate::Window;
 
 #[derive(Debug, Clone)]
@@ -186,37 +193,26 @@ pub struct EngineHandler<'a> {
 	queue: Arc<wgpu::Queue>,
 	adapter: Arc<wgpu::Adapter>,
 	instance: Arc<wgpu::Instance>,
-	position_buffer: wgpu::Buffer,
-	// normal_buffer: Buffer,
-	// tex_coord_buffer: Buffer,
-	indices_buffer: wgpu::Buffer,
-	// mesh_pointers: HashMap<usize, MeshPointer>,
-	node_bind_group_layout: Arc<wgpu::BindGroupLayout>,
-	node_bind_group: wgpu::BindGroup,
-	node_buffer: wgpu::Buffer,
-	camera_bind_group_layout: Arc<wgpu::BindGroupLayout>,
-	camera_bind_group: wgpu::BindGroup,
-	camera_buffer: wgpu::Buffer,
-	instance_buffer: wgpu::Buffer,
+	
 	time_buffer: wgpu::Buffer,
 	key_frames_buffer: wgpu::Buffer,
 	draw_instructions: Vec<DrawInstruction>,
-	position_staging_buffer: DynamicStagingBuffer,
-	index_staging_buffer: DynamicStagingBuffer,
-	instance_staging_buffer: StaticBufferManager<RawInstance>,
-	node_staging_buffer: StaticBufferManager<NodeTransform>,
-	// draw_queue: DrawQueue
 	tx: broadcast::Sender<Event>,
 	i: usize,
 	since_last_frame: Instant,
 	animation_pipeline: AnimationPipeline,
-	animation_bind_group_layout: Arc<wgpu::BindGroupLayout>,
-	animation_bind_group: wgpu::BindGroup,
-	changed_node_bind_group_layout: Arc<wgpu::BindGroupLayout>,
-	changed_node_bind_group: wgpu::BindGroup,
-	changed_node_buffer: wgpu::Buffer,
-	changed_node_stage_buffer: StaticBufferManager<ChangedNode>,
-	node_transformations: TransformationAcumalator
+	animation_buffer: StaticBufferManager<RawAnimation>,
+	keyframe_buffer: StaticBufferManager<RawKeyFrame>,
+	node_transformations: TransformationAcumalator,
+	node_transformation_buffer: StaticBufferManager<NodeTransformation>,
+	position_buffer: DynamicVertexBuffer,
+	normal_buffer: DynamicVertexBuffer,
+	tex_coord_buffer: DynamicVertexBuffer,
+	index_buffer: DynamicVertexBuffer,
+	instance_buffer: FixedVertexBuffer<RawInstance>,
+	camera_buffer: StaticBufferManager<RawCamera>,
+	node_buffer: StaticBufferManager<RawNode>,
+	point_light_buffer: StaticBufferManager<RawPointLight>
 }
 
 impl Drop for EngineHandler<'_> {
@@ -245,31 +241,6 @@ impl<'a> EngineHandler<'a> {
 		let adapter = Arc::new(adapter);
 		let instance = Arc::new(instance);
 
-		let position_buffer = Position::create_buffer(&device, 500);
-		let indices_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-			label: Some("Indices Buffer"),
-			size: 1024,
-			usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::INDEX,
-			mapped_at_creation: false
-		});
-		// let normal_buffer = Buffer::new(device.clone(), queue.clone());
-		// let tex_coord_buffer = Buffer::new(device.clone(), queue.clone());
-
-		let node_bind_group_layout = NodeTransform::create_bind_group_layout(&device);
-		let node_bind_group_layout = Arc::new(node_bind_group_layout);
-		let node_buffer = NodeTransform::create_buffer(&device);
-		let node_bind_group = NodeTransform::create_bind_group(&device, &node_buffer, &node_bind_group_layout);
-
-		let camera_bind_group_layout = CameraUniform::create_bind_group_layout(&device);
-		let camera_buffer = CameraUniform::create_buffer(&device);
-		let camera_bind_group = CameraUniform::create_bind_group(&device, &camera_buffer, &camera_bind_group_layout);
-
-		let instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-			label: Some("Instance Buffer"),
-			size: 1024,
-			usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::VERTEX,
-			mapped_at_creation: false
-		});
 
 		let animation_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
 			label: Some("Animation Bind Group Layout"),
@@ -333,10 +304,24 @@ impl<'a> EngineHandler<'a> {
 			],
 		});
 
-		let changed_node_bind_group_layout = ChangedNode::create_bind_group_layout(&device);
-		let changed_node_buffer = ChangedNode::create_buffer(&device);
-		let changed_node_bind_group = ChangedNode::create_bind_group(&device, &changed_node_buffer, &changed_node_bind_group_layout);
-		let changed_node_bind_group_layout = Arc::new(changed_node_bind_group_layout);
+		// let changed_node_bind_group_layout = NodeTransformation::create_bind_group_layout(&device);
+		// let changed_node_buffer = NodeTransformation::create_buffer(&device);
+		// let changed_node_bind_group = NodeTransformation::create_bind_group(&device, &changed_node_buffer, &changed_node_bind_group_layout);
+		// let changed_node_bind_group_layout = Arc::new(changed_node_bind_group_layout);
+
+		let animation_buffer = StaticBufferManager::new(device.clone(), queue.clone());
+		let keyframe_buffer = StaticBufferManager::new(device.clone(), queue.clone());
+
+		let node_transformation_buffer = StaticBufferManager::new(device.clone(), queue.clone());
+		let position_buffer = DynamicVertexBuffer::new(device.clone(), queue.clone());
+		let normal_buffer = DynamicVertexBuffer::new(device.clone(), queue.clone());
+		let tex_coord_buffer = DynamicVertexBuffer::new(device.clone(), queue.clone());
+		let index_buffer = DynamicVertexBuffer::new(device.clone(), queue.clone());
+
+		let camera_buffer = StaticBufferManager::new(device.clone(), queue.clone());
+		let instance_buffer = FixedVertexBuffer::new(device.clone(), queue.clone());
+		let node_buffer = StaticBufferManager::new(device.clone(), queue.clone());
+		let point_light_buffer = StaticBufferManager::new(device.clone(), queue.clone());
 
 		let animation_pipeline = AnimationPipeline::new(AnimationPipelineArgs {
 			instance: instance.clone(),
@@ -344,8 +329,8 @@ impl<'a> EngineHandler<'a> {
 			device: device.clone(),
 			adapter: adapter.clone(),
 			animation_bind_group_layout: animation_bind_group_layout.clone(),
-			node_bind_group_layout: node_bind_group_layout.clone(),
-			change_node_bind_group_layout: changed_node_bind_group_layout.clone()
+			node_bind_group_layout: node_buffer.bind_group_layout(),
+			change_node_bind_group_layout: node_transformation_buffer.bind_group_layout(),
 		});
 
 		Self {
@@ -354,37 +339,25 @@ impl<'a> EngineHandler<'a> {
 			queue,
 			adapter,
 			instance,
-			position_buffer,
-			// normal_buffer,
-			// tex_coord_buffer,
-			indices_buffer,
-			// mesh_pointers: HashMap::new(),
 			draw_instructions: Vec::new(),
-			camera_bind_group_layout: Arc::new(camera_bind_group_layout),
-			camera_bind_group,
-			camera_buffer,
-			node_bind_group_layout,
-			node_bind_group,
-			node_buffer,
-			instance_buffer,
-			position_staging_buffer: DynamicStagingBuffer::new(1024),
-			index_staging_buffer: DynamicStagingBuffer::new(1024),
-			instance_staging_buffer: StaticBufferManager::new(1024),
-			node_staging_buffer: StaticBufferManager::new(1024),
 			tx,
 			i: 0,
 			since_last_frame: Instant::now(),
 			time_buffer,
 			key_frames_buffer,
 			animation_pipeline,
-			animation_bind_group,
-			animation_bind_group_layout,
-			changed_node_bind_group_layout,
-			changed_node_bind_group,
-			changed_node_buffer,
-			changed_node_stage_buffer: StaticBufferManager::new(1024),
-			node_transformations: TransformationAcumalator::new()
-			// draw_queue: DrawQueue::new()
+			node_transformations: TransformationAcumalator::new(),
+			animation_buffer,
+			keyframe_buffer,
+			node_transformation_buffer,
+			position_buffer,
+			normal_buffer,
+			tex_coord_buffer,
+			index_buffer,
+			camera_buffer,
+			instance_buffer,
+			node_buffer,
+			point_light_buffer,
 		}
 	}
 
@@ -400,8 +373,9 @@ impl<'a> EngineHandler<'a> {
 			device: self.device.clone(),
 			window: window.clone(),
 			instance: self.instance.clone(),
-			node_bind_group_layout: self.node_bind_group_layout.clone(),
-			camera_bind_group_layout: self.camera_bind_group_layout.clone(),
+			node_bind_group_layout: self.node_buffer.bind_group_layout(),
+			camera_bind_group_layout: self.camera_buffer.bind_group_layout(),
+			point_light_bind_group_layout: self.point_light_buffer.bind_group_layout(),
 		};
 		let renderer = builder.build();
 
@@ -411,11 +385,6 @@ impl<'a> EngineHandler<'a> {
 			window,
 			gui_window
 		});
-
-
-		println!("windows {:?}", self.windows);
-		println!("windows count {:?}", self.windows.len());
-
 		self.render_every_window();
 	}
 
@@ -424,47 +393,59 @@ impl<'a> EngineHandler<'a> {
 			label: Some("Render Encoder")
 		});
 
+		self.node_buffer.flush();
+		self.point_light_buffer.flush();
+		self.node_transformation_buffer.flush();
+		self.instance_buffer.flush();
+		self.position_buffer.flush();
+		self.normal_buffer.flush();
+		self.index_buffer.flush();
+		self.camera_buffer.flush();
+
 		let seconds = self.since_last_frame.elapsed().as_secs_f32();
 		// println!("since last frame: {:?}", seconds);
 		self.since_last_frame = Instant::now();
 		self.queue.write_buffer(&self.time_buffer, 0, bytemuck::cast_slice(&[seconds]));
 
-		for (node_id, mat) in self.node_transformations.get_items() {
-			println!("writing node {:?} change {:?}", node_id, mat);
-			let inx = self.node_staging_buffer.get_inx(node_id).unwrap();
-			println!("node inx: {:?}", inx);
+		// for (node_id, mat) in self.node_transformations.get_items() {
+		// 	println!("writing node {:?} change {:?}", node_id, mat);
+		// 	let inx = self.node_staging_buffer.get_inx(node_id).unwrap();
+		// 	println!("node inx: {:?}", inx);
 
-			let changed_node = ChangedNode {
-				model: mat.to_cols_array_2d(),
-				waiting: 1,
-				_padding: [0; 3]
-			};
-			let changed_node = &[changed_node];
-			let data = bytemuck::cast_slice(changed_node);
-			let offset = inx * std::mem::size_of::<ChangedNode>();
-			let offset = offset as u64;
-			println!("offset: {:?}", offset);
-			self.queue.write_buffer(&self.changed_node_buffer, offset, data);
-		}
-		self.node_transformations.clear();
+		// 	let changed_node = NodeTransformation {
+		// 		model: mat.to_cols_array_2d(),
+		// 		waiting: 1,
+		// 		_padding: [0; 3]
+		// 	};
+		// 	let changed_node = &[changed_node];
+		// 	let data = bytemuck::cast_slice(changed_node);
+		// 	let offset = inx * std::mem::size_of::<NodeTransformation>();
+		// 	let offset = offset as u64;
+		// 	println!("offset: {:?}", offset);
+		// 	self.queue.write_buffer(&self.changed_node_buffer, offset, data);
+		// }
+		// self.node_transformations.clear();
 
-		self.animation_pipeline.animate(AnimateArgs {
-			encoder: &mut encoder,
-			animation_bind_group: &self.animation_bind_group,
-			node_bind_group: &self.node_bind_group,
-			change_node_bind_group: &self.changed_node_bind_group
-		});
+		// self.animation_pipeline.animate(AnimateArgs {
+		// 	encoder: &mut encoder,
+		// 	animation_bind_group: &self.animation_buffer.bind_group(),
+		// 	node_bind_group: &self.node_buffer.bind_group(),
+		// 	change_node_bind_group: &self.node_transformation_buffer.bind_group(),
+		// });
 
 
 
 		for (window_id, window) in self.windows.iter() {
 			let args = RenderArgs {
 				encoder: &mut encoder,
-				camera_bind_group: &self.camera_bind_group,
-				node_bind_group: &self.node_bind_group,
-				positions_buffer: &self.position_buffer,
-				indices_buffer: &self.indices_buffer,
-				instance_buffer: &self.instance_buffer,
+				camera_bind_group: &self.camera_buffer.bind_group(),
+				node_bind_group: &self.node_buffer.bind_group(),
+				point_light_bind_group: &self.point_light_buffer.bind_group(),
+				positions_buffer: &self.position_buffer.buffer(),
+				index_buffer: &self.index_buffer.buffer(),
+				normal_buffer: &self.normal_buffer.buffer(),
+				tex_coords_buffer: &self.tex_coord_buffer.buffer(),
+				instance_buffer: &self.instance_buffer.buffer(),
 				instructions: &self.draw_instructions
 			};
 			window.renderer.render(args).unwrap();
@@ -474,35 +455,39 @@ impl<'a> EngineHandler<'a> {
 	}
 
 	fn update_node(&mut self, node: &Node, parent_id: Option<usize>) {
-		println!("node {} has parent {:?}", node.id, parent_id);
-		println!("translation: {:?}", node.translation);
-		println!("rotation: {:?}", node.rotation);
+		// println!("node {} has parent {:?}", node.id, parent_id);
+		// println!("translation: {:?}", node.translation);
+		// println!("rotation: {:?}", node.rotation);
 		let model = glam::Mat4::from_translation(node.translation) * glam::Mat4::from_quat(node.rotation);
-		println!("model: {:?}", model.to_cols_array_2d());
-		let n = NodeTransform {
+		// println!("model: {:?}", model.to_cols_array_2d());
+		let n = RawNode {
 			model: model.to_cols_array_2d(),
 			parent_index: parent_id.map_or(-1, |p| p as i32),
 			_padding: [0; 3]
 		};
-		let node_index = self.node_staging_buffer.store(node.id, n);
+		let node_index = self.node_buffer.store(node.id, n);
 		println!("node index: {:?}", node_index);
 
 		if let Some(mesh) = &node.mesh {
-			println!("write cube");
+			// println!("write cube");
+			println!("mesh: {:?}", mesh);
 
 			let cube_positions_data = bytemuck::cast_slice(&mesh.positions);
-			let pos_ptr = self.position_staging_buffer.store(mesh.id, cube_positions_data);
+			let pos_ptr = self.position_buffer.store(mesh.id, cube_positions_data);
 			let cube_indices_data = bytemuck::cast_slice(&mesh.indices);
-			let index_ptr = self.index_staging_buffer.store(mesh.id, cube_indices_data);
+			let index_ptr = self.index_buffer.store(mesh.id, cube_indices_data);
+			let normals_data = bytemuck::cast_slice(&mesh.normals);
+			let normal_ptr = self.normal_buffer.store(mesh.id, normals_data);
 
 			let instance = RawInstance {
 				node_index: node_index as i32
 			};
-			let index = self.instance_staging_buffer.store(node.id, instance);
+			let index = self.instance_buffer.store(node.id, instance);
 
 			self.draw_instructions.push(DrawInstruction {
 				index_range: index_ptr.offset as u64..index_ptr.offset as u64 + index_ptr.size as u64,
 				position_range: pos_ptr.offset as u64..pos_ptr.offset as u64 + pos_ptr.size as u64,
+				normal_range: normal_ptr.offset as u64..normal_ptr.offset as u64 + normal_ptr.size as u64,
 				indices_range: 0..mesh.indices.len() as u32,
 				instances_range: index as u32..index as u32 + 1
 			});
@@ -511,14 +496,37 @@ impl<'a> EngineHandler<'a> {
 		if let Some(camera) = &node.camera {
 			let projection_matrix = glam::Mat4::perspective_rh(
 				camera.fovy, camera.aspect, camera.znear, camera.zfar);
-			let camera_uniform = CameraUniform {
+			let raw_camera = RawCamera {
 				proj: projection_matrix.to_cols_array_2d(),
 				_padding: [0; 3],
 				node_inx: node_index as i32
 			};
-			let camera_uniform_data = &[camera_uniform];
-			let camera_uniform_data = bytemuck::cast_slice(camera_uniform_data);
-			self.queue.write_buffer(&self.camera_buffer, 0, camera_uniform_data);
+			self.queue.write_buffer(&self.camera_buffer.buffer(), 0, bytemuck::cast_slice(&[raw_camera]));
+			self.camera_buffer.store(camera.id, raw_camera);
+		}
+
+		if let Some(point_light) = &node.point_light {
+			println!("{:?}", point_light);
+			// let light = RawPointLight {
+			// 	color: point_light.color,
+			// 	intensity: point_light.intensity,
+			// 	// _padding: 0.0,
+			// 	node_inx: node_index as i32,
+			// 	_padding2: [0.0; 3]
+			// };
+			let light = RawPointLight {
+				intensity: 10.0,
+				color: [1.0, 1.0, 1.0],
+				node_inx: node_index as i32,
+				// intensity: 1.0,
+				// node_inx: node_index as i32,
+				// _padding2: [0.0; 3]
+			};
+			
+			println!("raw light: {:?}", light);
+			// assert_eq!(std::mem::size_of::<RawPointLight>(), 32);
+			self.point_light_buffer.store(point_light.id, light);
+			//self.queue.write_buffer(&self.point_light_buffer.buffer(), 0, bytemuck::cast_slice(&[light]));
 		}
 
 		for child in &node.children {
@@ -532,22 +540,6 @@ impl<'a> EngineHandler<'a> {
 
 	fn send_mouse_event(&self, event: MouseEvent) {
 		self.tx.send(Event::InputEvent(InputEvent::MouseEvent(event))).unwrap();
-	}
-
-	fn flush_node_staging_buffer(&mut self) {
-		for (offset, n) in self.node_staging_buffer.iter() {
-			println!("write offset: {:?} data: {:?}", offset, n);
-			self.queue.write_buffer(&self.node_buffer, offset as u64, bytemuck::cast_slice(&[*n]));
-		}
-		self.node_staging_buffer.clear_write_commands();
-	}
-
-	fn flush_changed_node_staging_buffer(&mut self) {
-		for (offset, n) in self.changed_node_stage_buffer.iter() {
-			println!("write offset: {:?}", offset);
-			self.queue.write_buffer(&self.changed_node_buffer, offset as u64, bytemuck::cast_slice(&[*n]));
-		}
-		self.changed_node_stage_buffer.clear_write_commands();
 	}
 }
 
@@ -581,37 +573,6 @@ impl ApplicationHandler<Command> for EngineHandler<'_> {
 					self.update_node(&node, None);
 				}
 
-				// println!("write node buffer");
-				// for (offset, data) in self.node_staging_buffer.iter() {
-				// 	println!("write offset: {:?} data: {:?}", offset, data);
-				// 	self.queue.write_buffer(&self.node_buffer, offset as u64, bytemuck::cast_slice(&[*data]));
-				// }
-				// self.node_staging_buffer.clear_write_commands();
-
-				self.flush_node_staging_buffer();
-
-				println!("write instance buffer");
-				for (offset, data) in self.instance_staging_buffer.iter() {
-					println!("write offset: {:?} data: {:?}", offset, data);
-					self.queue.write_buffer(&self.instance_buffer, offset as u64, bytemuck::cast_slice(&[*data]));
-				}
-				self.instance_staging_buffer.clear_write_commands();
-
-				println!("write position buffer");
-				for (offset, data) in self.position_staging_buffer.iter() {
-					println!("write offset: {:?} data: {:?}", offset, data);
-					self.queue.write_buffer(&self.position_buffer, offset as u64, data);
-				}
-				self.position_staging_buffer.clear_write_commands();
-
-				println!("write index buffer");
-				for (offset, data) in self.index_staging_buffer.iter() {
-					println!("write offset: {:?} data: {:?}", offset, data);
-					self.queue.write_buffer(&self.indices_buffer, offset as u64, data);
-				}
-				self.index_staging_buffer.clear_write_commands();
-				println!("buffers written");
-
 				self.render_every_window();
 			}
 			Command::SetTransformation { node_id, transformation } => {
@@ -634,46 +595,21 @@ impl ApplicationHandler<Command> for EngineHandler<'_> {
 				// node.transformation = transformation;
 			},
 			Command::SetAnimation { node_id, animation } => {
-				println!("set animation node: {:?}", node_id);
+				// println!("set animation node: {:?}", node_id);
 
-				let node_inx = self.node_staging_buffer.get_inx(&node_id).unwrap();
-				let m = [
-					[1.0, 0.0, 0.0, 0.0],
-					[0.0, 1.0, 0.0, 0.0],
-					[0.0, 0.0, 1.0, 0.0],
-					[0.001, 0.001, 0.0, 1.0]
-				];
-				let value = animation.transform.to_cols_array_2d();
-				println!("value {:?}", value);
-				println!("node inx {:?}", node_inx);
-				let keyframe: Keyframe = Keyframe {
-					value,
-					is_running: 1,
-					node_inx: node_inx as u32
-				};
-				let keyframe = &[keyframe];
-				let data = bytemuck::cast_slice(keyframe);
-				self.queue.write_buffer(&self.key_frames_buffer, 0, data);
-				// panic!("aa");
-
-				// let node_transform = self.node_staging_buffer.get(node_id).unwrap();
-				// let new_transform = (glam::Mat4::from_cols_array_2d(&node_transform.model) * animation.transform).to_cols_array_2d();
-    
-				// // Update the model matrix of the node_transform
-
-				// let node_transform = NodeTransform {
-				// 	model: new_transform,
-				// 	parent_index: -1,
-				// 	_padding: [0; 3]
+				// TODO
+				// let node_inx = self.node_staging_buffer.get_inx(&node_id).unwrap();
+				// let value = animation.transform.to_cols_array_2d();
+				// println!("value {:?}", value);
+				// println!("node inx {:?}", node_inx);
+				// let keyframe: Keyframe = Keyframe {
+				// 	value,
+				// 	is_running: 1,
+				// 	node_inx: node_inx as u32
 				// };
-				// self.node_staging_buffer.store(node_id, node_transform);
-				// for (offset, n) in self.node_staging_buffer.iter() {
-				// 	println!("write offset: {:?} data: {:?}", offset, n);
-				// 	self.queue.write_buffer(&self.node_buffer, offset as u64, bytemuck::cast_slice(&[*n]));
-				// }
-				// self.node_staging_buffer.clear_write_commands();
-
-				// self.render_every_window();
+				// let keyframe = &[keyframe];
+				// let data = bytemuck::cast_slice(keyframe);
+				// self.queue.write_buffer(&self.key_frames_buffer, 0, data);
 			},
 			Command::ApplyTransformation { node_id, transformation } => {
 				println!("apply transformation node: {:?}", node_id);
@@ -747,26 +683,26 @@ impl ApplicationHandler<Command> for EngineHandler<'_> {
 				println!("redraw requested for window {:?}", window_id);
 				match self.windows.get(&window_id) {
 					Some(window) => {
-						let renderer = &window.renderer;
-						let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-							label: Some("Render Encoder")
-						});
-						let args = RenderArgs {
-							encoder: &mut encoder,
-							camera_bind_group: &self.camera_bind_group,
-							node_bind_group: &self.node_bind_group,
-							positions_buffer: &self.position_buffer,
-							indices_buffer: &self.indices_buffer,
-							instance_buffer: &self.instance_buffer,
-							instructions: &self.draw_instructions
-						};
-						match renderer.render(args) {
-							Ok(_) => {}
-							Err(err) => {
-								log::error!("Error rendering: {:?} window {:?}", err, window_id);
-							}
-						}
-						self.queue.submit(std::iter::once(encoder.finish()));
+						// let renderer = &window.renderer;
+						// let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+						// 	label: Some("Render Encoder")
+						// });
+						// let args = RenderArgs {
+						// 	encoder: &mut encoder,
+						// 	camera_bind_group: &self.camera_buffer.bind_group(),
+						// 	node_bind_group: &self.node_buffer.bind_group(),
+						// 	positions_buffer: &self.position_buffer.buffer(),
+						// 	index_buffer: &self.index_buffer.buffer(),
+						// 	instance_buffer: &self.instance_buffer.buffer(),
+						// 	instructions: &self.draw_instructions
+						// };
+						// match renderer.render(args) {
+						// 	Ok(_) => {}
+						// 	Err(err) => {
+						// 		log::error!("Error rendering: {:?} window {:?}", err, window_id);
+						// 	}
+						// }
+						// self.queue.submit(std::iter::once(encoder.finish()));
 					}
 					None => {
 						log::error!("Window not found: {:?}", window_id);
@@ -775,15 +711,15 @@ impl ApplicationHandler<Command> for EngineHandler<'_> {
 			}
 			WindowEvent::CursorMoved { device_id, position } => {
 				if let Some(window) = self.windows.get(&window_id) {
-					let size = &window.window.inner_size();
-					let middle_x = size.width as f64 / 2.0;
-					let middle_y = size.height as f64 / 2.0;
-					let dx = middle_x - position.x;
-					let dy = middle_y - position.y;
-					let dx = dx as f32;
-					let dy = dy as f32;
-					self.send_mouse_event(MouseEvent::Moved { dx, dy });
-					window.window.set_cursor_position(PhysicalPosition::new(middle_x, middle_y)).unwrap();
+					// let size = &window.window.inner_size();
+					// let middle_x = size.width as f64 / 2.0;
+					// let middle_y = size.height as f64 / 2.0;
+					// let dx = middle_x - position.x;
+					// let dy = middle_y - position.y;
+					// let dx = dx as f32;
+					// let dy = dy as f32;
+					// self.send_mouse_event(MouseEvent::Moved { dx, dy });
+					// window.window.set_cursor_position(PhysicalPosition::new(middle_x, middle_y)).unwrap();
 				}
 			}
 			WindowEvent::KeyboardInput { device_id, event, is_synthetic } => {

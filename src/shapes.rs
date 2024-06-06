@@ -36,6 +36,16 @@ pub fn cube(s: f32) -> Mesh {
         [0.0, 0.0, 1.0], // Vertex 5
         [0.0, 0.0, 1.0], // Vertex 6
         [0.0, 0.0, 1.0], // Vertex 7
+		// Bottom face normals
+		[0.0, -1.0, 0.0], // Vertex 0
+		[0.0, -1.0, 0.0], // Vertex 3
+		[0.0, -1.0, 0.0], // Vertex 7
+		[0.0, -1.0, 0.0], // Vertex 4
+		// Top face normals
+		[0.0, 1.0, 0.0], // Vertex 1
+		[0.0, 1.0, 0.0], // Vertex 5
+		[0.0, 1.0, 0.0], // Vertex 6
+		[0.0, 1.0, 0.0], // Vertex 2
         // Left face normals
         [-1.0, 0.0, 0.0], // Vertex 0
         [-1.0, 0.0, 0.0], // Vertex 4
@@ -46,30 +56,20 @@ pub fn cube(s: f32) -> Mesh {
         [1.0, 0.0, 0.0], // Vertex 6
         [1.0, 0.0, 0.0], // Vertex 7
         [1.0, 0.0, 0.0], // Vertex 3
-        // Top face normals
-        [0.0, 1.0, 0.0], // Vertex 1
-        [0.0, 1.0, 0.0], // Vertex 5
-        [0.0, 1.0, 0.0], // Vertex 6
-        [0.0, 1.0, 0.0], // Vertex 2
-        // Bottom face normals
-        [0.0, -1.0, 0.0], // Vertex 0
-        [0.0, -1.0, 0.0], // Vertex 3
-        [0.0, -1.0, 0.0], // Vertex 7
-        [0.0, -1.0, 0.0], // Vertex 4
     ];
 
     m.indices = vec![
         // Front face
         0, 1, 2, 2, 3, 0,
         // Back face
-        4, 5, 6, 6, 7, 4,
-        // Left face
-        0, 4, 7, 7, 3, 0,
-        // Right face
-        1, 5, 6, 6, 2, 1,
-        // Top face
-        1, 0, 4, 4, 5, 1,
+        4, 6, 5, 6, 4, 7,
         // Bottom face
+        0, 7, 4, 7, 0, 3,
+        // Top face
+        1, 5, 6, 6, 2, 1,
+        // Left face
+        1, 0, 4, 4, 5, 1,
+        // Right face
         3, 2, 6, 6, 7, 3,
     ];
 

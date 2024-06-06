@@ -56,10 +56,14 @@ async fn main() -> anyhow::Result<()> {
 		// root.add_node(cube_node);
 
 		let mut light_node = Node::new();
-		light_node.set_translation(0.0, 10.0, 1.0);
+		light_node.set_translation(0.0, 0.0, 0.5);
 		let light = PointLight::new();
 		light_node.set_point_light(light);
+		let light_cube = cube(0.1);
+		light_node.set_mesh(light_cube);
+		
 		scene.add_node(light_node);
+
 
 		let mut camera_node = Node::new();
 		let camera_node_id = camera_node.id;

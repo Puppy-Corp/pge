@@ -77,8 +77,8 @@ impl RenderPipelineBuilder {
 			primitive: wgpu::PrimitiveState {
 				topology: wgpu::PrimitiveTopology::TriangleList,
 				strip_index_format: None,
-				front_face: wgpu::FrontFace::Cw,
-				cull_mode: None,
+				front_face: wgpu::FrontFace::Ccw,
+				cull_mode: Some(wgpu::Face::Back),
 				// Setting this to anything other than Fill requires Features::POLYGON_MODE_LINE
 				// or Features::POLYGON_MODE_POINT
 				polygon_mode: wgpu::PolygonMode::Fill,

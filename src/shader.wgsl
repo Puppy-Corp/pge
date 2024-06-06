@@ -66,7 +66,8 @@ fn vs_main(input: VertexInput, instance: InstanceInput) -> VertexOutput {
     out.color = vec3(1.0, 0.0, 0.0); // Placeholder for color, to be modified by lighting calculation
     out.world_position = world_position;
 	let normal = input.normal;
-    out.normal = normalize((cube_transform * vec4<f32>(normal, 0.0)).xyz);
+	out.normal = normal;
+    // out.normal = normalize((cube_transform * vec4<f32>(normal, 0.0)).xyz);
     return out;
 }
 
@@ -79,20 +80,20 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Initialize the resulting color with ambient light
     var result_color = ambient_color * diffuse_color;
 
-    for (var i = 0u; i < arrayLength(&point_lights); i = i + 1u) {
-        let point_light = point_lights[i];
-        //let light_position = (get_cumulative_transform(point_light.node_inx) * vec4<f32>(0.0, 0.0, 0.0, 1.0)).xyz;
-		let light_position = vec3<f32>(0.0, 10.0, 0.5);
+    //for (var i = 0u; i < arrayLength(&point_lights); i = i + 1u) {
+        let point_light = point_lights[0];
+        let light_position = (get_cumulative_transform(point_light.node_inx) * vec4<f32>(0.0, 0.0, 0.0, 1.0)).xyz;
+		//let light_position = vec3<f32>(1.5, 0.0, 0.0);
         let light_direction = normalize(light_position - in.world_position);
-        let normal = normalize(in.normal);
+        // let normal = normalize(in.normal);
 
         // Diffuse shading
-        let diffuse_intensity = max(dot(normal, light_direction), 0.0);
-        let diffuse = diffuse_intensity * point_light.color * point_light.intensity;
+        let diffuse_intensity = max(abs(dot(in.normal, light_direction)), 0.0);
+        let diffuse = diffuse_intensity * point_light.color * 1.0;
 
         // Add the diffuse component to the result color
         result_color = result_color + diffuse * diffuse_color;
-    }
+    //}
 
     return vec4<f32>(result_color, 1.0);
 }

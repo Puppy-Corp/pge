@@ -56,7 +56,7 @@ async fn main() -> anyhow::Result<()> {
 		// root.add_node(cube_node);
 
 		let mut light_node = Node::new();
-		light_node.set_translation(0.0, 0.0, 0.5);
+		light_node.set_translation(4.0, 0.0, 0.5);
 		let light = PointLight::new();
 		light_node.set_point_light(light);
 		let light_cube = cube(0.1);

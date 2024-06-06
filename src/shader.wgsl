@@ -73,27 +73,45 @@ fn vs_main(input: VertexInput, instance: InstanceInput) -> VertexOutput {
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+	let light_color = vec3<f32>(1.0, 1.0, 1.0);
+	let ambient_strength = 0.0;
+	let ambient_color = light_color * ambient_strength;
 
-    var ambient_color = vec3<f32>(0.1, 0.1, 0.1); // Ambient light color
-    var diffuse_color = vec3<f32>(1.0, 0.0, 0.0); // Base color of the object
+	let point_light = point_lights[0];
+	let light_position = (get_cumulative_transform(point_light.node_inx) * vec4<f32>(0.0, 0.0, 0.0, 1.0)).xyz;
+	let light_direction = normalize(light_position - in.world_position);
+	let half_dir = normalize(light_direction + normalize(in.world_position));
 
-    // Initialize the resulting color with ambient light
-    var result_color = ambient_color * diffuse_color;
+	let diffuse_strength = dot(in.normal, light_direction) * 2.0;
+	let diffuse_color = light_color * diffuse_strength;
+	let result = (ambient_color + diffuse_color) * in.color;
+	return vec4<f32>(result, 1.0);
 
-    //for (var i = 0u; i < arrayLength(&point_lights); i = i + 1u) {
-        let point_light = point_lights[0];
-        let light_position = (get_cumulative_transform(point_light.node_inx) * vec4<f32>(0.0, 0.0, 0.0, 1.0)).xyz;
-		//let light_position = vec3<f32>(1.5, 0.0, 0.0);
-        let light_direction = normalize(light_position - in.world_position);
-        // let normal = normalize(in.normal);
 
-        // Diffuse shading
-        let diffuse_intensity = max(abs(dot(in.normal, light_direction)), 0.0);
-        let diffuse = diffuse_intensity * point_light.color * 1.0;
 
-        // Add the diffuse component to the result color
-        result_color = result_color + diffuse * diffuse_color;
-    //}
 
-    return vec4<f32>(result_color, 1.0);
+    // var ambient_color = vec3<f32>(0.1, 0.1, 0.1); // Ambient light color
+    // var diffuse_color = vec3<f32>(0.0, 0.0, 0.0); // Base color of the object
+
+    // // Initialize the resulting color with ambient light
+    // var result_color = diffuse_color;
+
+    // //for (var i = 0u; i < arrayLength(&point_lights); i = i + 1u) {
+    //     let point_light = point_lights[0];
+    //     let light_position = (get_cumulative_transform(point_light.node_inx) * vec4<f32>(0.0, 0.0, 0.0, 1.0)).xyz;
+	// 	//let light_position = vec3<f32>(1.5, 0.0, 0.0);
+    //     let light_direction = normalize(light_position - in.world_position);
+    //     // let normal = normalize(in.normal);
+
+	// 	let light_color = vec3<f32>(1.0, 1.0, 1.0);
+
+    //     // Diffuse shading
+    //     let diffuse_intensity = max(dot(in.normal, light_direction), 0.0);
+    //     let diffuse = light_color * 1.0;
+
+    //     // Add the diffuse component to the result color
+    //     // result_color = result_color + diffuse * diffuse_color;
+    // //}
+
+    // return vec4<f32>(result_color, 1.0);
 }

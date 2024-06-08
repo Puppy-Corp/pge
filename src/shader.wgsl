@@ -74,17 +74,22 @@ fn vs_main(input: VertexInput, instance: InstanceInput) -> VertexOutput {
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 	let light_color = vec3<f32>(1.0, 1.0, 1.0);
-	let ambient_strength = 0.0;
-	let ambient_color = light_color * ambient_strength;
+	// let ambient_strength = 0.0;
+	// let ambient_color = light_color * ambient_strength;
 
 	let point_light = point_lights[0];
 	let light_position = (get_cumulative_transform(point_light.node_inx) * vec4<f32>(0.0, 0.0, 0.0, 1.0)).xyz;
+	//let light_position = vec3<f32>(-2.0, 1.5, 0.0);
+	//let world_position = vec3<f32>(-2.0, 1.0, 0.5);
+	//let normal = vec3<f32>(0.0, 0.0, 1.0);
+	let normal = in.normal;
 	let light_direction = normalize(light_position - in.world_position);
-	let half_dir = normalize(light_direction + normalize(in.world_position));
+	//let light_direction = vec3<f32>(1.0, .0, 0.0);
+	//let half_dir = normalize(light_direction + normalize(in.world_position));
 
-	let diffuse_strength = dot(in.normal, light_direction) * 2.0;
+	let diffuse_strength = max(dot(normal, light_direction), 0.0);
 	let diffuse_color = light_color * diffuse_strength;
-	let result = (ambient_color + diffuse_color) * in.color;
+	let result = diffuse_color * in.color;
 	return vec4<f32>(result, 1.0);
 
 

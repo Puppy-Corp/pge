@@ -56,11 +56,33 @@ async fn main() -> anyhow::Result<()> {
 		// root.add_node(cube_node);
 
 		let mut light_node = Node::new();
-		light_node.set_translation(4.0, 0.0, 0.5);
+		light_node.set_translation(0.0, 0.0, 0.0);
 		let light = PointLight::new();
 		light_node.set_point_light(light);
 		let light_cube = cube(0.1);
 		light_node.set_mesh(light_cube);
+
+		let light_id = light_node.id;
+		let handle2 = handle.clone();
+		tokio::spawn(async move {
+			let mut z = 0.0;
+			let mut dir = 1.0;
+			let speed = 0.08;
+
+			loop {
+				sleep(Duration::from_millis(20)).await;
+				let amount = speed * dir;
+				handle2.apply_transformation(light_id, glam::Mat4::from_translation(glam::Vec3::new(0.0, 0.0, amount)));
+				z += amount;
+				if z > 1.5 {
+					dir = -1.0;
+				}
+				if z < -1.5 {
+					dir = 1.0;
+				}
+			}
+		});
+
 		
 		scene.add_node(light_node);
 

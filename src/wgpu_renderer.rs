@@ -1,5 +1,6 @@
 use std::ops::Range;
 use std::sync::Arc;
+use wgpu::TextureUsages;
 use winit::window::Window;
 use crate::wgpu_types::*;
 
@@ -39,6 +40,23 @@ impl RenderPipelineBuilder {
 			desired_maximum_frame_latency: 1
 		};
 
+		let depth_texture = self.device.create_texture(&wgpu::TextureDescriptor {
+			label: None,
+			size: wgpu::Extent3d {
+				width: size.width,
+				height: size.height,
+				depth_or_array_layers: 1,
+			},
+			mip_level_count: 1,
+			sample_count: 1,
+			dimension: wgpu::TextureDimension::D2,
+			format: wgpu::TextureFormat::Depth24PlusStencil8,
+			usage: TextureUsages::RENDER_ATTACHMENT,
+			view_formats: Default::default(),
+		});
+	
+		let depth_texture_view = depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
+
 		log::info!("config {:?}", config);
 		surface.configure(&self.device, &config);
 		log::info!("configured surface");
@@ -51,6 +69,15 @@ impl RenderPipelineBuilder {
 			bind_group_layouts: &[&self.camera_bind_group_layout, &self.node_bind_group_layout, &self.point_light_bind_group_layout],
 			push_constant_ranges: &[],
 		});
+
+		let depth_stencil_state = wgpu::DepthStencilState {
+			format: wgpu::TextureFormat::Depth24PlusStencil8,
+			depth_write_enabled: true,
+			depth_compare: wgpu::CompareFunction::Less,
+			stencil: wgpu::StencilState::default(),
+			bias: wgpu::DepthBiasState::default(),
+		};
+
 		log::info!("creating render pipeline");
 		let render_pipeline = self.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
 			label: Some("Render Pipeline"),
@@ -87,7 +114,7 @@ impl RenderPipelineBuilder {
 				// Requires Features::CONSERVATIVE_RASTERIZATION
 				conservative: false,
 			},
-			depth_stencil: None,
+			depth_stencil: Some(depth_stencil_state),
 			multisample: wgpu::MultisampleState {
 				count: 1,
 				mask: !0,
@@ -104,6 +131,7 @@ impl RenderPipelineBuilder {
 			device: self.device.clone(),
 			pipeline: render_pipeline,
 			queue: self.queue.clone(),
+			depth_texture_view
 		}
 	}
 }
@@ -114,6 +142,7 @@ pub struct Renderer<'a> {
 	pub device: Arc<wgpu::Device>,
 	pub pipeline: wgpu::RenderPipeline,
 	pub queue: Arc<wgpu::Queue>,
+	pub depth_texture_view: wgpu::TextureView,
 }
 
 pub struct DrawInstruction {
@@ -162,7 +191,14 @@ impl Renderer<'_> {
                         store: wgpu::StoreOp::Store,
                     },
                 })],
-				depth_stencil_attachment: None,
+				depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+					view: &self.depth_texture_view,
+					depth_ops: Some(wgpu::Operations {
+						load: wgpu::LoadOp::Clear(1.0),
+						store: wgpu::StoreOp::Store,
+					}),
+					stencil_ops: None,
+				}),
 				..Default::default()
 			});
 

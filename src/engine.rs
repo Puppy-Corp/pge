@@ -86,21 +86,42 @@ impl Drop for Inner {
 	}
 }
 
+impl Clone for Inner {
+	fn clone(&self) -> Self {
+		Self {
+			proxy: self.proxy.clone()
+		}
+	}
+}
+
 pub struct EngineHandle {
 	proxy: EventLoopProxy<Command>,
 	inner: Inner,
+	tx: broadcast::Sender<Event>,
 	rx: broadcast::Receiver<Event>
 }
 
+impl Clone for EngineHandle {
+	fn clone(&self) -> Self {
+		Self {
+			proxy: self.proxy.clone(),
+			inner: self.inner.clone(),
+			rx: self.tx.subscribe(),
+			tx: self.tx.clone()
+		}
+	}
+}
+
 impl EngineHandle {
-	pub fn new(proxy: EventLoopProxy<Command>, rx: broadcast::Receiver<Event>) -> Self {
+	pub fn new(proxy: EventLoopProxy<Command>, tx: broadcast::Sender<Event>) -> Self {
 		let inner = Inner {
 			proxy: proxy.clone()
 		};
 		Self {
 			proxy,
 			inner,
-			rx
+			rx: tx.subscribe(),
+			tx
 		}
 	}
 
@@ -153,7 +174,7 @@ impl Engine {
 		let proxy = eventloop.create_proxy();
 		// let (tx, rx) = mpsc::unbounded_channel();
 		let (tx, _) = broadcast::channel(100);
-		let handle = EngineHandle::new(proxy, tx.subscribe());
+		let handle = EngineHandle::new(proxy, tx.clone());
 		tokio::spawn(f(handle));
 
 		Self {

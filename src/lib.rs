@@ -13,6 +13,7 @@ mod draw_queue;
 mod animation_manager;
 mod animation_pipeline;
 mod acumalator;
+mod tests;
 
 pub use engine::Engine;
 pub use types::*;

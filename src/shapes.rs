@@ -24,39 +24,16 @@ pub fn cube(s: f32) -> Mesh {
         [s, -s, s],
     ];
 
-    // Define normals for each face
-    m.normals = vec![
-        // Front face normals
-        [0.0, 0.0, -1.0], // Vertex 0
-        [0.0, 0.0, -1.0], // Vertex 1
-        [0.0, 0.0, -1.0], // Vertex 2
-        [0.0, 0.0, -1.0], // Vertex 3
-        // Back face normals
-        [0.0, 0.0, 1.0], // Vertex 4
-        [0.0, 0.0, 1.0], // Vertex 5
-        [0.0, 0.0, 1.0], // Vertex 6
-        [0.0, 0.0, 1.0], // Vertex 7
-		// Bottom face normals
-		[0.0, -1.0, 0.0], // Vertex 0
-		[0.0, -1.0, 0.0], // Vertex 3
-		[0.0, -1.0, 0.0], // Vertex 7
-		[0.0, -1.0, 0.0], // Vertex 4
-		// Top face normals
-		[0.0, 1.0, 0.0], // Vertex 1
-		[0.0, 1.0, 0.0], // Vertex 5
-		[0.0, 1.0, 0.0], // Vertex 6
-		[0.0, 1.0, 0.0], // Vertex 2
-        // Left face normals
-        [-1.0, 0.0, 0.0], // Vertex 0
-        [-1.0, 0.0, 0.0], // Vertex 4
-        [-1.0, 0.0, 0.0], // Vertex 5
-        [-1.0, 0.0, 0.0], // Vertex 1
-        // Right face normals
-        [1.0, 0.0, 0.0], // Vertex 2
-        [1.0, 0.0, 0.0], // Vertex 6
-        [1.0, 0.0, 0.0], // Vertex 7
-        [1.0, 0.0, 0.0], // Vertex 3
-    ];
+	m.normals = vec![
+		[-1.0,-1.0,-1.0],
+		[-1.0,1.0,-1.0],
+		[1.0,1.0,-1.0],
+		[1.0,-1.0,-1.0],
+		[-1.0,-1.0,1.0],
+		[-1.0,1.0,1.0],
+		[1.0,1.0,1.0],
+		[1.0,-1.0,1.0],
+	];
 
     m.indices = vec![
         // Front face

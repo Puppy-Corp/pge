@@ -740,7 +740,7 @@ impl ApplicationHandler<Command> for EngineHandler<'_> {
 					let dx = dx as f32;
 					let dy = dy as f32;
 					self.send_mouse_event(MouseEvent::Moved { dx, dy });
-					window.window.set_cursor_position(PhysicalPosition::new(middle_x, middle_y)).unwrap();
+					// window.window.set_cursor_position(PhysicalPosition::new(middle_x, middle_y)).unwrap();
 				}
 			}
 			WindowEvent::KeyboardInput { device_id, event, is_synthetic } => {
@@ -819,6 +819,14 @@ impl ApplicationHandler<Command> for EngineHandler<'_> {
 														action: KeyAction::Released
 													})
 												}
+											}
+										},
+										KeyCode::Escape => {
+											match state {
+												winit::event::ElementState::Pressed => {
+													event_loop.exit();
+												}
+												winit::event::ElementState::Released => {}
 											}
 										},
 										_ => {}

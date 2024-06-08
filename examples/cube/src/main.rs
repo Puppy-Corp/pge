@@ -61,8 +61,10 @@ async fn main() -> anyhow::Result<()> {
 		light_node.set_point_light(light);
 		let light_cube = cube(0.1);
 		light_node.set_mesh(light_cube);
-
 		let light_id = light_node.id;
+		scene.add_node(light_node);
+
+		
 		let handle2 = handle.clone();
 		tokio::spawn(async move {
 			let mut z = 0.0;
@@ -84,6 +86,12 @@ async fn main() -> anyhow::Result<()> {
 		});
 
 		
+		let mut light_node = Node::new();
+		light_node.set_translation(4.0, 0.0, 0.0);
+		let light = PointLight::new();
+		light_node.set_point_light(light);
+		let light_cube = cube(0.1);
+		light_node.set_mesh(light_cube);
 		scene.add_node(light_node);
 
 

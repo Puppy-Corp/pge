@@ -76,20 +76,17 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 	let light_color = vec3<f32>(1.0, 1.0, 1.0);
 	// let ambient_strength = 0.0;
 	// let ambient_color = light_color * ambient_strength;
+	var result = vec3<f32>(0.0, 0.0, 0.0);
 
-	let point_light = point_lights[0];
-	let light_position = (get_cumulative_transform(point_light.node_inx) * vec4<f32>(0.0, 0.0, 0.0, 1.0)).xyz;
-	//let light_position = vec3<f32>(-2.0, 1.5, 0.0);
-	//let world_position = vec3<f32>(-2.0, 1.0, 0.5);
-	//let normal = vec3<f32>(0.0, 0.0, 1.0);
-	let normal = in.normal;
-	let light_direction = normalize(light_position - in.world_position);
-	//let light_direction = vec3<f32>(1.0, .0, 0.0);
-	//let half_dir = normalize(light_direction + normalize(in.world_position));
+	for (var i = 0u; i < 2; i = i + 1u) {
+		let point_light = point_lights[i];
+		let light_position = (get_cumulative_transform(point_light.node_inx) * vec4<f32>(0.0, 0.0, 0.0, 1.0)).xyz;
+		let light_direction = normalize(light_position - in.world_position);
 
-	let diffuse_strength = max(dot(normal, light_direction), 0.0);
-	let diffuse_color = light_color * diffuse_strength;
-	let result = diffuse_color * in.color;
+		let diffuse_strength = max(dot(in.normal, light_direction), 0.0);
+		let diffuse_color = light_color * diffuse_strength;
+		result = result + diffuse_color * in.color;
+	}
 	return vec4<f32>(result, 1.0);
 
 

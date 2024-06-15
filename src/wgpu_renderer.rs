@@ -62,7 +62,7 @@ impl RenderPipelineBuilder {
 		log::info!("configured surface");
 		let shader = self.device.create_shader_module(wgpu::ShaderModuleDescriptor {
 			label: Some("Shader"),
-			source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
+			source: wgpu::ShaderSource::Wgsl(include_str!("./shaders/shader.wgsl").into()),
 		});
 		let render_pipeline_layout = self.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
 			label: Some("Render Pipeline Layout"),

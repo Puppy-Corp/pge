@@ -108,7 +108,8 @@ async fn main() -> anyhow::Result<()> {
 
 		let mut window = Window::new();
 		window.title = "BIG box".to_string();
-		window.body = view().add(scene_cam).into();
+		window.lock_cursor = true;
+		// window.body = view().add(scene_cam).into();
 		handle.save_window(&window);
 
 		let cube_mesh = cube(1.0);

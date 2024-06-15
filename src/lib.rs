@@ -14,6 +14,7 @@ mod animation_manager;
 mod animation_pipeline;
 mod acumalator;
 mod tests;
+mod compositor;
 
 pub use engine::Engine;
 pub use types::*;

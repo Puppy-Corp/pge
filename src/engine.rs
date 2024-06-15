@@ -740,7 +740,10 @@ impl ApplicationHandler<Command> for EngineHandler<'_> {
 					let dx = dx as f32;
 					let dy = dy as f32;
 					self.send_mouse_event(MouseEvent::Moved { dx, dy });
-					// window.window.set_cursor_position(PhysicalPosition::new(middle_x, middle_y)).unwrap();
+
+					if window.gui_window.lock_cursor {
+						window.window.set_cursor_position(PhysicalPosition::new(middle_x, middle_y)).unwrap();
+					}
 				}
 			}
 			WindowEvent::KeyboardInput { device_id, event, is_synthetic } => {

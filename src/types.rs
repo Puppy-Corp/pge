@@ -407,3 +407,7 @@ impl PointLight {
 		}
 	}
 }
+
+// pub strut PhycicsProperties {
+	
+// }

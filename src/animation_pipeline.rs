@@ -28,7 +28,7 @@ impl AnimationPipeline {
 		println!("creating animation pipeline");
 		let shader = args.device.create_shader_module(wgpu::ShaderModuleDescriptor {
 			label: Some("Animation Shader"),
-			source: wgpu::ShaderSource::Wgsl(include_str!("animation.wgsl").into()),
+			source: wgpu::ShaderSource::Wgsl(include_str!("./shaders/animation.wgsl").into()),
 		});
 
 		let pipeline_layout = args.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {

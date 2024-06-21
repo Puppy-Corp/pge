@@ -36,6 +36,7 @@ use crate::buffer::StaticBufferManager;
 use crate::cube;
 use crate::draw_queue::DrawQueue;
 use crate::gui;
+use crate::idgen::gen_id;
 use crate::math::Mat4;
 use crate::node_manager::NodeManager;
 use crate::node_manager::NodeMetadata;
@@ -157,6 +158,12 @@ impl EngineHandle {
 			}
 		}
 	}
+
+	pub async fn load_font(&self, path: &str) -> anyhow::Result<FontHandle> {
+		Ok(FontHandle {
+			id: gen_id()
+		})
+	}
 }
 
 pub struct Engine {
@@ -167,15 +174,17 @@ pub struct Engine {
 impl Engine {
 	pub fn new<F, Fut>(f: F) -> Self 
 	where
-		F: FnOnce(EngineHandle) -> Fut,
-		Fut: Future<Output = ()> + Send + 'static,
+		F: FnOnce(EngineHandle) -> Fut + Send + 'static,
+		Fut: Future<Output = anyhow::Result<()>> + Send + 'static,
 	{
 		let eventloop = EventLoop::<Command>::with_user_event().build().unwrap();
 		let proxy = eventloop.create_proxy();
 		// let (tx, rx) = mpsc::unbounded_channel();
 		let (tx, _) = broadcast::channel(100);
 		let handle = EngineHandle::new(proxy, tx.clone());
-		tokio::spawn(f(handle));
+		tokio::spawn(async move {
+			f(handle).await.unwrap();
+		});
 
 		Self {
 			eventloop,
@@ -480,7 +489,8 @@ impl<'a> EngineHandler<'a> {
 		// println!("node {} has parent {:?}", node.id, parent_id);
 		// println!("translation: {:?}", node.translation);
 		// println!("rotation: {:?}", node.rotation);
-		let model = glam::Mat4::from_translation(node.translation) * glam::Mat4::from_quat(node.rotation);
+		println!("node: {} scale: {:?}", node.id, node.scale);
+		let model = glam::Mat4::from_translation(node.translation) * glam::Mat4::from_quat(node.rotation) * glam::Mat4::from_scale(node.scale);
 		// println!("model: {:?}", model.to_cols_array_2d());
 		let n = RawNode {
 			model: model.to_cols_array_2d(),

@@ -181,32 +181,32 @@ impl DynamicStagingBuffer {
 	}
 
 	fn alloc(&mut self, size: usize) -> Pointer {
-        // Check if there is a free block that is large enough
-        if let Some(index) = self.free_list.iter().position(|p| p.size >= size) {
-            let mut free_block = self.free_list.remove(index);
+		// Check if there is a free block that is large enough
+		if let Some(index) = self.free_list.iter().position(|p| p.size >= size) {
+			let mut free_block = self.free_list.remove(index);
 
-            // If the free block is larger than needed, split it
-            if free_block.size > size {
-                let remaining_size = free_block.size - size;
-                free_block.size = size;
-                self.free_list.push(Pointer {
-                    offset: free_block.offset + size,
-                    size: remaining_size,
-                });
-            }
+			// If the free block is larger than needed, split it
+			if free_block.size > size {
+				let remaining_size = free_block.size - size;
+				free_block.size = size;
+				self.free_list.push(Pointer {
+					offset: free_block.offset + size,
+					size: remaining_size,
+				});
+			}
 
-            self.largest_free = self.free_list.iter().map(|p| p.size).max().unwrap_or(0);
-            return free_block;
-        }
+			self.largest_free = self.free_list.iter().map(|p| p.size).max().unwrap_or(0);
+			return free_block;
+		}
 
-        let offset = self.data.len();
-        self.largest_free += size;
+		let offset = self.data.len();
+		self.largest_free += size;
 
-        Pointer {
-            offset,
-            size,
-        }
-    }
+		Pointer {
+			offset,
+			size,
+		}
+	}
 
 	/// Stores data in the buffer and generates write commands.
 	/// Checks if new data can fit into old location and 
@@ -377,11 +377,11 @@ pub struct DynamicVertexBuffer {
 	pub device: Arc<wgpu::Device>,
 	pub queue: Arc<wgpu::Queue>,
 	pub buffer: wgpu::Buffer,
-	pub staging_buffer: DynamicStagingBuffer
+	pub staging_buffer: DynamicStagingBuffer,
+	alignment: u64,
 }
 
-impl DynamicVertexBuffer
-{
+impl DynamicVertexBuffer {
 	pub fn new(device: Arc<wgpu::Device>, queue: Arc<wgpu::Queue>) -> Self {
 		let buffer = device.create_buffer(&wgpu::BufferDescriptor {
 			label: Some("Dynamic Vertex Buffer"),
@@ -389,29 +389,42 @@ impl DynamicVertexBuffer
 			usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC | wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::INDEX,
 			mapped_at_creation: false
 		});
+
 		Self {
 			device,
 			queue,
 			buffer,
-			staging_buffer: DynamicStagingBuffer::new(1024)
+			staging_buffer: DynamicStagingBuffer::new(1024),
+			alignment: 4,
 		}
 	}
 
 	pub fn store(&mut self, id: usize, data: &[u8]) -> Pointer {
-		self.staging_buffer.store(id, data)
+		let aligned_size = self.align_size(data.len() as u64);
+		let mut aligned_data = vec![0u8; aligned_size as usize];
+		aligned_data[..data.len()].copy_from_slice(data);
+		self.staging_buffer.store(id, &aligned_data)
 	}
 
 	pub fn flush(&mut self) {
-		// self.staging_buffer.merge_write_commands();
 		for (offset, data) in self.staging_buffer.iter() {
-			println!("write offset: {}, bytes: {:?}", offset, data);
-			self.queue.write_buffer(&self.buffer, offset as u64, data);
+			let aligned_offset = self.align_offset(offset as u64);
+			println!("write offset: {}, bytes: {:?}", aligned_offset, data);
+			self.queue.write_buffer(&self.buffer, aligned_offset, data);
 		}
 		self.staging_buffer.clear_write_commands();
 	}
 
 	pub fn buffer(&self) -> &wgpu::Buffer {
 		&self.buffer
+	}
+
+	fn align_offset(&self, offset: u64) -> u64 {
+		(offset + self.alignment - 1) & !(self.alignment - 1)
+	}
+
+	fn align_size(&self, size: u64) -> u64 {
+		(size + self.alignment - 1) & !(self.alignment - 1)
 	}
 }
 

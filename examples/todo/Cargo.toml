@@ -9,3 +9,4 @@ edition = "2021"
 tokio = { version = "1", features = ["full"] }
 pge = { path = "../../" }
 anyhow = "1"
+ttf-parser = "0.21.1"

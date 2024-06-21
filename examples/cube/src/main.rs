@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use glam::Quat;
 use pge::*;
+use text::FontMesh;
 use tokio::time::sleep;
 
 #[derive(Debug, Clone)]
@@ -98,7 +99,7 @@ async fn main() -> anyhow::Result<()> {
 		let mut camera_node = Node::new();
 		let camera_node_id = camera_node.id;
 		let camera = Camera::new();
-		let scene_cam = SceneCam::new(&camera);
+		// let scene_cam = SceneCam::new(&camera);
 		camera_node.set_camera(camera);
 		camera_node.set_translation(0.0, 0.0, -6.0);
 		camera_node.looking_at(0.0, 0.0, 0.0);
@@ -124,6 +125,16 @@ async fn main() -> anyhow::Result<()> {
 		node.set_translation(2.0, 0.0, 0.0);
 		node.set_mesh(cube_mesh);		
 		root.add_node(node);
+
+		let font = FontMesh::load("./fonts/Roboto-Regular.ttf")?;
+		let mut anode = Node::new();
+		let amesh = font.get_mesh('A').unwrap();
+		println!("amsh: {:?}", amesh);
+		//let amesh = cube(1.0);
+		anode.set_mesh(amesh);
+		anode.set_translation(0.0, 3.0, 0.0);
+		anode.scale(2.0, 2.0, 2.0);
+		root.add_node(anode);
 
 		scene.add_node(root);
 		handle.save_scene(scene);

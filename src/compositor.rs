@@ -172,7 +172,7 @@ impl Lineariser {
 			});
 			
 			match item.flex_dir {
-				FlexDirection::Row => {
+				Flex::Horizontal => {
 					let total_grow: f32 = item.children.iter().map(|child| child.grow.max(1) as f32).sum();
 					let top_width = outline.top_width();
 					let bottom_width = outline.bottom_width();
@@ -196,7 +196,7 @@ impl Lineariser {
 						}));
 					}
 				},
-				FlexDirection::Column => {
+				Flex::Vertical => {
 					let total_grow: f32 = item.children.iter().map(|child| child.grow.max(1) as f32).sum();
 					let left_height = outline.left_height();
 					let right_height = outline.right_height();
@@ -217,6 +217,24 @@ impl Lineariser {
 							right_up: top_right_up,
 							left_down: top_left_down,
 							right_down: top_right_down
+						}));
+					}
+				},
+				Flex::None => {
+					let mut up_y = outline.left_up[1];
+					let mut down_y = outline.left_down[1];
+					for child in item.children.iter() {
+						let left_up = [outline.left_up[0], up_y];
+						let left_down = [outline.left_down[0], down_y];
+						up_y = down_y;
+						down_y -= child.grow as f32;
+						let right_up = [outline.right_up[0], up_y];
+						let right_down = [outline.right_down[0], down_y];
+						self.inner_linearize(child, Some(Outline {
+							left_up,
+							right_up,
+							left_down,
+							right_down
 						}));
 					}
 				}

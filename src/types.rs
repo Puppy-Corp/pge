@@ -88,9 +88,11 @@ pub struct Node {
 	pub camera: Option<Camera>,
 	pub translation: Vec3,
 	pub rotation: glam::Quat,
+	pub scale: Vec3,
 	pub children: Vec<Node>,
 	pub animation: Animation,
 	pub point_light: Option<PointLight>,
+	pub texture: Option<Texture>,
 }
 
 impl Node {
@@ -102,8 +104,10 @@ impl Node {
 			point_light: None,
 			translation: Vec3::ZERO,
 			rotation: glam::Quat::IDENTITY,
+			scale: Vec3::ONE,
 			children: vec![],
-			animation: Animation::new()
+			animation: Animation::new(),
+			texture: None,
 		}
 	}
 
@@ -133,6 +137,10 @@ impl Node {
         // Compute the quaternion rotation
         self.rotation = glam::Quat::from_rotation_arc(Vec3::Z, direction);
     }
+
+	pub fn scale(&mut self, x: f32, y: f32, z: f32) {
+		self.scale = Vec3::new(x, y, z);
+	}
 
 	pub fn set_point_light(&mut self, light: PointLight) {
 		self.point_light = Some(light);
@@ -411,3 +419,16 @@ impl PointLight {
 // pub strut PhycicsProperties {
 	
 // }
+
+#[derive(Debug, Clone)]
+pub struct FontHandle {
+	pub id: usize
+}
+
+impl FontHandle {
+	pub fn new(id: usize) -> Self {
+		Self {
+			id
+		}
+	}
+}

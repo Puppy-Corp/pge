@@ -1,5 +1,5 @@
 use crate::idgen::gen_id;
-use crate::Camera;
+use crate::FontHandle;
 
 pub struct Color {}
 
@@ -8,173 +8,6 @@ impl Color {
 	pub const WHITE: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
 	pub const RED: [f32; 4] = [1.0, 0.0, 0.0, 1.0];
 	pub const GREEN: [f32; 4] = [0.0, 1.0, 0.0, 1.0];
-}
-
-#[derive(Clone, Debug)]
-pub struct SceneCam {
-	pub camera_id: usize,
-}
-
-impl SceneCam {
-	pub fn new(camera: &Camera) -> Self {
-		Self {
-			camera_id: camera.id
-		}
-	}
-}
-
-impl Into<GuiItem> for SceneCam {
-	fn into(self) -> GuiItem {
-		GuiItem::SceneCam(self)
-	}
-}
-
-#[derive(Clone, Debug)]
-pub struct Text {
-	pub text: String,
-	pub size: u32,
-}
-
-impl Text {
-	pub fn size(mut self, size: u32) -> Self {
-		self.size = size;
-		self
-	}
-
-	pub fn text(mut self, text: &str) -> Self {
-		self.text = text.to_string();
-		self
-	}
-}
-
-impl Into<GuiItem> for Text {
-	fn into(self) -> GuiItem {
-		GuiItem::Text(self)
-	}
-}
-
-pub fn text(t: &str) -> Text {
-	Text {
-		text: t.to_string(),
-		size: 12
-	}
-}
-
-#[derive(Clone, Debug)]
-pub struct HStack {
-	pub items: Vec<GuiItem>
-}
-
-impl Into<GuiItem> for HStack {
-	fn into(self) -> GuiItem {
-		GuiItem::HStack(self)
-	}
-}
-
-impl HStack {
-	pub fn add<T: Into<GuiItem>>(mut self, item: T) -> Self {
-		self.items.push(item.into());
-		self
-	}
-}
-
-#[derive(Clone, Debug)]
-pub struct VStack {
-	pub items: Vec<GuiItem>
-}
-
-impl Into<GuiItem> for VStack {
-	fn into(self) -> GuiItem {
-		GuiItem::VStack(self)
-	}
-}
-
-
-
-impl VStack {
-	pub fn add<T: Into<GuiItem>>(mut self, item: T) -> Self {
-		self.items.push(item.into());
-		self
-	}
-}
-
-pub fn list() -> List {
-	List {
-		items: Vec::new()
-	}
-}
-
-#[derive(Clone, Debug)]
-pub struct List {
-	pub items: Vec<GuiItem>
-}
-
-impl Into<GuiItem> for List {
-	fn into(self) -> GuiItem {
-		GuiItem::List(self)
-	}
-}
-
-impl List {
-	pub fn add<T: Into<GuiItem>>(mut self, item: T) -> Self {
-		self.items.push(item.into());
-		self
-	}
-
-	pub fn add_many<T: Into<GuiItem>>(mut self, items: Vec<T>) -> Self {
-		for item in items {
-			self.items.push(item.into());
-		}
-		self
-	}	
-}
-
-#[derive(Clone, Debug)]
-pub struct Rect {
-	pub top_left_radius: f32,
-	pub top_right_radius: f32,
-	pub bottom_left_radius: f32,
-	pub bottom_right_radius: f32,
-	pub radius: f32,
-	pub background_color: [f32; 4],
-}
-
-impl Rect {
-	pub fn top_left_radius(mut self, radius: f32) -> Self {
-		self.top_left_radius = radius;
-		self
-	}
-
-	pub fn top_right_radius(mut self, radius: f32) -> Self {
-		self.top_right_radius = radius;
-		self
-	}
-
-	pub fn bottom_left_radius(mut self, radius: f32) -> Self {
-		self.bottom_left_radius = radius;
-		self
-	}
-
-	pub fn bottom_right_radius(mut self, radius: f32) -> Self {
-		self.bottom_right_radius = radius;
-		self
-	}
-
-	pub fn radius(mut self, radius: f32) -> Self {
-		self.radius = radius;
-		self
-	}
-
-	pub fn background_color(mut self, color: [f32; 4]) -> Self {
-		self.background_color = color;
-		self
-	}
-}
-
-impl Into<GuiItem> for Rect {
-	fn into(self) -> GuiItem {
-		GuiItem::Rect(self)
-	}
 }
 
 pub struct MouseArea {
@@ -195,31 +28,14 @@ pub fn mouse_area() -> MouseArea {
 }
 
 #[derive(Clone, Debug)]
-pub enum GuiItem {
-	None,
-	HStack(HStack),
-	VStack(VStack),
-	List(List),
-	Text(Text),
-	SceneCam(SceneCam),
-	Rect(Rect)
-}
-
-#[derive(Clone, Debug)]
 pub struct Window {
 	pub id: usize,
 	pub title: String,
 	pub width: u32,
 	pub height: u32,
-	pub body: GuiItem,
+	pub body: GUIElement,
 	pub lock_cursor: bool,
 }
-
-// impl Into<&GuiItem> for View {
-// 	fn into(self) -> &GuiItem {
-// 		&GuiItem::View(self)
-// 	}
-// }
 
 impl Window {
 	pub fn new() -> Self {
@@ -228,35 +44,26 @@ impl Window {
 			title: "".to_string(),
 			width: 800,
 			height: 600,
-			body: GuiItem::None,
+			body: GUIElement::default(),
 			lock_cursor: false,
 		}
 	}
 
-	pub fn render<T: Into<GuiItem>>(&self, item: T) {
+	pub fn render(&self, el: GUIElement) {
 		
 	}
 }
 
-pub struct Flow {
-	pub items: Vec<GuiItem>
-}
-
-pub fn flow() -> Flow {
-	Flow {
-		items: Vec::new()
-	}
-}
-
 #[derive(Clone, Debug)]
-pub enum FlexDirection {
-	Row,
-	Column
+pub enum Flex {
+	Horizontal,
+	Vertical,
+	None
 }
 
-impl Default for FlexDirection {
+impl Default for Flex {
 	fn default() -> Self {
-		FlexDirection::Column
+		Flex::None
 	}
 }
 
@@ -264,7 +71,7 @@ impl Default for FlexDirection {
 pub struct GUIElement {
 	pub grow: u32,
 	pub children: Vec<GUIElement>,
-	pub flex_dir: FlexDirection,
+	pub flex_dir: Flex,
 	pub top_left_radius: f32,
 	pub top_right_radius: f32,
 	pub bottom_left_radius: f32,
@@ -272,11 +79,18 @@ pub struct GUIElement {
 	pub text: Option<String>,
 	pub background_color: Option<[f32; 4]>,
 	pub font_size: u32,
+	pub camera_id: Option<usize>,
+	pub font: Option<FontHandle>
 }
 
 impl GUIElement {
 	pub fn add(mut self, child: GUIElement) -> Self {
 		self.children.push(child);
+		self
+	}
+
+	pub fn add_many(mut self, children: Vec<GUIElement>) -> Self {
+		self.children.extend(children);
 		self
 	}
 
@@ -289,17 +103,28 @@ impl GUIElement {
 		self.grow = grow;
 		self
 	}
+
+	pub fn camera(mut self, camera_id: usize) -> Self {
+		self.camera_id = Some(camera_id);
+		self
+	}
+
+	pub fn font(mut self, font: FontHandle) -> Self {
+		self.font = Some(font);
+		self
+	}
 }
 
 pub fn vstack() -> GUIElement {
 	GUIElement {
+		flex_dir: Flex::Vertical,
 		..Default::default()
 	}
 }
 
 pub fn hstack() -> GUIElement {
 	GUIElement {
-		flex_dir: FlexDirection::Row,
+		flex_dir: Flex::Horizontal,
 		..Default::default()
 	}
 }
@@ -307,6 +132,26 @@ pub fn hstack() -> GUIElement {
 pub fn rect() -> GUIElement {
 	GUIElement {
 		background_color: Some(Color::WHITE),
+		..Default::default()
+	}
+}
+
+pub fn list() -> GUIElement {
+	GUIElement {
+		..Default::default()
+	}
+}
+
+pub fn cameara(camera_id: usize) -> GUIElement {
+	GUIElement {
+		camera_id: Some(camera_id),
+		..Default::default()
+	}
+}
+
+pub fn text(t: &str) -> GUIElement {
+	GUIElement {
+		text: Some(t.to_string()),
 		..Default::default()
 	}
 }

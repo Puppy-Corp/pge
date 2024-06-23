@@ -1,3 +1,5 @@
+use thunderdome::Index;
+
 use crate::idgen::gen_id;
 use crate::FontHandle;
 
@@ -33,7 +35,7 @@ pub struct Window {
 	pub title: String,
 	pub width: u32,
 	pub height: u32,
-	pub body: GUIElement,
+	pub gui: Option<Index>,
 	pub lock_cursor: bool,
 }
 
@@ -44,14 +46,24 @@ impl Window {
 			title: "".to_string(),
 			width: 800,
 			height: 600,
-			body: GUIElement::default(),
+			gui: None,
 			lock_cursor: false,
 		}
 	}
 
-	pub fn render(&self, el: GUIElement) {
-		
+	pub fn title(mut self, title: &str) -> Self {
+		self.title = title.to_string();
+		self
 	}
+
+	pub fn gui(mut self, gui: Index) -> Self {
+		self.gui = Some(gui);
+		self
+	}
+}
+
+pub fn window() -> Window {
+	Window::new()
 }
 
 #[derive(Clone, Debug)]
@@ -79,7 +91,8 @@ pub struct GUIElement {
 	pub text: Option<String>,
 	pub background_color: Option<[f32; 4]>,
 	pub font_size: u32,
-	pub camera_id: Option<usize>,
+	pub font_color: [f32; 4],
+	pub camera_id: Option<Index>,
 	pub font: Option<FontHandle>
 }
 
@@ -104,7 +117,7 @@ impl GUIElement {
 		self
 	}
 
-	pub fn camera(mut self, camera_id: usize) -> Self {
+	pub fn camera(mut self, camera_id: Index) -> Self {
 		self.camera_id = Some(camera_id);
 		self
 	}
@@ -142,7 +155,7 @@ pub fn list() -> GUIElement {
 	}
 }
 
-pub fn cameara(camera_id: usize) -> GUIElement {
+pub fn camera_view(camera_id: Index) -> GUIElement {
 	GUIElement {
 		camera_id: Some(camera_id),
 		..Default::default()

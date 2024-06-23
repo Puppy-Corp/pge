@@ -52,3 +52,26 @@ pub fn cube(s: f32) -> Mesh {
 
     m
 }
+
+
+pub fn plane(w: f32, h: f32) -> Mesh {
+	let mut m = Mesh::new();
+	m.positions = vec![
+		[-w, -h, 0.0],
+		[-w, h, 0.0],
+		[w, h, 0.0],
+		[w, -h, 0.0],
+	];
+
+	m.normals = vec![
+		[0.0, 1.0, 0.0],
+		[0.0, 1.0, 0.0],
+		[0.0, 1.0, 0.0],
+		[0.0, 1.0, 0.0],
+	];
+
+	m.indices = vec![
+		0, 1, 2, 2, 3, 0,
+	];
+	m
+}

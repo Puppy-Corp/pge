@@ -37,20 +37,34 @@ impl OutlineBuilder for Builder {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    Engine::new(|mut handle| async move {
+    Engine::new(|mut engine| async move {
 		println!("begin ??");
 
 		let font = FontMesh::load("./fonts/Roboto-Regular.ttf")?;
 		
 		let mut window = Window::new();
 		window.title = "Todo app".to_string();
-		handle.save_window(&window);
+		engine.save_window(&window);
 
 		let mut scene = Scene::new();
 		let mut root = Node::new();
 
 		let mut anode = Node::new();
 		let amesh = font.get_mesh('A').unwrap();
+		println!("amsh: {:?}", amesh);
+		anode.set_mesh(amesh);
+		root.add_node(anode);
+
+		let mut anode = Node::new();
+		anode.set_translation(1.0, 0.0, 0.0);
+		let amesh = font.get_mesh('B').unwrap();
+		println!("amsh: {:?}", amesh);
+		anode.set_mesh(amesh);
+		root.add_node(anode);
+
+		let mut anode = Node::new();
+		anode.set_translation(2.0, 0.0, 0.0);
+		let amesh = font.get_mesh('C').unwrap();
 		println!("amsh: {:?}", amesh);
 		anode.set_mesh(amesh);
 		root.add_node(anode);
@@ -64,54 +78,22 @@ async fn main() -> anyhow::Result<()> {
 		root.add_node(camera_node.clone());
 
 		scene.add_node(root);
-		handle.save_scene(scene);
+		engine.save_scene(scene);
 
 		println!("will no sleeppp");
 		sleep(Duration::from_secs(120)).await;
 
-		// let mut todo_items: Vec<TodoItem> = Vec::new();
+		let mut todo_items: Vec<TodoItem> = Vec::new();
 		
-		// let root = vstack()
-		// 	.add(text("Todo app").font(font))
-		// 	.add(list().add_many(
-		// 		todo_items.iter().map(|item| text(&item.text)).collect()
-		// 	));
+		let root = vstack()
+			.add(text("Todo app").font(font))
+			.add(list().add_many(
+				todo_items.iter().map(|item| text(&item.text)).collect()
+			));
 
-		// window.render(root);
+		window.render(root);
 		Ok(())
 	}).run().await?;
-
-	// let font_data = std::fs::read("../../workdir/VCR_OSD_MONO_1.001.ttf")?;
-
-	// let face = ttf_parser::Face::parse(&font_data, 0)?;
-
-	// // let cell_size = face.height() as f64 * FONT_SIZE / units_per_em as f64;
-    // // let rows = (num_glyphs as f64 / COLUMNS as f64).ceil() as u32;
-
-	// let glyphs_count = face.number_of_glyphs();
-	// println!("Number of glyphs: {}", glyphs_count);
-	// let mut row = 0;
-    // let mut column = 0;
-
-	
-
-	// for id in 0..glyphs_count {
-	// 	let gid = GlyphId(id);
-	// 	println!("name: {:?}", face.glyph_name(gid));
-	// 	face.glyph_index("a")
-	// 	// let mut b = Builder {};
-	// 	// face.outline_glyph(gid, &mut b);
-	// 	// let g = face.glyph_raster_image(gid, 34).unwrap();
-	// 	// g.format
-	// 	// println!("Glyph id: {:?}", gid);
-	// 	// let x = column as f64 * cell_size;
-
-	// 	// println!("Glyph id: {}, width: {}, height: {}", id, glyph.width(), glyph.height());
-	// }
-
-	// for name in face.names() {
-	// 	println!("{:?}", name);
-	// }
 
 	Ok(())
 }

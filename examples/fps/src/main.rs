@@ -1,209 +1,221 @@
-// use puppy_game_engine::camera::camera;
-// use puppy_game_engine::camera::camera_view;
-// use puppy_game_engine::camera::Camera;
-// use puppy_game_engine::camera::CameraView;
-// use puppy_game_engine::engine::Engine;
-// use puppy_game_engine::gui::GUI;
-// use puppy_game_engine::location::Location;
-// use puppy_game_engine::shapes::cube;
-// use puppy_game_engine::traits::PuppyApplication;
-// use puppy_game_engine::types::Entity;
-// use puppy_game_engine::types::*;
-// use puppy_game_engine::types::Rotation;
-// use puppy_game_engine::Renderer;
-
-// static GROUND_ID: usize = 1;
-
-// enum GameEvent {
-
-// }
-
-// struct FpsPlayer {
-// 	last_time: u64,
-// 	cube: Mesh,
-// 	location: Location,
-// 	rotation: Rotation
-// }
-
-// impl Entity<GameEvent> for FpsPlayer {
-// 	fn render(&mut self, renderer: &Renderer) {
-
-// 	}
-// }
-
-// impl FpsPlayer {
-// 	pub fn new() -> FpsPlayer {
-// 		FpsPlayer {
-// 			last_time: 0,
-// 			cube: cube(1.0),
-// 			location: Location::new(),
-// 			rotation: Rotation::new()
-// 		}
-// 	}
-
-// 	pub fn handle_input(&mut self, event: InputEvent, time: u64) {
-// 		let delta = time - self.last_time;
-// 		self.last_time = time;
-
-// 		match event {
-// 			InputEvent::MouseEvent(e) => {
-// 				match e {
-// 					MouseEvent::Moved { dx, dy } => {
-// 						println!("Mouse moved: dx: {}, dy: {}", dx, dy);
-// 						self.rotation.rotate(dx, dy);
-// 					}
-// 				}
-// 				println!("Mouse event");
-// 			},
-// 			InputEvent::KeyboardEvent => {
-// 				println!("Keyboard event");
-// 			},
-// 			_ => {
-// 				println!("Event: {:?}", event);
-// 			}
-// 		}
-// 	}
-	
-// 	pub fn render(&mut self, renderer: &Renderer) {
-// 		// Render code here
-		
-// 	}
-// }
-
-// // impl FpsPlayer {
-// // 	pub fn new() -> FpsPlayer {
-// // 		FpsPlayer {
-// // 			last_time: 0,
-// // 			cube: cube(1.0),
-// // 			location: Location::new(),
-// // 			rotation: Rotation::new()
-// // 		}
-// // 	}
-
-// // 	pub fn handle_input(&mut self, event: InputEvent, time: u64) {
-// // 		let delta = time - self.last_time;
-// // 		self.last_time = time;
-
-// // 		match event {
-// // 			InputEvent::MouseEvent(e) => {
-// // 				match e {
-// // 					MouseEvent::Moved { dx, dy } => {
-// // 						println!("Mouse moved: dx: {}, dy: {}", dx, dy);
-// // 						self.rotation.rotate(dx, dy);
-// // 					}
-// // 				}
-// // 				println!("Mouse event");
-// // 			},
-// // 			InputEvent::KeyboardEvent => {
-// // 				println!("Keyboard event");
-// // 			},
-// // 			_ => {
-// // 				println!("Event: {:?}", event);
-// // 			}
-// // 		}
-// // 	}
-
-// // 	pub fn handle_phycics_event(&mut self, event: PhysicsEvent) {
-// // 		// Handle physics event here
-// // 		match event {
-// // 			PhycicsEvent::Collision { id } => {
-// // 				println!("Collision event");
-
-// // 			}
-// // 		}
-// // 	}
-
-// // 	pub fn render(&self) -> Mesh {
-// // 		// Render code here
-
-// // 	}
-
-// // 	pub fn phycics() -> PhycicsProps {
-// // 		PhycicsProps {}
-// // 	}
-// // }
-
-// struct FpsExample {
-// 	fps: FpsPlayer
-// }
-
-// impl FpsExample {
-// 	pub fn new() -> FpsExample {
-// 		FpsExample {
-// 			fps: FpsPlayer::new()
-// 		}
-// 	}
-// }
-
-// impl PuppyApplication for FpsExample {
-
-// }
-
-use std::clone;
-use std::future::Future;
-use std::time::Duration;
-
 use pge::*;
-use tokio::time::sleep;
-
-// struct Matrix4x4 {
-// 	data: [f32; 16]
-// }
-
-// fn rotateXY(x: f32, y: f32) -> Matrix4x4 {
-// 	println!("Rotating: x: {}, y: {}", x, y);
-// }
 
 #[derive(Debug, Clone)]
-pub enum Message {
-
+struct PressedKeys {
+	forward: bool,
+	backward: bool,
+	left: bool,
+	right: bool,
 }
 
-pub struct FpsPlayer {}
+impl PressedKeys {
+	pub fn new() -> Self {
+		Self {
+			forward: false,
+			backward: false,
+			left: false,
+			right: false,
+		}
+	}
 
-impl FpsPlayer {
-	pub fn new() -> FpsPlayer {
-		FpsPlayer {}
+	pub fn to_vec3(&self) -> glam::Vec3 {
+		let mut mat = glam::Vec3::ZERO;
+		if self.forward {
+			mat = mat * glam::Vec3::new(0.0, 0.0, 1.0);
+		}
+		if self.backward {
+			mat = mat * glam::Vec3::new(0.0, 0.0, -1.0);
+		}
+		if self.left {
+			mat = mat * glam::Vec3::new(1.0, 0.0, 0.0);
+		}
+		if self.right {
+			mat = mat * glam::Vec3::new(-1.0, 0.0, 0.0);
+		}
+		mat
 	}
 }
 
-#[async_trait::async_trait]
-impl Actor for FpsPlayer {
-	type Message = Message;
+pub struct FpsShooter {
+	sensitivity: f32,
+	player_move_force: PhycicsForce,
+	player_inx: Option<Index>,
+	pressed_keys: PressedKeys,
+}
 
-	async fn init(&mut self, system: &mut Context) {
-		// Initialize actor here
-	}
-
-	fn handle(&mut self, message: Self::Message, system: &mut Context) {
-		// Handle message here
+impl FpsShooter {
+	pub fn new() -> Self {
+		Self {
+			player_inx: None,
+			sensitivity: 0.001,
+			player_move_force: PhycicsForce::new(),
+			pressed_keys: PressedKeys::new(),
+		}
 	}
 }
 
-pub struct Floor {}
+impl pge::App for FpsShooter {
+	fn on_create(&mut self, state: &mut State) {
+		let mut scene = Scene::new();
+		let mut floor = Node::new();
+		floor.physics.typ = PhycisObjectType::Static;
+		floor.set_mesh(state.meshes.insert(plane(10.0, 10.0)));
+		let floor_id = state.nodes.insert(floor);
+		scene.nodes.push(floor_id);
+	
+		let camera = Camera::new();
+		let camera_id = state.cameras.insert(camera);
+		let mut player = Node::new();
+		player.translation = glam::Vec3::new(0.0, 1.0, 0.0);
+		player.mesh = Some(state.meshes.insert(cube(1.0)));
+		player.physics.typ = PhycisObjectType::Dynamic;
+		player.camera = Some(camera_id);
+		player.forces.push(PhycicsForce::new());
+		let player_id = state.nodes.insert(player);
+		scene.nodes.push(player_id);
+		self.player_inx = Some(player_id);
 
-impl Floor {
-	pub fn new() -> Floor {
-		Floor {}
+		let gui = camera_view(camera_id);
+		let gui_id = state.guis.insert(gui);
+
+		state.scenes.insert(scene);
+		state.windows.insert(window().title("FPS Shooter1").gui(gui_id));
+		state.windows.insert(window().title("FPS Shooter2").gui(gui_id));
+		state.windows.insert(window().title("FPS Shooter3").gui(gui_id));
+		state.windows.insert(window().title("FPS Shooter4").gui(gui_id));
 	}
-}
 
-impl Actor for Floor {
-	type Message = Message;
+	fn on_keyboard_input(&mut self, key: KeyboardKey, action: KeyAction, state: &mut State) {
+		match action {
+			KeyAction::Pressed => {
+				match key {
+					KeyboardKey::W => self.pressed_keys.forward = true,
+					KeyboardKey::S => self.pressed_keys.backward = true,
+					KeyboardKey::A => self.pressed_keys.left = true,
+					KeyboardKey::D => self.pressed_keys.right = true,
+					_ => {}
+				}
+			},
+			KeyAction::Released => {
+				match key {
+					KeyboardKey::W => self.pressed_keys.forward = false,
+					KeyboardKey::S => self.pressed_keys.backward = false,
+					KeyboardKey::A => self.pressed_keys.left = false,
+					KeyboardKey::D => self.pressed_keys.right = false,
+					_ => {}
+				}
+			},
+		};
 
-	// fn init(&mut self, system: &mut System) {
-	// 	// Initialize actor here
-	// }
+		let mat = self.pressed_keys.to_vec3();
+		let player_inx = match self.player_inx {
+			Some(index) => index,
+			None => return,
+		};
+		let player = state.nodes.get_mut(player_inx).unwrap();
+		player.forces[0].direction = mat;	
+	}
 
-	fn handle(&mut self, message: Self::Message, system: &mut Context) {
-		// Handle message here
+	fn on_mouse_input(&mut self, event: MouseEvent, state: &mut State) {
+		match event {
+			MouseEvent::Moved { dx, dy } => {
+				let player_inx = match self.player_inx {
+					Some(index) => index,
+					None => return,
+				};
+				let player = state.nodes.get_mut(player_inx).unwrap();
+				player.rotate(dx * self.sensitivity, dy * self.sensitivity, 0.0);
+			},
+		}
 	}
 }
 
 #[tokio::main]
-async fn main() {
-	let mut engine = Engine::new();
-	// engine.add_actor(FpsPlayer::new());
-	// engine.add_actor(Floor::new());
-	engine.run().await;
+async fn main() -> anyhow::Result<()> {
+	pge::run(FpsShooter::new()).await?;
+
+	// Engine::new(|engine| async move {
+	// 	let world = engine.create_world().await;
+	// 	let node = world.create_node();
+	// 	node.set_mesh(plane(10.0, 10.0));
+	// 	node.set_phycis_props(PhycicsProps {
+	// 		typ: PhycisObjectType::Static,
+	// 	});
+	// 	let player = world.create_node();
+	// 	player.set_translation(0.0, 1.0, 0.0);
+	// 	player.set_phycis_props(PhycicsProps {
+	// 		typ: PhycisObjectType::Dynamic,
+	// 	});
+	// 	let camera = world.create_camera();
+	// 	player.set_camera(&camera);
+
+	// 	let window = engine.create_window();
+	// 	window.set_gui(camera_view(camera.id));
+
+	// 	let mut pressed_keys = PressedKeys {
+	// 		forward: false,
+	// 		backward: false,
+	// 		left: false,
+	// 		right: false,
+	// 	};
+
+	// 	let move_force = PhycicsForce::new();
+	// 	move_force.max_velocity = 3.0;
+
+	// 	loop {
+	// 		match engine.next_event().await {
+	// 			Some(e) => {
+	// 				match e {
+	// 					Event::InputEvent(e) => {
+	// 						match e {
+	// 							InputEvent::KeyboardEvent(k) => {
+	// 								match k.action {
+	// 									KeyAction::Pressed => {
+	// 										match k.key {
+	// 											KeyboardKey::W => pressed_keys.forward = true,
+	// 											KeyboardKey::S => pressed_keys.backward = true,
+	// 											KeyboardKey::A => pressed_keys.left = true,
+	// 											KeyboardKey::D => pressed_keys.right = true,
+	// 											_ => {}
+	// 										}
+	// 									},
+	// 									KeyAction::Released => {
+	// 										match k.key {
+	// 											KeyboardKey::W => pressed_keys.forward = false,
+	// 											KeyboardKey::S => pressed_keys.backward = false,
+	// 											KeyboardKey::A => pressed_keys.left = false,
+	// 											KeyboardKey::D => pressed_keys.right = false,
+	// 											_ => {}
+	// 										}
+	// 									},
+	// 								}
+
+	// 								println!("presed keys: {:?}", pressed_keys);
+
+	// 								let mat = pressed_keys.to_vec3();
+	// 								move_force.set_direction(mat);
+	// 							},
+	// 							InputEvent::MouseEvent(m) => {
+	// 								match m {
+	// 									MouseEvent::Moved { dx, dy } => {
+	// 										println!("mouse moved: dx: {}, dy: {}", dx, dy);
+	// 										let sensitivity = 0.001;
+	// 										let dx = dx * sensitivity;
+	// 										let dy = dy * sensitivity;
+	// 										player.rotate(dx, dy, 0.0);
+	// 									},
+	// 								}
+									
+	// 							},
+	// 						}
+
+	// 					},
+	// 					_ => {}
+	// 				}
+	// 			},
+	// 			None => return Ok(()),
+	// 		}
+	// 	}
+	// }).run().await?;
+	Ok(())
 }

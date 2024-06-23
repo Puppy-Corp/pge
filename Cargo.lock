@@ -535,7 +535,9 @@ checksum = "aa9a19cbb55df58761df49b23516a86d432839add4af60fc256da840f66ed35b"
 name = "fps"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "async-trait",
+ "glam",
  "pge",
  "tokio",
 ]
@@ -1182,11 +1184,12 @@ name = "pge"
 version = "0.0.0"
 dependencies = [
  "anyhow",
- "async-trait",
  "bytemuck",
  "glam",
  "log",
  "lyon",
+ "pollster",
+ "thunderdome",
  "tokio",
  "ttf-parser",
  "wgpu",
@@ -1239,6 +1242,12 @@ dependencies = [
  "tracing",
  "windows-sys 0.52.0",
 ]
+
+[[package]]
+name = "pollster"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "22686f4785f02a4fcc856d3b3bb19bf6c8160d103f7a99cc258bddd0251dc7f2"
 
 [[package]]
 name = "presser"
@@ -1551,6 +1560,12 @@ dependencies = [
  "quote",
  "syn 2.0.61",
 ]
+
+[[package]]
+name = "thunderdome"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "92e170f93360bf9ae6fe3c31116bbf27adb1d054cedd6bc3d7857e34f2d98d0b"
 
 [[package]]
 name = "tiny-skia"

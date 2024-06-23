@@ -1,4 +1,8 @@
 use std::collections::HashMap;
+use std::collections::HashSet;
+use std::hash::Hash;
+use std::mem;
+use std::ops::Range;
 use std::sync::Arc;
 use crate::wgpu_types::BufferRecipe;
 
@@ -337,7 +341,7 @@ where
 			bind_group,
 			buffer,
 			layout,
-			staging_buffer: StaticStagingBuffer::new(1024)
+			staging_buffer: StaticStagingBuffer::new(20_000)
 		}
 	}
 
@@ -385,7 +389,7 @@ impl DynamicVertexBuffer {
 	pub fn new(device: Arc<wgpu::Device>, queue: Arc<wgpu::Queue>) -> Self {
 		let buffer = device.create_buffer(&wgpu::BufferDescriptor {
 			label: Some("Dynamic Vertex Buffer"),
-			size: 1024,
+			size: 20_000,
 			usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC | wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::INDEX,
 			mapped_at_creation: false
 		});
@@ -394,7 +398,7 @@ impl DynamicVertexBuffer {
 			device,
 			queue,
 			buffer,
-			staging_buffer: DynamicStagingBuffer::new(1024),
+			staging_buffer: DynamicStagingBuffer::new(20_000),
 			alignment: 4,
 		}
 	}
@@ -450,7 +454,7 @@ where
 			device,
 			queue,
 			buffer,
-			staging_buffer: StaticStagingBuffer::new(1024)
+			staging_buffer: StaticStagingBuffer::new(20_000)
 		}
 	}
 
@@ -470,6 +474,205 @@ where
 
 	pub fn buffer(&self) -> &wgpu::Buffer {
 		&self.buffer
+	}
+}
+
+
+// use std::collections::{HashMap, HashSet};
+// use std::hash::Hash;
+// use std::mem;
+
+#[derive(Debug, Clone)]
+pub struct WriteCommand {
+    pub offset: usize,
+    pub data: Vec<u8>,
+}
+
+pub struct GroupedBuffer<K: Eq + Hash + Clone> {
+    buffer: Vec<u8>,
+    groups: HashMap<K, (usize, usize)>, // (start_index, count)
+	items: HashMap<u32, usize>,
+    item_size: usize,
+    modified_ranges: HashSet<(usize, usize)>, // (start, end) of modified ranges
+}
+
+impl<K: Eq + Hash + Clone> GroupedBuffer<K> {
+    pub fn new(item_size: usize) -> Self {
+        GroupedBuffer {
+            buffer: Vec::new(),
+            groups: HashMap::new(),
+			items: HashMap::new(),
+            item_size,
+            modified_ranges: HashSet::new(),
+        }
+    }
+
+    pub fn store<T: Sized>(&mut self, group: u32, id: u32, item: &T) -> Range<u32> {
+        assert_eq!(mem::size_of::<T>(), self.item_size, "Item size mismatch");
+
+		0..0
+
+        // let bytes = unsafe {
+        //     std::slice::from_raw_parts(
+        //         (item as *const T) as *const u8,
+        //         mem::size_of::<T>(),
+        //     )
+        // };
+
+		// match self.items.get(&id) {
+
+		// }
+
+			
+
+        // let insert_index = if let Some((_, count)) = self.groups.get_mut(&group) {
+        //     // Group exists, insert at the end of the group
+        //     let insert_index = *count * self.item_size;
+        //     self.buffer.splice(insert_index..insert_index, bytes.iter().cloned());
+        //     *count += 1;
+
+        //     // Update start indices for groups that come after this one
+        //     for (_, (start, _)) in self.groups.iter_mut() {
+        //         if *start > insert_index {
+        //             *start += self.item_size;
+        //         }
+        //     }
+
+        //     insert_index
+        // } else {
+        //     // New group, add to the end
+        //     let start_index = self.buffer.len();
+        //     self.buffer.extend_from_slice(bytes);
+        //     self.groups.insert(key, (start_index, 1));
+        //     start_index
+        // };
+
+        // // Mark the range as modified
+        // self.modified_ranges.insert((insert_index, insert_index + self.item_size));
+		// let insert_index = insert_index as u32;
+		// insert_index..insert_index + self.item_size as u32
+    }
+
+	pub fn remove(&mut self, key: &K, index: usize) -> Option<Vec<u8>> {
+        // if let Some((start, count)) = self.groups.get_mut(key) {
+        //     if index < *count {
+        //         let remove_start = *start + index * self.item_size;
+        //         let removed = self.buffer.drain(remove_start..remove_start + self.item_size).collect();
+        //         *count -= 1;
+
+        //         // Update start indices for groups that come after this one
+        //         for (_, (group_start, _)) in self.groups.iter_mut() {
+        //             if *group_start > remove_start {
+        //                 *group_start -= self.item_size;
+        //             }
+        //         }
+
+        //         // Remove the group if it's empty
+        //         if *count == 0 {
+        //             self.groups.remove(key);
+        //         }
+
+        //         // Mark the entire buffer from the removal point as modified
+        //         self.modified_ranges.insert((remove_start, self.buffer.len()));
+
+        //         Some(removed)
+        //     } else {
+        //         None
+        //     }
+        // } else {
+        //     None
+        // }
+
+		None
+    }
+
+    pub fn generate_write_commands(&mut self) -> Vec<WriteCommand> {
+        let mut commands = Vec::new();
+        let mut sorted_ranges: Vec<_> = self.modified_ranges.iter().cloned().collect();
+        sorted_ranges.sort_by_key(|&(start, _)| start);
+
+        let mut current_start = None;
+        let mut current_end = None;
+
+        for (start, end) in sorted_ranges {
+            if let Some(curr_start) = current_start {
+                if start <= current_end.unwrap() {
+                    // Merge overlapping or adjacent ranges
+                    current_end = Some(end.max(current_end.unwrap()));
+                } else {
+                    // Create a command for the previous range
+                    commands.push(WriteCommand {
+                        offset: curr_start,
+                        data: self.buffer[curr_start..current_end.unwrap()].to_vec(),
+                    });
+                    current_start = Some(start);
+                    current_end = Some(end);
+                }
+            } else {
+                current_start = Some(start);
+                current_end = Some(end);
+            }
+        }
+
+        // Add the last command if there's any pending range
+        if let Some(start) = current_start {
+            commands.push(WriteCommand {
+                offset: start,
+                data: self.buffer[start..current_end.unwrap()].to_vec(),
+            });
+        }
+
+        // Clear the modified ranges
+        self.modified_ranges.clear();
+
+        commands
+    }
+
+    pub fn clear(&mut self) {
+        self.buffer.clear();
+        self.groups.clear();
+        self.modified_ranges.clear();
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.buffer
+    }
+
+	pub fn group_count(&self, key: &K) -> usize {
+        self.groups.get(key).map_or(0, |(_, count)| *count)
+    }
+
+    pub fn total_items(&self) -> usize {
+        self.buffer.len() / self.item_size
+    }
+
+    pub fn is_modified(&self) -> bool {
+        !self.modified_ranges.is_empty()
+    }
+
+    pub fn reserve(&mut self, additional: usize) {
+        self.buffer.reserve(additional * self.item_size);
+    }
+}
+
+#[cfg(test)]
+mod grouped_buffer_tests {
+	use super::*;
+
+	#[test]
+	fn test_mesh_with_two_instances() {
+		struct Instance {
+			position: [f32; 3],
+		}
+
+		let mesh_one_id = 0;
+		let mesh_two_id = 1;
+
+		let mut buffer = GroupedBuffer::new(mem::size_of::<Instance>());
+
+
+
+		buffer.add_item(mesh_one_id, &Instance { position: [1.0, 2.0, 3.0] });
 	}
 }
 

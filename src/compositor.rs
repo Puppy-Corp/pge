@@ -26,74 +26,6 @@ enum DrawItem {
 	Text(DrawText)
 }
 
-// pub struct Compositor {
-// 	pub vertices: Vec<f32>,
-// 	pub indices: Vec<u16>
-// }
-
-// impl Compositor {
-// 	pub fn new() -> Self {
-// 		Self {
-// 			vertices: Vec::new(),
-// 			indices: Vec::new()
-// 		}
-// 	}
-
-// 	fn inner_render(&self, item: &GuiItem, size: OutlineSize) {
-// 		match item {
-// 			GuiItem::HStack(view) => {
-// 				println!("HStack");
-// 				let one_width = 1.0 / view.items.len() as f32;
-// 				for item in view.items.iter() {
-// 					self.inner_render(item, OutlineSize {
-// 						width: Size::Exact(one_width),
-// 						height: Size::Fill
-// 					});
-// 				}
-// 			},
-// 			GuiItem::VStack(view) => {
-// 				println!("VStack");
-// 				let one_height = 1.0 / view.items.len() as f32;
-// 				for item in view.items.iter() {
-// 					self.inner_render(item, OutlineSize {
-// 						width: Size::Fill,
-// 						height: Size::Exact(one_height)
-// 					});
-// 				}
-// 			},
-// 			GuiItem::SceneCam(cam) => {
-// 				println!("SceneCam: {}", cam.camera_id);
-// 			},
-// 			GuiItem::Text(text) => {
-// 				println!("Text: {}", text.text);
-// 			},
-// 			GuiItem::SceneCam(cam) => {
-// 				println!("SceneCam: {}", cam.camera_id);
-// 			},
-// 			GuiItem::None => {},
-// 			GuiItem::Rect(r) => {
-
-// 			},
-// 			GuiItem::List(list) => {
-// 				for item in list.items.iter() {
-// 					self.inner_render(item, OutlineSize {
-// 						width: Size::Fill,
-// 						height: Size::Content
-// 					});
-// 				}
-// 			}
-// 		}
-// 	}
-
-// 	pub fn render<T: Into<GuiItem>>(&self, item: T) {
-// 		let item = item.into();
-// 		self.inner_render(&item, OutlineSize {
-// 			width: Size::Fill,
-// 			height: Size::Fill
-// 		});
-// 	}
-// }
-
 pub enum Size {
 	Fill,
 	Exact(f32),
@@ -161,6 +93,16 @@ impl Lineariser {
 					}));
 				}
 			}
+		}
+
+		if let Some(text) = &item.text {
+			let font_size = item.font_size as f32;
+			let text = DrawText {
+				text: text.clone(),
+				font_size,
+				font_color: item.font_color
+			};
+			self.items.push(DrawItem::Text(text));
 		}
 
 		if item.children.len() > 0 {
@@ -385,5 +327,18 @@ mod tests {
 		};
 		assert_eq!(linearizer.items[0], DrawItem::Rect(r1));
 		assert_eq!(linearizer.items[1], DrawItem::Rect(r2));
+	}
+
+	#[test]
+	fn test_text_rendering() {
+		let vstack = vstack()
+			.add(text("row 1"))
+			.add(text("row 2"))
+			.add(text("row 3"));
+
+		let mut linearizer = Lineariser::new();
+		linearizer.linearize(vstack);
+
+		println!("{:?}", linearizer.items);
 	}
 }

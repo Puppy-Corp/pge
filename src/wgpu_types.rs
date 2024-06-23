@@ -1,6 +1,3 @@
-use crate::buffer::Buffer;
-use crate::math::Mat4;
-
 pub trait BufferRecipe {
 	fn create_buffer(device: &wgpu::Device) -> wgpu::Buffer;
 	fn create_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout;

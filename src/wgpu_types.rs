@@ -274,7 +274,7 @@ impl BufferRecipe for RawNode {
 	fn create_buffer(device: &wgpu::Device) -> wgpu::Buffer {
 		device.create_buffer(&wgpu::BufferDescriptor {
 			label: Some("Node Buffer"),
-			size: 1024,
+			size: 10_000,
 			usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
 			mapped_at_creation: false,
 		})

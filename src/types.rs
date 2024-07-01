@@ -27,6 +27,7 @@ pub enum KeyboardKey {
 	A,
 	S,
 	D,
+	Unknow
 }
 
 impl From<KeyCode> for KeyboardKey {
@@ -36,7 +37,7 @@ impl From<KeyCode> for KeyboardKey {
 			KeyCode::KeyA => Self::A,
 			KeyCode::KeyS => Self::S,
 			KeyCode::KeyD => Self::D,
-			_ => todo!("key {:?} not supported", key)
+			_ => Self::Unknow
 		}
 	}
 }

@@ -106,15 +106,24 @@ impl pge::App for FpsShooter {
 		// let floor_id = state.nodes.insert(floor);
 		// scene.nodes.push(floor_id);
 
-		let mut cube_node = Node::new();
-		cube_node.set_translation(-2.0, 0.0, 0.0);
-		cube_node.mesh = Some(state.meshes.insert(cube(1.0)));
-		state.nodes.insert(cube_node);
+		// let mut cube_node = Node::new();
+		// cube_node.set_translation(-2.0, 0.0, 0.0);
+		// cube_node.mesh = Some(state.meshes.insert(cube(1.0)));
+		// state.nodes.insert(cube_node);
 
-		let mut cube_node = Node::new();
-		cube_node.set_translation(2.0, 0.0, 0.0);
-		cube_node.mesh = Some(state.meshes.insert(cube(1.0)));
-		state.nodes.insert(cube_node);
+		// let mut cube_node = Node::new();
+		// cube_node.set_translation(2.0, 0.0, 0.0);
+		// cube_node.mesh = Some(state.meshes.insert(cube(1.0)));
+		// state.nodes.insert(cube_node);
+
+		for i in 0..10 {
+			for j in 0..10 {
+				let mut cube_node = Node::new();
+				cube_node.set_translation(i as f32 * 3.0, 0.0, j as f32 * 3.0);
+				cube_node.mesh = Some(state.meshes.insert(cube(1.0)));
+				state.nodes.insert(cube_node);
+			}
+		}
 	
 	
 		let mut player = Node::new();

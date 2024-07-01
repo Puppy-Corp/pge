@@ -4,21 +4,24 @@ pub trait BufferRecipe {
 	fn create_bind_group(device: &wgpu::Device, buffer: &wgpu::Buffer, layout: &wgpu::BindGroupLayout) -> wgpu::BindGroup;
 }
 
+pub trait WgpuBuffer {
+	fn create_buffer(device: &wgpu::Device, size: usize) -> wgpu::Buffer;
+}
+
 pub trait VertexBufferRecipe {
 	fn desc() -> wgpu::VertexBufferLayout<'static>;
 }
 
-
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct Positions {
+pub struct RawPositions {
 	pub position: [f32; 3],
 }
 
-impl Positions {
+impl RawPositions {
 	pub fn desc() -> wgpu::VertexBufferLayout<'static> {
 		wgpu::VertexBufferLayout {
-			array_stride: std::mem::size_of::<Positions>() as wgpu::BufferAddress,
+			array_stride: std::mem::size_of::<RawPositions>() as wgpu::BufferAddress,
 			step_mode: wgpu::VertexStepMode::Vertex,
 			attributes: &[
 				wgpu::VertexAttribute {
@@ -33,7 +36,7 @@ impl Positions {
 	pub fn create_buffer(device: &wgpu::Device, size: usize) -> wgpu::Buffer {
 		device.create_buffer(&wgpu::BufferDescriptor {
 			label: Some("Position Buffer"),
-			size: (std::mem::size_of::<Positions>() * size) as u64,
+			size: (std::mem::size_of::<RawPositions>() * size) as u64,
 			usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
 			mapped_at_creation: false,
 		})
@@ -42,14 +45,14 @@ impl Positions {
 
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct Normal {
+pub struct RawNormal {
     normal: [f32; 3],
 }
 
-impl Normal {
+impl RawNormal {
 	pub fn desc() -> wgpu::VertexBufferLayout<'static> {
 		wgpu::VertexBufferLayout {
-			array_stride: std::mem::size_of::<Normal>() as wgpu::BufferAddress,
+			array_stride: std::mem::size_of::<RawNormal>() as wgpu::BufferAddress,
 			step_mode: wgpu::VertexStepMode::Vertex,
 			attributes: &[
 				wgpu::VertexAttribute {
@@ -60,18 +63,27 @@ impl Normal {
 			]
 		}
 	}
+
+	pub fn create_buffer(device: &wgpu::Device, size: usize) -> wgpu::Buffer {
+		device.create_buffer(&wgpu::BufferDescriptor {
+			label: Some("Normal Buffer"),
+			size: (std::mem::size_of::<RawNormal>() * size) as u64,
+			usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+			mapped_at_creation: false,
+		})
+	}
 }
 
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct TexCoords {
+pub struct RawTexCoords {
     tex_coords: [f32; 2],
 }
 
-impl TexCoords {
+impl RawTexCoords {
 	pub fn desc() -> wgpu::VertexBufferLayout<'static> {
 		wgpu::VertexBufferLayout {
-			array_stride: std::mem::size_of::<TexCoords>() as wgpu::BufferAddress,
+			array_stride: std::mem::size_of::<RawTexCoords>() as wgpu::BufferAddress,
 			step_mode: wgpu::VertexStepMode::Vertex,
 			attributes: &[
 				wgpu::VertexAttribute {
@@ -94,7 +106,7 @@ struct MaterialUniform {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct RawCamera {
     pub proj: [[f32; 4]; 4],
 	pub node_inx: i32,
@@ -170,6 +182,19 @@ impl RawInstance {
         }
     }
 }
+
+impl WgpuBuffer for RawInstance {
+	fn create_buffer(device: &wgpu::Device, size: usize) -> wgpu::Buffer {
+		device.create_buffer(&wgpu::BufferDescriptor {
+			label: Some("Instance Buffer"),
+			size: (std::mem::size_of::<RawInstance>() * size) as u64,
+			usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+			mapped_at_creation: false,
+		})
+	}
+}
+
+// impl BufferRecipe for RawInstance
 
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]

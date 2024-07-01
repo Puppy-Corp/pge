@@ -13,7 +13,7 @@ struct InstanceInput {
 struct VertexInput {
     @location(0) position: vec3<f32>,
 	@location(1) normal: vec3<f32>,
-	@location(2) uv: vec2<f32>,
+	// @location(2) uv: vec2<f32>,
 };
 
 struct VertexOutput {
@@ -58,7 +58,14 @@ fn get_cumulative_transform(node_index: i32) -> mat4x4<f32> {
 @vertex
 fn vs_main(input: VertexInput, instance: InstanceInput) -> VertexOutput {
     var camera_transform = get_cumulative_transform(camera.node_inx);
-    var cube_transform = get_cumulative_transform(instance.node_index);
+    // var cube_transform = get_cumulative_transform(instance.node_index);
+	var cube_transform = node_transforms[instance.node_index].model;
+	// var cube_transform = mat4x4<f32>(
+    //     vec4<f32>(1.0, 0.0, 0.0, 0.0),
+    //     vec4<f32>(0.0, 1.0, 0.0, 0.0),
+    //     vec4<f32>(0.0, 0.0, 1.0, 0.0),
+    //     vec4<f32>(0.0, 0.0, 0.0, 1.0)
+    // );
 
     var out: VertexOutput;
     let world_position = (cube_transform * vec4<f32>(input.position, 1.0)).xyz;
@@ -67,27 +74,28 @@ fn vs_main(input: VertexInput, instance: InstanceInput) -> VertexOutput {
     out.world_position = world_position;
 	let normal = input.normal;
 	out.normal = normal;
-    // out.normal = normalize((cube_transform * vec4<f32>(normal, 0.0)).xyz);
     return out;
 }
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-	let light_color = vec3<f32>(1.0, 1.0, 1.0);
-	// let ambient_strength = 0.0;
-	// let ambient_color = light_color * ambient_strength;
-	var result = vec3<f32>(0.0, 0.0, 0.0);
+	return vec4<f32>(in.color, 1.0);
 
-	for (var i = 0u; i < 2; i = i + 1u) {
-		let point_light = point_lights[i];
-		let light_position = (get_cumulative_transform(point_light.node_inx) * vec4<f32>(0.0, 0.0, 0.0, 1.0)).xyz;
-		let light_direction = normalize(light_position - in.world_position);
+	// let light_color = vec3<f32>(1.0, 1.0, 1.0);
+	// // let ambient_strength = 0.0;
+	// // let ambient_color = light_color * ambient_strength;
+	// var result = vec3<f32>(0.0, 0.0, 0.0);
 
-		let diffuse_strength = max(dot(in.normal, light_direction), 0.0);
-		let diffuse_color = light_color * diffuse_strength;
-		result = result + diffuse_color * in.color;
-	}
-	return vec4<f32>(result, 1.0);
+	// for (var i = 0u; i < 2; i = i + 1u) {
+	// 	let point_light = point_lights[i];
+	// 	let light_position = (get_cumulative_transform(point_light.node_inx) * vec4<f32>(0.0, 0.0, 0.0, 1.0)).xyz;
+	// 	let light_direction = normalize(light_position - in.world_position);
+
+	// 	let diffuse_strength = max(dot(in.normal, light_direction), 0.0);
+	// 	let diffuse_color = light_color * diffuse_strength;
+	// 	result = result + diffuse_color * in.color;
+	// }
+	// return vec4<f32>(result, 1.0);
 
 
 

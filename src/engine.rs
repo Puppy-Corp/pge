@@ -1,188 +1,24 @@
-use core::time;
 use std::collections::HashMap;
-use std::future::Future;
-use std::mem;
-use std::ops::Range;
-use std::os::macos::raw;
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
 use std::time::Instant;
-use log::error;
-use thunderdome::Arena;
+use bytemuck::bytes_of;
 use thunderdome::Index;
-use tokio::sync::broadcast;
-use tokio::sync::broadcast::error::RecvError;
 use wgpu::Backends;
-use wgpu::BufferAddress;
 use wgpu::Features;
 use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalPosition;
-use winit::dpi::Position;
 use winit::event::WindowEvent;
 use winit::event_loop::ControlFlow;
 use winit::event_loop::EventLoop;
-use winit::event_loop::EventLoopProxy;
-use winit::keyboard::KeyCode;
-use winit::window;
 use winit::window::WindowId;
-use crate::acumalator::TransformationAcumalator;
-use crate::animation_pipeline;
-use crate::animation_pipeline::AnimateArgs;
-use crate::animation_pipeline::AnimationPipeline;
-use crate::animation_pipeline::AnimationPipelineArgs;
-use crate::buffer::Buffer;
-use crate::buffer::DynamicStagingBuffer;
-use crate::buffer::DynamicVertexBuffer;
-use crate::buffer::FixedVertexBuffer;
-use crate::buffer::GroupedBuffer;
-use crate::buffer::Slot;
-use crate::buffer::StaticBufferManager;
+use crate::buffer::*;
+use crate::buffers::*;
 use crate::cube;
-use crate::draw_queue::DrawQueue;
-use crate::gui;
-use crate::idgen::gen_id;
-use crate::node_manager::NodeManager;
-use crate::node_manager::NodeMetadata;
 use crate::types::*;
-use crate::wgpu_renderer::*;
-use crate::wgpu_types::RawAnimation;
-use crate::wgpu_types::RawCamera;
-use crate::wgpu_types::Keyframe;
-use crate::wgpu_types::RawKeyFrame;
-use crate::wgpu_types::RawNode;
-use crate::wgpu_types::RawInstance;
-use crate::wgpu_types::NodeTransformation;
-use crate::wgpu_types::RawPointLight;
-use crate::Window;
-
-#[derive(Debug, Clone)]
-pub enum Command {
-	SaveWindow(Window),
-	SaveScene(Scene),
-	SetTransformation {
-		node_id: usize,
-		transformation: glam::Mat4
-	},
-	ApplyTransformation {
-		node_id: usize,
-		transformation: glam::Mat4
-	},
-	SetAnimation {
-		node_id: usize,
-		animation: Animation
-	},
-	Exit
-}
-
-struct Inner {
-	proxy: EventLoopProxy<Command>
-}
-
-impl Drop for Inner {
-	fn drop(&mut self) {
-		match self.proxy.send_event(Command::Exit) {
-			Ok(_) => {}
-			Err(err) => {
-				error!("Error sending exit command: {:?}", err);
-			}
-		}
-	}
-}
-
-impl Clone for Inner {
-	fn clone(&self) -> Self {
-		Self {
-			proxy: self.proxy.clone()
-		}
-	}
-}
-
-pub struct EngineHandle {
-	proxy: EventLoopProxy<Command>,
-	inner: Inner,
-	tx: broadcast::Sender<Event>,
-	rx: broadcast::Receiver<Event>
-}
-
-impl Clone for EngineHandle {
-	fn clone(&self) -> Self {
-		Self {
-			proxy: self.proxy.clone(),
-			inner: self.inner.clone(),
-			rx: self.tx.subscribe(),
-			tx: self.tx.clone()
-		}
-	}
-}
-
-impl EngineHandle {
-	pub fn new(proxy: EventLoopProxy<Command>, tx: broadcast::Sender<Event>) -> Self {
-		let inner = Inner {
-			proxy: proxy.clone()
-		};
-		Self {
-			proxy,
-			inner,
-			rx: tx.subscribe(),
-			tx
-		}
-	}
-
-	pub fn save_scene(&self, scene: Scene) {
-		self.proxy.send_event(Command::SaveScene(scene)).unwrap();
-	}
-
-	pub fn save_window(&self, window: &Window) {
-		self.proxy.send_event(Command::SaveWindow(window.clone())).unwrap();
-	}
-
-	pub fn set_animation(&self, node_id: usize, animation: Animation) {
-		self.proxy.send_event(Command::SetAnimation { node_id, animation }).unwrap();
-	}
-
-	pub fn apply_transformation(&self, node_id: usize, transformation: glam::Mat4) {
-		self.proxy.send_event(Command::ApplyTransformation { node_id, transformation }).unwrap();
-	}
-
-	pub fn rotate_node(&self, node_id: usize, dx: f32, dy: f32) {
-		let transformation = glam::Mat4::from_rotation_x(-dy) * glam::Mat4::from_rotation_y(-dx);
-		self.apply_transformation(node_id, transformation);
-	}
-
-	pub async fn next_event(&mut self) -> Option<Event> {
-		match self.rx.recv().await {
-			Ok(event) => Some(event),
-			Err(err) =>  {
-				match err {
-					RecvError::Closed => todo!(),
-					RecvError::Lagged(_) => todo!(),
-				}
-			}
-		}
-	}
-
-	pub async fn load_font(&self, path: &str) -> anyhow::Result<FontHandle> {
-		Ok(FontHandle {
-			id: gen_id()
-		})
-	}
-
-	pub async fn create_world(&self) -> WorldHandle {
-		WorldHandle {}
-	}
-
-	pub fn create_window(&self) -> WindowHandle {
-		WindowHandle {}
-	}
-}
-
-#[derive(Debug, Clone, Default)]
-struct MeshDrawInstruction {
-	index_range: Range<u64>,
-	position_range: Range<u64>,
-	normal_range: Range<u64>,
-	instance_range: Range<u32>,
-}
+use crate::renderer::*;
+use crate::wgpu_types::*;
 
 pub async fn run<T>(app: T) -> anyhow::Result<()>
 where
@@ -208,17 +44,22 @@ struct Engine<'a, T> {
 	instance: Arc<wgpu::Instance>,
 	queue: Arc<wgpu::Queue>,
 	device: Arc<wgpu::Device>,
-	position_buffer: DynamicVertexBuffer,
-	normal_buffer: DynamicVertexBuffer,
+	position_buffer: wgpu::Buffer,
+	normal_buffer: wgpu::Buffer,
 	tex_coord_buffer: DynamicVertexBuffer,
-	index_buffer: DynamicVertexBuffer,
-	draw_instructions: HashMap<u32, MeshDrawInstruction>,
+	index_buffer: wgpu::Buffer,
+	draw_instructions: Vec<DrawInstruction>,
 	// instaces: Arena<RawInstance>,
 	windows: HashMap<WindowId, WindowContext<'a>>,
-	instance_buffer: GroupedBuffer<u32>,
-	camera_buffer: StaticBufferManager<RawCamera>,
-	node_buffer: StaticBufferManager<RawNode>,
-	point_light_buffer: StaticBufferManager<RawPointLight>
+	instance_buffer: wgpu::Buffer,
+	camera_buffer: FixedBuffer<RawCamera>,
+	node_buffer: FixedBuffer<RawNode>,
+	point_light_buffer: FixedBuffer<RawPointLight>,
+	cameras: HashMap<Index, RawCamera>,
+	instances: HashMap<Index, RawInstance>,
+	nodes: HashMap<Index, RawNode>,
+	meshes: HashSet<Index>,
+	draw_instructions2: HashSet<Index>
 }
 
 impl<'a, T> Engine<'a, T>
@@ -244,14 +85,19 @@ where
 		let adapter = Arc::new(adapter);
 		let instance = Arc::new(instance);
 
-		let position_buffer = DynamicVertexBuffer::new(device.clone(), queue.clone());
-		let normal_buffer = DynamicVertexBuffer::new(device.clone(), queue.clone());
+		let position_buffer = RawPositions::create_buffer(&device, 10_000);
+		let normal_buffer = RawNormal::create_buffer(&device, 10_000);
 		let tex_coord_buffer = DynamicVertexBuffer::new(device.clone(), queue.clone());
-		let index_buffer = DynamicVertexBuffer::new(device.clone(), queue.clone());
-		let instance_buffer = GroupedBuffer::new(mem::size_of::<RawInstance>());
-		let camera_buffer = StaticBufferManager::new(device.clone(), queue.clone());
-		let node_buffer = StaticBufferManager::new(device.clone(), queue.clone());
-		let point_light_buffer = StaticBufferManager::new(device.clone(), queue.clone());
+		let index_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+			label: Some("Index Buffer"),
+			size: 10_000,
+			usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::INDEX,
+			mapped_at_creation: false
+		});
+		let instance_buffer = RawInstance::create_buffer(&device, 10_000);
+		let camera_buffer = FixedBuffer::new(device.clone(), queue.clone());
+		let node_buffer = FixedBuffer::new(device.clone(), queue.clone());
+		let point_light_buffer = FixedBuffer::new(device.clone(), queue.clone());
 
 		Self {
 			i: 0,
@@ -261,7 +107,7 @@ where
 			instance,
 			queue,
 			device,
-			draw_instructions: HashMap::new(),
+			draw_instructions: Vec::new(),
 			position_buffer,
 			normal_buffer,
 			tex_coord_buffer,
@@ -270,69 +116,210 @@ where
 			windows: HashMap::new(),
 			camera_buffer,
 			node_buffer,
-			point_light_buffer
+			point_light_buffer,
+			cameras: HashMap::new(),
+			nodes: HashMap::new(),
+			instances: HashMap::new(),
+			meshes: HashSet::new(),
+			draw_instructions2: HashSet::new()
 		}
 	}
 
 	pub fn update_buffers(&mut self) {
-		for (mesh_id, mesh) in &self.state.meshes {
-			let cube_positions_data = bytemuck::cast_slice(&mesh.positions);
-			let pos_ptr = self.position_buffer.store(mesh.id, cube_positions_data);
-			let cube_indices_data = bytemuck::cast_slice(&mesh.indices);
-			let index_ptr = self.index_buffer.store(mesh.id, cube_indices_data);
-			let normals_data = bytemuck::cast_slice(&mesh.normals);
-			let normal_ptr = self.normal_buffer.store(mesh.id, normals_data);
+		self.draw_instructions.clear();
+		let mut all_node_data = Vec::new();
+		let mut all_instance_data: Vec<u8> = Vec::new();
+		let mut all_position_data: Vec<u8> = Vec::new();
+		let mut all_indices_data: Vec<u8> = Vec::new();
+		let mut all_normal_data: Vec<u8> = Vec::new();
 
-			let draw_instruction = self.draw_instructions.entry(mesh_id.slot())
-				.or_insert(MeshDrawInstruction::default());
+		let mut mesh_instances: HashMap<Index, Vec<RawInstance>> = HashMap::new();
+		let mut node_indexes: HashMap<Index, i32> = HashMap::new();
 
-			draw_instruction.position_range = pos_ptr.offset as u64..pos_ptr.offset as u64 + pos_ptr.size as u64;
-			draw_instruction.normal_range = normal_ptr.offset as u64..normal_ptr.offset as u64 + normal_ptr.size as u64;
-			draw_instruction.index_range = index_ptr.offset as u64..index_ptr.offset as u64 + index_ptr.size as u64;
-			// draw_instruction.indices_range = 0..mesh.indices.len() as u32;
+		// for (node_inx, (node_id, node)) in self.state.nodes.iter().enumerate() {
+		// 	// println!("node_id {:?}", node_id);
+		// 	let model = glam::Mat4::from_translation(node.translation) * glam::Mat4::from_quat(node.rotation) * glam::Mat4::from_scale(node.scale);
+		// 	let raw_node = RawNode {
+		// 		model: model.to_cols_array_2d(),
+		// 		parent_index: -1,
+		// 		_padding: [0; 3]
+		// 	};
 
-			// let instance = RawInstance {
-			// 	node_index: node_index as i32
+		// 	match self.nodes.get(&node_id) {
+		// 		Some(node) => {
+		// 			self.nodes.insert(node_id, *node);
+		// 		},
+		// 		None => {
+		// 			println!("new nodex_ix: {}  node_id: {:?} node: {:?}", node_inx, node_id, raw_node);
+		// 			self.nodes.insert(node_id, raw_node);
+		// 		}
+		// 	}
+
+		// 	all_node_data.extend_from_slice(bytes_of(&raw_node));
+			
+		// 	if let Some(mesh_id) = node.mesh {
+		// 		let instance = RawInstance {
+		// 			node_index: node_inx as i32
+		// 		};
+
+		// 		match self.instances.get(&mesh_id) {
+		// 			Some(instance) => {
+		// 				self.instances.insert(mesh_id, *instance);
+		// 			},
+		// 			None => {
+		// 				println!("new instance mesh_id: {:?} instance: {:?}", mesh_id, instance);
+		// 				self.instances.insert(mesh_id, instance);
+		// 			}
+		// 		}
+
+		// 		mesh_instances.entry(mesh_id).or_insert(Vec::new()).push(instance);
+		// 	}
+		// }
+
+		// let cube = cube(1.0);
+		// let cube_positions = bytemuck::cast_slice(&cube.positions);
+		// let cube_normals = bytemuck::cast_slice(&cube.normals);
+		// let cube_indices = bytemuck::cast_slice(&cube.indices);
+
+		for (node_inx, (node_id, node)) in self.state.nodes.iter().enumerate() {
+			// println!("node_id {:?}", node_id);
+			// let model = glam::Mat4::from_translation(node.translation) * glam::Mat4::from_quat(node.rotation) * glam::Mat4::from_scale(node.scale);
+			// // println!("model: {:?}", model.to_cols_array_2d());
+			// let n = RawNode {
+			// 	model: model.to_cols_array_2d(),
+			// 	parent_index: parent_inx.map_or(-1, |p| p as i32),
+			// 	_padding: [0; 3]
 			// };
-			// let index = self.instance_buffer.store(node.id, instance);
 
-			// self.draw_instructions.push(DrawInstruction {
-			// 	index_range: index_ptr.offset as u64..index_ptr.offset as u64 + index_ptr.size as u64,
-			// 	position_range: pos_ptr.offset as u64..pos_ptr.offset as u64 + pos_ptr.size as u64,
-			// 	normal_range: normal_ptr.offset as u64..normal_ptr.offset as u64 + normal_ptr.size as u64,
-			// 	indices_range: 0..mesh.indices.len() as u32,
-			// 	instances_range: index as u32..index as u32 + 1
-			// });
-		}
-
-		for (node_id, node) in self.state.nodes.iter() {
-			let model = glam::Mat4::from_translation(node.translation) * glam::Mat4::from_quat(node.rotation) * glam::Mat4::from_scale(node.scale);
+			let model = glam::Mat4::from_quat(node.rotation) * glam::Mat4::from_translation(node.translation) * glam::Mat4::from_scale(node.scale);
 			let raw_node = RawNode {
 				model: model.to_cols_array_2d(),
-				parent_index: node.parent.map(|p| p.slot() as i32).unwrap_or(-1),
+				parent_index: -1,
 				_padding: [0; 3]
 			};
+
+			match self.nodes.get(&node_id) {
+				Some(node) => {
+					self.nodes.insert(node_id, *node);
+				},
+				None => {
+					println!("new nodex_ix: {}  node_id: {:?} node: {:?}", node_inx, node_id, raw_node);
+					self.nodes.insert(node_id, raw_node);
+				}
+			}
+
+			node_indexes.insert(node_id, node_inx as i32);
+			all_node_data.extend_from_slice(bytes_of(&raw_node));
 			
 			if let Some(mesh_id) = node.mesh {
 				let instance = RawInstance {
-					node_index: node_id.slot() as i32
+					node_index: node_inx as i32
 				};
-				let instance_range = self.instance_buffer.store(mesh_id.slot(), node_id.slot(), &instance);
-				let draw_instruction = self.draw_instructions.entry(mesh_id.slot())
-					.or_insert(MeshDrawInstruction::default());
 
-				draw_instruction.instance_range = instance_range;
+				match self.instances.get(&mesh_id) {
+					Some(instance) => {
+						self.instances.insert(mesh_id, *instance);
+					},
+					None => {
+						println!("new instance mesh_id: {:?} instance: {:?}", mesh_id, instance);
+						self.instances.insert(mesh_id, instance);
+					}
+				}
+
+				mesh_instances.entry(mesh_id).or_insert(Vec::new()).push(instance);
 			}
-
-			// node_buffer: StaticBufferManager<RawNode>
-
-			// let node = self.state.nodes.get(node.id).unwrap();
-			// let parent_inx = node.parent.map(|p| self.state.nodes.get(p).unwrap().inx);
-			// self.update_node(node, parent_inx);
 		}
 
-		for (cam_id, cam) in &self.state.cameras {
+		for (mesh_id, mesh) in &self.state.meshes {
+			// println!("mesh_id {:?}", mesh_id);
+			let positions_start = all_position_data.len() as u64;
+			all_position_data.extend_from_slice(bytemuck::cast_slice(&mesh.positions));
+			let positions_end = all_position_data.len() as u64;
+			let indices_start = all_indices_data.len() as u64;
+			all_indices_data.extend_from_slice(bytemuck::cast_slice(&mesh.indices));
+			let indices_end = all_indices_data.len() as u64;
+			let normals_start = all_normal_data.len() as u64;
+			all_normal_data.extend_from_slice(bytemuck::cast_slice(&mesh.normals));
+			let normals_end = all_normal_data.len() as u64;
 
+			let instances: &Vec<RawInstance> = match mesh_instances.get(&mesh_id) {
+				Some(instances) => instances,
+				None => continue,
+			};
+
+			let instance_start = all_instance_data.len() as u32;
+			all_instance_data.extend_from_slice(bytemuck::cast_slice(instances));
+			let instance_end = all_instance_data.len() as u32;
+
+			let draw_instruction = DrawInstruction {
+				position_range: positions_start..positions_end,
+				normal_range: normals_start..normals_end,
+				index_range: indices_start..indices_end,
+				indices_range: 0..mesh.indices.len() as u32,
+				instances_range: instance_start..instance_end
+			};
+
+			match self.meshes.contains(&mesh_id) {
+				true => {},
+				false => {
+					println!("new mesh mesh_id: {:?} mesh: {:?}", mesh_id, mesh);
+					println!("draw_instruction: {:?}", draw_instruction);
+					println!("instances: {:?}", instances);
+					self.meshes.insert(mesh_id);
+				},
+			}
+
+			self.draw_instructions.push(draw_instruction);
+		}
+
+		let mut all_camera_data: Vec<u8> = Vec::new();
+		for (cam_id, cam) in &self.state.cameras {
+			let node_inx = match cam.node_id {
+				Some(id) => {
+					match node_indexes.get(&id) {
+						Some(inx) => *inx,
+						None => continue,
+					}
+				}
+				None => continue,
+			};
+
+			let cam = RawCamera {
+				proj: glam::Mat4::perspective_rh(cam.fovy, cam.aspect, cam.znear, cam.zfar).to_cols_array_2d(),
+				_padding: [0; 3],
+				node_inx
+			};
+
+			match self.cameras.get(&cam_id) {
+				Some(camera) => {
+					self.cameras.insert(cam_id, *camera);
+				},
+				None => {
+					println!("new camera cam_id: {:?} camera: {:?} node_inx: {}", cam_id, cam, node_inx);
+					self.cameras.insert(cam_id, cam);
+				}
+			}
+
+			all_camera_data.extend_from_slice(bytes_of(&cam));
+		}
+
+		if all_instance_data.len() > 0 {
+			self.queue.write_buffer(&self.instance_buffer, 0, &all_instance_data);
+		}
+		if all_position_data.len() > 0 {
+			self.queue.write_buffer(&self.position_buffer, 0, &all_position_data);
+		}
+		if all_normal_data.len() > 0 {
+			self.queue.write_buffer(&self.normal_buffer, 0, &all_normal_data);
+		}
+		if all_indices_data.len() > 0 {
+			self.queue.write_buffer(&self.index_buffer, 0, &all_indices_data);
+		}
+		if all_node_data.len() > 0 {
+			self.queue.write_buffer(&self.node_buffer.buffer(), 0, &all_node_data);
+		}
+		if all_camera_data.len() > 0 {
+			self.queue.write_buffer(&self.camera_buffer.buffer(), 0, &all_camera_data);
 		}
 	}
 
@@ -349,17 +336,13 @@ where
 						.with_title(&window.title);
 					let wininit_window = event_loop.create_window(window_attributes).unwrap();
 					let wininit_window = Arc::new(wininit_window);
-					let builder = RenderPipelineBuilder {
-						queue: self.queue.clone(),
-						adapter: self.adapter.clone(),
-						device: self.device.clone(),
+					let renderer = Renderer::new(NewRendererArgs {
 						window: wininit_window.clone(),
 						instance: self.instance.clone(),
-						node_bind_group_layout: self.node_buffer.bind_group_layout(),
-						camera_bind_group_layout: self.camera_buffer.bind_group_layout(),
-						point_light_bind_group_layout: self.point_light_buffer.bind_group_layout(),
-					};
-					let renderer = builder.build();
+						adapter: self.adapter.clone(),
+						queue: self.queue.clone(),
+						device: self.device.clone()
+					}).unwrap();
 
 					let wininit_window_id = wininit_window.id();
 					let window_ctx = WindowContext {
@@ -374,6 +357,42 @@ where
 
 		self.windows.retain(|_, w| self.state.windows.contains(w.window_id));
 
+	}
+
+	fn render_windows(&mut self) {
+		let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+			label: Some("Render Encoder")
+		});
+
+		for (_, window_ctx) in self.windows.iter_mut() {
+			let window = match self.state.windows.get(window_ctx.window_id) {
+				Some(w) => w,
+				None => continue,
+			};
+
+			let camera_id = match window.cam {
+				Some(cam) => cam,
+				None => continue,
+			};
+
+			let camera = match self.state.cameras.get(camera_id) {
+				Some(cam) => cam,
+				None => continue,
+			};
+
+			window_ctx.renderer.render(RenderArgs {
+				node_buffer: &self.node_buffer,
+				camera_buffer: &self.camera_buffer,
+				point_light_buffer: &self.point_light_buffer,
+				instance_buffer: &self.instance_buffer,
+				index_buffer: &self.index_buffer,
+				normal_buffer: &self.normal_buffer,
+				positions_buffer: &self.position_buffer,
+				encoder: &mut encoder,
+				instructions: &mut self.draw_instructions.iter()
+			}).unwrap();
+		}
+		self.queue.submit(std::iter::once(encoder.finish()));
 	}
 }
 
@@ -398,6 +417,7 @@ where
 		// self.render_every_window();
 
 		self.update_buffers();
+		self.render_windows();
 	}
 
 	fn window_event(
@@ -447,8 +467,8 @@ where
 					let size = &window_ctx.wininit_window.inner_size();
 					let middle_x = size.width as f64 / 2.0;
 					let middle_y = size.height as f64 / 2.0;
-					let dx = middle_x - position.x;
-					let dy = middle_y - position.y;
+					let dx = position.x - middle_x;
+					let dy = position.y - middle_y;
 					let dx = dx as f32;
 					let dy = dy as f32;
 					self.app.on_mouse_input(MouseEvent::Moved { dx, dy }, &mut self.state);
@@ -489,6 +509,35 @@ where
 		}
 	}
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // pub struct Engine {
 // 	eventloop: EventLoop<Command>,

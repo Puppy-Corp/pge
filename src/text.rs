@@ -233,6 +233,34 @@ fn normalize(points: &mut Vec<[f32; 3]>, rect: &Rect) {
     }
 }
 
+pub enum WhiteSpace {
+	Normal,
+	Nowrap
+}
+
+pub struct TextRenderer {
+	font: FontMesh,
+	font_size: u32,
+	white_space: WhiteSpace,
+	
+}
+
+impl TextRenderer {
+	pub fn render(&self, text: &str) -> Mesh {
+		let mut mesh = Mesh::new();
+		for c in text.chars() {
+			println!("char: {:?}", c);
+			match self.font.get_mesh(c) {
+				Some(char_mesh) => {
+					mesh.add_mesh(char_mesh);
+				}
+				None => {}
+			}
+		}
+		mesh
+	}
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

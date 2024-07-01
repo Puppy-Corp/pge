@@ -35,7 +35,7 @@ pub struct Window {
 	pub title: String,
 	pub width: u32,
 	pub height: u32,
-	pub gui: Option<Index>,
+	pub cam: Option<Index>,
 	pub lock_cursor: bool,
 }
 
@@ -46,7 +46,7 @@ impl Window {
 			title: "".to_string(),
 			width: 800,
 			height: 600,
-			gui: None,
+			cam: None,
 			lock_cursor: false,
 		}
 	}
@@ -56,8 +56,13 @@ impl Window {
 		self
 	}
 
-	pub fn gui(mut self, gui: Index) -> Self {
-		self.gui = Some(gui);
+	pub fn cam(mut self, cam: Index) -> Self {
+		self.cam = Some(cam);
+		self
+	}
+
+	pub fn lock_cursor(mut self, lock: bool) -> Self {
+		self.lock_cursor = lock;
 		self
 	}
 }

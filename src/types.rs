@@ -112,19 +112,26 @@ pub enum UserEvent {
 }
 
 #[derive(Debug, Clone)]
+pub enum Flex {
+	Horizontal,
+	Vertical,
+	None
+}
+
+#[derive(Debug, Clone)]
 pub struct Node {
 	pub id: usize,
 	pub parent: Option<Index>,
 	pub mesh: Option<Index>,
-	pub camera: Option<Index>,
-	pub translation: Vec3,
+	pub translation: glam::Vec3,
 	pub rotation: glam::Quat,
-	pub scale: Vec3,
+	pub scale: glam::Vec3,
 	pub animation: Animation,
 	pub point_light: Option<PointLight>,
 	pub texture: Option<Texture>,
 	pub physics: PhycicsProps,
 	pub forces: Vec<PhycicsForce>,
+	pub flex: Flex
 }
 
 impl Node {
@@ -133,60 +140,58 @@ impl Node {
 			id: gen_id(),
 			parent: None,
 			mesh: None,
-			camera: None,
 			point_light: None,
-			translation: Vec3::ZERO,
+			translation: glam::Vec3::ZERO,
 			rotation: glam::Quat::IDENTITY,
-			scale: Vec3::ONE,
+			scale: glam::Vec3::ONE,
 			animation: Animation::new(),
 			texture: None,
 			physics: PhycicsProps::default(),
 			forces: Vec::new(),
+			flex: Flex::None
 		}
 	}
 
-	pub fn set_mesh(&mut self, mesh_id: Index) {
+	pub fn set_mesh(mut self, mesh_id: Index) -> Node {
 		self.mesh = Some(mesh_id);
+		self
 	}
 
-	pub fn set_translation(&mut self, x: f32, y: f32, z: f32) {
-		self.translation = Vec3::new(x, y, z);
-	}
-
-	pub fn looking_at(&mut self, target_x: f32, target_y: f32, target_z: f32) {
-        let target = Vec3::new(target_x, target_y, target_z);
-        let direction = (target - self.translation).normalize();
-        
-        // Assuming the node's up vector is (0, 1, 0)
-        let up = Vec3::Y;
-        
-        // Compute the quaternion rotation
-        self.rotation = glam::Quat::from_rotation_arc(Vec3::Z, direction);
+    pub fn set_translation(&mut self, x: f32, y: f32, z: f32) {
+        self.translation = glam::Vec3::new(x, y, z);
     }
 
-	pub fn rotate(&mut self, x: f32, y: f32, z: f32) {
-		// self.rotation = glam::Quat::from_rotation_ypr(y, x, z);
+    pub fn looking_at(&mut self, x: f32, y: f32, z: f32) {
+		let target = glam::Vec3::new(x, y, z);
+		let direction = (target - self.translation).normalize();
+		self.rotation = glam::Quat::from_rotation_arc(glam::Vec3::Z, direction);
+    }
+
+	pub fn mov(&mut self, x: f32, y: f32, z: f32) {
+		
 	}
 
-	pub fn scale(&mut self, x: f32, y: f32, z: f32) {
-		self.scale = Vec3::new(x, y, z);
-	}
+    pub fn rotate(&mut self, dx: f32, dy: f32) {
+		let rotation = glam::Quat::from_euler(glam::EulerRot::XYZ, dy, dx, 0.0);
+		self.rotation = rotation * self.rotation;
+    }
 
-	pub fn set_point_light(&mut self, light: PointLight) {
-		self.point_light = Some(light);
-	}
+    pub fn scale(&mut self, x: f32, y: f32, z: f32) {
+        self.scale = glam::Vec3::new(x, y, z);
+    }
 
-	pub fn add_force(&mut self, force: PhycicsForce) {
-		println!("Adding force");
+	pub fn flex(mut self, flex: Flex) -> Self {
+		self.flex = flex;
+		self
 	}
+}
 
-	pub fn update_force(&mut self, force: PhycicsForce) {
-		println!("Updating force");
-	}
+pub fn vstack() -> Node {
+	Node::new().flex(Flex::Vertical)
+}
 
-	pub fn set_phycis_props(&self, props: PhycicsProps) {
-		println!("Setting physics props");
-	}
+pub fn hstack() -> Node {
+	Node::new().flex(Flex::Horizontal)
 }
 
 #[derive(Debug, Clone)]
@@ -213,6 +218,13 @@ impl Mesh {
 
 	pub fn set_material(&mut self, material: Material) {
 		self.material = Some(material);
+	}
+
+	pub fn add_mesh(&mut self, mesh: Mesh) {
+		self.positions.extend(mesh.positions);
+		self.normals.extend(mesh.normals);
+		self.text_coords.extend(mesh.text_coords);
+		self.indices.extend(mesh.indices);
 	}
 }
 
@@ -284,6 +296,7 @@ pub struct Camera {
     pub fovy: f32,
     pub znear: f32,
     pub zfar: f32,
+	pub node_id: Option<Index>
 }
 
 impl Camera {
@@ -294,6 +307,7 @@ impl Camera {
 			fovy: std::f32::consts::PI / 3.0,
 			znear: 0.1,
 			zfar: 100.0,
+			node_id: None
 		}
 	}
 
@@ -532,3 +546,4 @@ pub trait App {
 		println!("Mouse input: {:?}", event);
 	}
 }
+

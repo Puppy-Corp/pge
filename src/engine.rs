@@ -59,7 +59,8 @@ struct Engine<'a, T> {
 	instances: HashMap<Index, RawInstance>,
 	nodes: HashMap<Index, RawNode>,
 	meshes: HashSet<Index>,
-	draw_instructions2: HashSet<Index>
+	draw_instructions2: HashSet<Index>,
+	last_on_process_time: Instant
 }
 
 impl<'a, T> Engine<'a, T>
@@ -121,11 +122,15 @@ where
 			nodes: HashMap::new(),
 			instances: HashMap::new(),
 			meshes: HashSet::new(),
-			draw_instructions2: HashSet::new()
+			draw_instructions2: HashSet::new(),
+			last_on_process_time: Instant::now()
 		}
 	}
 
 	pub fn update_buffers(&mut self) {
+		self.app.on_process(&mut self.state, self.last_on_process_time.elapsed().as_secs_f32());
+		self.last_on_process_time = Instant::now();
+		
 		self.draw_instructions.clear();
 		let mut all_node_data = Vec::new();
 		let mut all_instance_data: Vec<u8> = Vec::new();
@@ -136,61 +141,7 @@ where
 		let mut mesh_instances: HashMap<Index, Vec<RawInstance>> = HashMap::new();
 		let mut node_indexes: HashMap<Index, i32> = HashMap::new();
 
-		// for (node_inx, (node_id, node)) in self.state.nodes.iter().enumerate() {
-		// 	// println!("node_id {:?}", node_id);
-		// 	let model = glam::Mat4::from_translation(node.translation) * glam::Mat4::from_quat(node.rotation) * glam::Mat4::from_scale(node.scale);
-		// 	let raw_node = RawNode {
-		// 		model: model.to_cols_array_2d(),
-		// 		parent_index: -1,
-		// 		_padding: [0; 3]
-		// 	};
-
-		// 	match self.nodes.get(&node_id) {
-		// 		Some(node) => {
-		// 			self.nodes.insert(node_id, *node);
-		// 		},
-		// 		None => {
-		// 			println!("new nodex_ix: {}  node_id: {:?} node: {:?}", node_inx, node_id, raw_node);
-		// 			self.nodes.insert(node_id, raw_node);
-		// 		}
-		// 	}
-
-		// 	all_node_data.extend_from_slice(bytes_of(&raw_node));
-			
-		// 	if let Some(mesh_id) = node.mesh {
-		// 		let instance = RawInstance {
-		// 			node_index: node_inx as i32
-		// 		};
-
-		// 		match self.instances.get(&mesh_id) {
-		// 			Some(instance) => {
-		// 				self.instances.insert(mesh_id, *instance);
-		// 			},
-		// 			None => {
-		// 				println!("new instance mesh_id: {:?} instance: {:?}", mesh_id, instance);
-		// 				self.instances.insert(mesh_id, instance);
-		// 			}
-		// 		}
-
-		// 		mesh_instances.entry(mesh_id).or_insert(Vec::new()).push(instance);
-		// 	}
-		// }
-
-		// let cube = cube(1.0);
-		// let cube_positions = bytemuck::cast_slice(&cube.positions);
-		// let cube_normals = bytemuck::cast_slice(&cube.normals);
-		// let cube_indices = bytemuck::cast_slice(&cube.indices);
-
 		for (node_inx, (node_id, node)) in self.state.nodes.iter().enumerate() {
-			// println!("node_id {:?}", node_id);
-			// let model = glam::Mat4::from_translation(node.translation) * glam::Mat4::from_quat(node.rotation) * glam::Mat4::from_scale(node.scale);
-			// // println!("model: {:?}", model.to_cols_array_2d());
-			// let n = RawNode {
-			// 	model: model.to_cols_array_2d(),
-			// 	parent_index: parent_inx.map_or(-1, |p| p as i32),
-			// 	_padding: [0; 3]
-			// };
-
 			let model = glam::Mat4::from_quat(node.rotation) * glam::Mat4::from_translation(node.translation) * glam::Mat4::from_scale(node.scale);
 			let raw_node = RawNode {
 				model: model.to_cols_array_2d(),

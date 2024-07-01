@@ -20,7 +20,7 @@ impl PressedKeys {
 		}
 	}
 
-	pub fn to_mat4(&self) -> glam::Vec3 {
+	pub fn to_vec3(&self) -> glam::Vec3 {
 		let mut mat = glam::Vec3::ZERO;
 		if self.forward {
 			mat += glam::Vec3::Z;
@@ -72,6 +72,7 @@ pub struct FpsShooter {
 	pressed_keys: PressedKeys,
 	yaw: f32,
 	pitch: f32,
+	speed: f32,
 }
 
 impl FpsShooter {
@@ -83,6 +84,7 @@ impl FpsShooter {
 			pressed_keys: PressedKeys::new(),
 			yaw: 0.0,
 			pitch: 0.0,
+			speed: 10.0,
 		}
 	}
 }
@@ -163,14 +165,14 @@ impl pge::App for FpsShooter {
 			},
 		};
 
-		let dir = self.pressed_keys.to_mat4();
-		println!("dir: {:?}", dir);
-		let player_inx = match self.player_inx {
-			Some(index) => index,
-			None => return,
-		};
-		let player = state.nodes.get_mut(player_inx).unwrap();
-		player.translation += player.rotation.inverse() * dir;
+		// let dir = self.pressed_keys.to_mat4();
+		// println!("dir: {:?}", dir);
+		// let player_inx = match self.player_inx {
+		// 	Some(index) => index,
+		// 	None => return,
+		// };
+		// let player = state.nodes.get_mut(player_inx).unwrap();
+		// player.translation += player.rotation.inverse() * dir;
 		// player.mov()
 		// player.forces[0].direction = mat;	
 	}
@@ -185,7 +187,6 @@ impl pge::App for FpsShooter {
 				};
 				self.rotate_player(dx, dy);
 				let player = state.nodes.get_mut(player_inx).unwrap();
-				println!("yaw: {}, pitch: {}", self.yaw, self.pitch);
 				player.rotation = glam::Quat::from_euler(glam::EulerRot::XYZ, self.pitch, self.yaw, 0.0);
 				// player.rotate(dx * self.sensitivity,  dy* self.sensitivity);
 				// let rot = glam::Mat4::from_quat(glam::Quat::from_euler(glam::EulerRot::YXZ, self.yaw, self.pitch, 0.0));
@@ -193,94 +194,24 @@ impl pge::App for FpsShooter {
 			},
 		}
 	}
+
+	fn on_process(&mut self, state: &mut State, delta: f32) {
+		println!("draw delta: {}", delta);
+
+		let player = match self.player_inx {
+			Some(index) => match state.nodes.get_mut(index) {
+				Some(node) => node,
+				None => return,
+			},
+			None => return,
+		};
+
+		let amount = self.pressed_keys.to_vec3() * delta;
+		player.translation += player.rotation.inverse() * amount * self.speed;
+	}
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-	pge::run(FpsShooter::new()).await?;
-
-	// Engine::new(|engine| async move {
-	// 	let world = engine.create_world().await;
-	// 	let node = world.create_node();
-	// 	node.set_mesh(plane(10.0, 10.0));
-	// 	node.set_phycis_props(PhycicsProps {
-	// 		typ: PhycisObjectType::Static,
-	// 	});
-	// 	let player = world.create_node();
-	// 	player.set_translation(0.0, 1.0, 0.0);
-	// 	player.set_phycis_props(PhycicsProps {
-	// 		typ: PhycisObjectType::Dynamic,
-	// 	});
-	// 	let camera = world.create_camera();
-	// 	player.set_camera(&camera);
-
-	// 	let window = engine.create_window();
-	// 	window.set_gui(camera_view(camera.id));
-
-	// 	let mut pressed_keys = PressedKeys {
-	// 		forward: false,
-	// 		backward: false,
-	// 		left: false,
-	// 		right: false,
-	// 	};
-
-	// 	let move_force = PhycicsForce::new();
-	// 	move_force.max_velocity = 3.0;
-
-	// 	loop {
-	// 		match engine.next_event().await {
-	// 			Some(e) => {
-	// 				match e {
-	// 					Event::InputEvent(e) => {
-	// 						match e {
-	// 							InputEvent::KeyboardEvent(k) => {
-	// 								match k.action {
-	// 									KeyAction::Pressed => {
-	// 										match k.key {
-	// 											KeyboardKey::W => pressed_keys.forward = true,
-	// 											KeyboardKey::S => pressed_keys.backward = true,
-	// 											KeyboardKey::A => pressed_keys.left = true,
-	// 											KeyboardKey::D => pressed_keys.right = true,
-	// 											_ => {}
-	// 										}
-	// 									},
-	// 									KeyAction::Released => {
-	// 										match k.key {
-	// 											KeyboardKey::W => pressed_keys.forward = false,
-	// 											KeyboardKey::S => pressed_keys.backward = false,
-	// 											KeyboardKey::A => pressed_keys.left = false,
-	// 											KeyboardKey::D => pressed_keys.right = false,
-	// 											_ => {}
-	// 										}
-	// 									},
-	// 								}
-
-	// 								println!("presed keys: {:?}", pressed_keys);
-
-	// 								let mat = pressed_keys.to_vec3();
-	// 								move_force.set_direction(mat);
-	// 							},
-	// 							InputEvent::MouseEvent(m) => {
-	// 								match m {
-	// 									MouseEvent::Moved { dx, dy } => {
-	// 										println!("mouse moved: dx: {}, dy: {}", dx, dy);
-	// 										let sensitivity = 0.001;
-	// 										let dx = dx * sensitivity;
-	// 										let dy = dy * sensitivity;
-	// 										player.rotate(dx, dy, 0.0);
-	// 									},
-	// 								}
-									
-	// 							},
-	// 						}
-
-	// 					},
-	// 					_ => {}
-	// 				}
-	// 			},
-	// 			None => return Ok(()),
-	// 		}
-	// 	}
-	// }).run().await?;
-	Ok(())
+	Ok(pge::run(FpsShooter::new()).await?)
 }

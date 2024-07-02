@@ -1,5 +1,5 @@
 [package]
-name = "fps"
+name = "todo"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,6 +8,5 @@ edition = "2021"
 [dependencies]
 tokio = { version = "1", features = ["full"] }
 pge = { path = "../../" }
-async-trait = "0.1"
 anyhow = "1"
-glam = "0.27"
+ttf-parser = "0.21.1"

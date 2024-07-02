@@ -67,7 +67,7 @@ fn test_pressed_keys() {
 
 pub struct FpsShooter {
 	sensitivity: f32,
-	player_move_force: PhycicsForce,
+	player_move_force: PhysicsForce,
 	player_inx: Option<Index>,
 	pressed_keys: PressedKeys,
 	yaw: f32,
@@ -80,7 +80,7 @@ impl FpsShooter {
 		Self {
 			player_inx: None,
 			sensitivity: 0.001,
-			player_move_force: PhycicsForce::new(),
+			player_move_force: PhysicsForce::new(),
 			pressed_keys: PressedKeys::new(),
 			yaw: 0.0,
 			pitch: 0.0,
@@ -121,6 +121,8 @@ impl pge::App for FpsShooter {
 				let mut cube_node = Node::new();
 				cube_node.set_translation(i as f32 * 3.0, 0.0, j as f32 * 3.0);
 				cube_node.mesh = Some(state.meshes.insert(cube(1.0)));
+				cube_node.physics.typ = PhycisObjectType::Dynamic;
+				cube_node.physics.mass = 1.0;
 				state.nodes.insert(cube_node);
 			}
 		}
@@ -130,7 +132,7 @@ impl pge::App for FpsShooter {
 		player.set_translation(0.0, 0.0, -5.0);
 		// player.mesh = Some(state.meshes.insert(cube(1.0)));
 		player.physics.typ = PhycisObjectType::Dynamic;
-		player.forces.push(PhycicsForce::new());
+		player.forces.push(PhysicsForce::new());
 		// player.looking_at(0.0, 0.0, 0.0);
 		let player_id = state.nodes.insert(player);
 
@@ -205,8 +207,6 @@ impl pge::App for FpsShooter {
 	}
 
 	fn on_process(&mut self, state: &mut State, delta: f32) {
-		println!("draw delta: {}", delta);
-
 		let player = match self.player_inx {
 			Some(index) => match state.nodes.get_mut(index) {
 				Some(node) => node,

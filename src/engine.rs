@@ -18,6 +18,7 @@ use winit::window::WindowId;
 use crate::buffer::*;
 use crate::buffers::*;
 use crate::cube;
+use crate::physics::node_physics_update;
 use crate::types::*;
 use crate::renderer::*;
 use crate::wgpu_types::*;
@@ -62,7 +63,8 @@ struct Engine<'a, T> {
 	nodes: HashMap<Index, RawNode>,
 	meshes: HashSet<Index>,
 	draw_instructions2: HashSet<Index>,
-	last_on_process_time: Instant
+	last_on_process_time: Instant,
+	last_physics_update_time: Instant
 }
 
 impl<'a, T> Engine<'a, T>
@@ -125,7 +127,8 @@ where
 			instances: HashMap::new(),
 			meshes: HashSet::new(),
 			draw_instructions2: HashSet::new(),
-			last_on_process_time: Instant::now()
+			last_on_process_time: Instant::now(),
+			last_physics_update_time: Instant::now()
 		}
 	}
 
@@ -276,6 +279,16 @@ where
 		}
 	}
 
+	fn update_physics(&mut self) {
+		let dt = self.last_physics_update_time.elapsed().as_secs_f32();
+		for (_, node) in &mut self.state.nodes {
+			if node.physics.typ == PhycisObjectType::Dynamic {
+				node_physics_update(node, dt)
+			}
+		}
+		self.last_physics_update_time = Instant::now();
+	}
+
 	fn update_windows(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
 		for (window_id, window) in self.state.windows.iter_mut() {
 			match self.windows.values().find(|window| window.window_id == window_id) {
@@ -369,6 +382,7 @@ where
 
 		// self.render_every_window();
 
+		self.update_physics();
 		self.update_buffers();
 		self.render_windows();
 	}

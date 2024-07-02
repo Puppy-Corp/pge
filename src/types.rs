@@ -75,7 +75,7 @@ pub enum PhysicsType {
 	Dynamic,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum PhycisObjectType {
 	Static,
 	Dynamic,
@@ -91,6 +91,10 @@ impl Default for PhycisObjectType {
 #[derive(Debug, Clone, Default)]
 pub struct PhycicsProps {
 	pub typ: PhycisObjectType,
+	pub position: glam::Vec3,
+	pub velocity: glam::Vec3,
+	pub acceleration: glam::Vec3,
+	pub mass: f32,
 }
 
 pub struct Rotation {
@@ -131,7 +135,7 @@ pub struct Node {
 	pub point_light: Option<PointLight>,
 	pub texture: Option<Texture>,
 	pub physics: PhycicsProps,
-	pub forces: Vec<PhycicsForce>,
+	pub forces: Vec<PhysicsForce>,
 	pub flex: Flex
 }
 
@@ -500,27 +504,26 @@ impl WindowHandle {
 }
 
 #[derive(Debug, Clone)]
-pub struct PhycicsForce {
+pub struct PhysicsForce {
 	pub id: usize,
-	pub direction: glam::Vec3,
-	pub force: f32,
+	pub force: glam::Vec3,
 	/// If objects velocity is greater than max_velocity to the direction, 
 	/// this force will not be applied
 	pub max_velocity: f32
 }
 
-impl PhycicsForce {
+impl PhysicsForce {
 	pub fn new() -> Self {
 		Self {
 			id: gen_id(),
-			direction: glam::Vec3::ZERO,
-			force: 0.0,
+			force: glam::Vec3::ZERO,
 			max_velocity: 0.0,
 		}
 	}
 
-	pub fn set_direction(&mut self, direction: glam::Vec3) {
-		self.direction = direction;
+	pub fn set_force(mut self, force: glam::Vec3) -> Self {
+		self.force = force;
+		self
 	}
 }
 
@@ -538,6 +541,9 @@ pub trait App {
 	fn on_create(&mut self, state: &mut State) {}
 	fn on_keyboard_input(&mut self, key: KeyboardKey, action: KeyAction, state: &mut State) {}
 	fn on_mouse_input(&mut self, event: MouseEvent, state: &mut State) {}
+	/// Run before rendering
 	fn on_process(&mut self, state: &mut State, delta: f32) {}
+	/// Run before physics properties are updated
+	fn on_phycis_update(&mut self, state: &mut State, delta: f32) {}
 }
 

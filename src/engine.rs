@@ -19,6 +19,8 @@ use crate::buffer::*;
 use crate::buffers::*;
 use crate::cube;
 use crate::physics::node_physics_update;
+use crate::physics::physics_update;
+use crate::spatial_grid::SpatialGrid;
 use crate::types::*;
 use crate::renderer::*;
 use crate::wgpu_types::*;
@@ -64,7 +66,8 @@ struct Engine<'a, T> {
 	meshes: HashSet<Index>,
 	draw_instructions2: HashSet<Index>,
 	last_on_process_time: Instant,
-	last_physics_update_time: Instant
+	last_physics_update_time: Instant,
+	grid: SpatialGrid
 }
 
 impl<'a, T> Engine<'a, T>
@@ -128,7 +131,8 @@ where
 			meshes: HashSet::new(),
 			draw_instructions2: HashSet::new(),
 			last_on_process_time: Instant::now(),
-			last_physics_update_time: Instant::now()
+			last_physics_update_time: Instant::now(),
+			grid: SpatialGrid::new(10.0, 1000)
 		}
 	}
 
@@ -281,11 +285,7 @@ where
 
 	fn update_physics(&mut self) {
 		let dt = self.last_physics_update_time.elapsed().as_secs_f32();
-		for (_, node) in &mut self.state.nodes {
-			if node.physics.typ == PhycisObjectType::Dynamic {
-				node_physics_update(node, dt)
-			}
-		}
+		physics_update(&mut self.state, &mut self.grid, dt);
 		self.last_physics_update_time = Instant::now();
 	}
 

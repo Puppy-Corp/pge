@@ -124,6 +124,37 @@ pub enum Flex {
 }
 
 #[derive(Debug, Clone)]
+pub struct AABB {
+    pub min: glam::Vec3, // minimum point of the box (x, y, z)
+    pub max: glam::Vec3, // maximum point of the box (x, y, z)
+}
+
+impl AABB {
+    fn new(min: glam::Vec3, max: glam::Vec3) -> AABB {
+        AABB { min, max }
+    }
+
+	pub fn empty() -> AABB {
+		AABB {
+			min: glam::Vec3::ZERO,
+			max: glam::Vec3::ZERO,
+		}
+	}
+
+    pub fn contains(&self, point: glam::Vec3) -> bool {
+        point.x >= self.min.x && point.x <= self.max.x &&
+        point.y >= self.min.y && point.y <= self.max.y &&
+        point.z >= self.min.z && point.z <= self.max.z
+    }
+
+    pub fn intersects(&self, other: &AABB) -> bool {
+        self.min.x <= other.max.x && self.max.x >= other.min.x &&
+        self.min.y <= other.max.y && self.max.y >= other.min.y &&
+        self.min.z <= other.max.z && self.max.z >= other.min.z
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Node {
 	pub id: usize,
 	pub parent: Option<Index>,
@@ -136,7 +167,8 @@ pub struct Node {
 	pub texture: Option<Texture>,
 	pub physics: PhycicsProps,
 	pub forces: Vec<PhysicsForce>,
-	pub flex: Flex
+	pub flex: Flex,
+	pub aabb: AABB
 }
 
 impl Node {
@@ -153,7 +185,8 @@ impl Node {
 			texture: None,
 			physics: PhycicsProps::default(),
 			forces: Vec::new(),
-			flex: Flex::None
+			flex: Flex::None,
+			aabb: AABB::empty()
 		}
 	}
 

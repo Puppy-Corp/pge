@@ -58,14 +58,7 @@ fn get_cumulative_transform(node_index: i32) -> mat4x4<f32> {
 @vertex
 fn vs_main(input: VertexInput, instance: InstanceInput) -> VertexOutput {
     var camera_transform = get_cumulative_transform(camera.node_inx);
-    // var cube_transform = get_cumulative_transform(instance.node_index);
-	var cube_transform = node_transforms[instance.node_index].model;
-	// var cube_transform = mat4x4<f32>(
-    //     vec4<f32>(1.0, 0.0, 0.0, 0.0),
-    //     vec4<f32>(0.0, 1.0, 0.0, 0.0),
-    //     vec4<f32>(0.0, 0.0, 1.0, 0.0),
-    //     vec4<f32>(0.0, 0.0, 0.0, 1.0)
-    // );
+    var cube_transform = get_cumulative_transform(instance.node_index);
 
     var out: VertexOutput;
     let world_position = (cube_transform * vec4<f32>(input.position, 1.0)).xyz;

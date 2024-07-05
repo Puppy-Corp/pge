@@ -157,6 +157,7 @@ impl AABB {
 #[derive(Debug, Clone)]
 pub struct Node {
 	pub id: usize,
+	pub name: Option<String>,
 	pub parent: Option<Index>,
 	pub mesh: Option<Index>,
 	pub translation: glam::Vec3,
@@ -175,6 +176,7 @@ impl Node {
 	pub fn new() -> Self {
 		Self {
 			id: gen_id(),
+			name: None,
 			parent: None,
 			mesh: None,
 			point_light: None,
@@ -234,24 +236,33 @@ pub fn hstack() -> Node {
 
 #[derive(Debug, Clone)]
 pub struct Mesh {
-	pub id: usize,
+	// pub id: usize,
+	pub name: Option<String>,
 	pub material: Option<Material>,
 	pub positions: Vec<[f32; 3]>,
 	pub normals: Vec<[f32; 3]>,
 	pub text_coords: Vec<[f32; 2]>,
+	pub colors: Vec<[f32; 4]>,
 	pub indices: Vec<u16>,
 }
 
 impl Mesh {
 	pub fn new() -> Self {
 		Self {
-			id: gen_id(),
+			// id: gen_id(),
+			name: None,
 			material: None,
 			positions: vec![],
 			normals: vec![],
 			text_coords: vec![],
+			colors: vec![],
 			indices: vec![],
 		}
+	}
+
+	pub fn set_name(mut self, name: &str) -> Self {
+		self.name = Some(name.to_string());
+		self
 	}
 
 	pub fn set_material(&mut self, material: Material) {

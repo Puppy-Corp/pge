@@ -11,6 +11,7 @@ use crate::types::Mesh;
 
 pub fn cube(s: f32) -> Mesh {
     let mut m = Mesh::new();
+	m.name = Some("Cube".to_string());
 
     // Define vertex positions for a cube
     m.positions = vec![
@@ -56,11 +57,13 @@ pub fn cube(s: f32) -> Mesh {
 
 pub fn plane(w: f32, h: f32) -> Mesh {
 	let mut m = Mesh::new();
+	m.name = Some("Plane".to_string());
+
 	m.positions = vec![
-		[-w, -h, 0.0],
-		[-w, h, 0.0],
-		[w, h, 0.0],
-		[w, -h, 0.0],
+		[-w, 0.0, -h],
+		[-w, 0.0, h],
+		[w, 0.0, h],
+		[w, 0.0, -h],
 	];
 
 	m.normals = vec![

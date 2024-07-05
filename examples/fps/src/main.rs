@@ -116,22 +116,65 @@ impl pge::App for FpsShooter {
 		// cube_node.mesh = Some(state.meshes.insert(cube(1.0)));
 		// state.nodes.insert(cube_node);
 
-		for i in 0..10 {
-			for j in 0..10 {
-				let mut cube_node = Node::new();
-				cube_node.set_translation(i as f32 * 3.0, 0.0, j as f32 * 3.0);
-				cube_node.mesh = Some(state.meshes.insert(cube(1.0)));
-				cube_node.physics.typ = PhycisObjectType::Dynamic;
-				cube_node.physics.mass = 1.0;
-				state.nodes.insert(cube_node);
-			}
-		}
-	
+		let cube_mesh = state.meshes.insert(cube(1.0));
+		let cube_mesh2 = state.meshes.insert(cube(4.0).set_name("Big CUBE"));
+		let plane_mesh = state.meshes.insert(plane(10.0, 10.0));
+
+
+
+		// let mut cube_node = Node::new();
+		// cube_node.name = Some("Cube1".to_string());
+		// cube_node.set_translation(-50.0, 5.0, 0.0);
+		// cube_node.mesh = Some(cube_mesh2);
+		// cube_node.physics.typ = PhycisObjectType::None;
+		// cube_node.physics.mass = 1.0;
+		// state.nodes.insert(cube_node);
+
+		// for i in 0..10 {
+		// 	for j in 0..10 {
+		// 		let mut cube_node = Node::new();
+		// 		cube_node.set_translation(i as f32 * 3.0, 10.0, j as f32 * 3.0);
+		// 		cube_node.mesh = Some(cube_mesh);
+		// 		cube_node.physics.typ = PhycisObjectType::None;
+		// 		cube_node.physics.mass = 1.0;
+		// 		state.nodes.insert(cube_node);
+		// 	}
+		// }
+
+		// let mut cube_node = Node::new();
+		// cube_node.name = Some("Cube2".to_string());
+		// cube_node.set_translation(30.0, 5.0, 0.0);
+		// cube_node.mesh = Some(cube_mesh);
+		// cube_node.physics.typ = PhycisObjectType::None;
+		// cube_node.physics.mass = 1.0;
+		// state.nodes.insert(cube_node);
+
+		let mut cube_node = Node::new();
+		cube_node.name = Some("Cube1".to_string());
+		cube_node.set_translation(0.0, 5.0, 0.0);
+		cube_node.mesh = Some(cube_mesh2);
+		cube_node.physics.typ = PhycisObjectType::Dynamic;
+		cube_node.physics.mass = 1.0;
+		state.nodes.insert(cube_node);
+
+		let mut plane_node = Node::new();
+		plane_node.name = Some("Floor".to_string());
+		plane_node.set_translation(0.0, -1.0, 0.0);
+		plane_node.mesh = Some(plane_mesh);
+		plane_node.physics.typ = PhycisObjectType::None;
+		state.nodes.insert(plane_node);
+
+		let mut plane_node = Node::new();
+		plane_node.name = Some("Floor2".to_string());
+		plane_node.set_translation(40.0, -1.0, 0.0);
+		plane_node.mesh = Some(plane_mesh);
+		plane_node.physics.typ = PhycisObjectType::None;
+		state.nodes.insert(plane_node);
 	
 		let mut player = Node::new();
 		player.set_translation(0.0, 0.0, -5.0);
 		// player.mesh = Some(state.meshes.insert(cube(1.0)));
-		player.physics.typ = PhycisObjectType::Dynamic;
+		player.physics.typ = PhycisObjectType::Static;
 		player.forces.push(PhysicsForce::new());
 		// player.looking_at(0.0, 0.0, 0.0);
 		let player_id = state.nodes.insert(player);

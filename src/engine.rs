@@ -132,7 +132,7 @@ where
 			draw_instructions2: HashSet::new(),
 			last_on_process_time: Instant::now(),
 			last_physics_update_time: Instant::now(),
-			grid: SpatialGrid::new(10.0, 1000)
+			grid: SpatialGrid::new(10.0, 100)
 		}
 	}
 
@@ -164,7 +164,7 @@ where
 					self.nodes.insert(node_id, *node);
 				},
 				None => {
-					println!("new nodex_ix: {}  node_id: {:?} node: {:?}", node_inx, node_id, raw_node);
+					println!("new nodex_ix: {}  node_id: {:?} node_name: {:?} node: {:?}", node_inx, node_id, node.name, raw_node);
 					self.nodes.insert(node_id, raw_node);
 				}
 			}

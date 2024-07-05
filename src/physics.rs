@@ -17,7 +17,7 @@ fn sum_forces(node: &Node) -> glam::Vec3 {
 
 pub fn node_physics_update(node: &mut Node, dt: f32) {
 	let mass = node.physics.mass;
-	let gravity_force = if mass > 0.0 { glam::Vec3::new(0.0, -9.81, 0.0) * mass } else { glam::Vec3::ZERO };
+	let gravity_force = if mass > 0.0 { glam::Vec3::new(0.0, -1.0, 0.0) * mass } else { glam::Vec3::ZERO };
 	let total_force = sum_forces(node) + gravity_force;
 	let acceleration = if mass > 0.0 { total_force / mass } else { glam::Vec3::ZERO };
 
@@ -28,7 +28,9 @@ pub fn node_physics_update(node: &mut Node, dt: f32) {
 
 fn update_nodes(state: &mut State, dt: f32) {
 	for (_, node) in &mut state.nodes {
-		node_physics_update(node, dt);
+		if node.physics.typ == crate::PhycisObjectType::Dynamic {
+			node_physics_update(node, dt);
+		}
 	}
 }
 
@@ -50,7 +52,7 @@ fn broad_phase_collisions(state: &mut State, grid: &SpatialGrid) -> Vec<(Index, 
 
 pub fn physics_update(state: &mut State, grid: &mut SpatialGrid, dt: f32) {
 	update_nodes(state, dt);
-	let collisions = broad_phase_collisions(state, grid);
+	//let collisions = broad_phase_collisions(state, grid);
 
 
 }

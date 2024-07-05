@@ -146,6 +146,7 @@ where
 		let mut all_position_data: Vec<u8> = Vec::new();
 		let mut all_indices_data: Vec<u8> = Vec::new();
 		let mut all_normal_data: Vec<u8> = Vec::new();
+		let mut instance_count = 0;
 
 		let mut mesh_instances: HashMap<Index, Vec<RawInstance>> = HashMap::new();
 		let mut node_indexes: HashMap<Index, i32> = HashMap::new();
@@ -207,9 +208,10 @@ where
 				None => continue,
 			};
 
-			let instance_start = all_instance_data.len() as u32;
+			let instance_start = instance_count;
 			all_instance_data.extend_from_slice(bytemuck::cast_slice(instances));
-			let instance_end = all_instance_data.len() as u32;
+			instance_count += instances.len() as u32;
+			let instance_end = instance_count;
 
 			let draw_instruction = DrawInstruction {
 				position_range: positions_start..positions_end,

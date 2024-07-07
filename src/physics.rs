@@ -28,7 +28,7 @@ pub fn node_physics_update(node: &mut Node, dt: f32) {
 
 fn update_nodes(state: &mut State, dt: f32) {
 	for (_, node) in &mut state.nodes {
-		if node.physics.typ == crate::PhycisObjectType::Dynamic {
+		if node.physics.typ == crate::PhycisObjectType::Dynamic && !node.physics.stationary {
 			node_physics_update(node, dt);
 		}
 	}
@@ -38,10 +38,18 @@ fn broad_phase_collisions(state: &mut State, grid: &SpatialGrid) -> Vec<(Index, 
 	let mut collisions = Vec::new();
 	for cell in grid.get_cells() {
 		for i in 0..cell.len() {
-			let node1 = &state.nodes[cell[i]];
+			let node1_id = cell[i];
+			let node1_aabb = match grid.nodes.get(&node1_id) {
+				Some(a) => a,
+				None => continue
+			};
 			for j in i+1..cell.len() {
-				let node2 = &state.nodes[cell[j]];
-				if node1.aabb.intersects(&node2.aabb) {
+				let node2_id = cell[j];
+				let node2_aabb = match grid.nodes.get(&node2_id) {
+					Some(a) => a,
+					None => continue
+				};
+				if node1_aabb.intersects(&node2_aabb) {
 					collisions.push((cell[i], cell[j]));
 				}
 			}
@@ -52,7 +60,22 @@ fn broad_phase_collisions(state: &mut State, grid: &SpatialGrid) -> Vec<(Index, 
 
 pub fn physics_update(state: &mut State, grid: &mut SpatialGrid, dt: f32) {
 	update_nodes(state, dt);
-	//let collisions = broad_phase_collisions(state, grid);
+	let collisions = broad_phase_collisions(state, grid);
 
+	if collisions.len() > 0 {
+		// log::info!("THERE ARE COLLISIONS!!");
+		for (node_id1, node_id2) in collisions {
+			if let Some(node1) = state.nodes.get_mut(node_id1) {
+				if node1.physics.typ == crate::PhycisObjectType::Dynamic {
+					node1.physics.stationary = true;
+				}
+			}
 
+			if let Some(node2) = state.nodes.get_mut(node_id2) {
+				if node2.physics.typ == crate::PhycisObjectType::Dynamic {
+					node2.physics.stationary = true;
+				}
+			}
+		}
+	}
 }

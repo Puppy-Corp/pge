@@ -75,7 +75,13 @@ impl EngineState {
 			// }
 
 			match self.nodes.get(&node_id) {
-				Some(node) => {
+				Some(old_node) => {
+					if let Some(collision_shape) = &node.collision_shape {
+						if old_node.translation != node.translation {
+							self.grid.move_node(node_id, collision_shape.aabb(node.translation))
+						}
+					}
+
 					self.nodes.insert(node_id, node.clone());
 				},
 				None => {
@@ -83,7 +89,7 @@ impl EngineState {
 					self.nodes.insert(node_id, node.clone());
 
 					if let Some(collision_mesh) = &node.collision_shape {
-						self.grid.add_node(node_id, collision_mesh.aabb())
+						self.grid.add_node(node_id, collision_mesh.aabb(node.translation))
 					}
 				}
 			}

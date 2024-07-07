@@ -13,6 +13,7 @@ pub struct SpatialGrid {
 	cell_size: f32,
 	cell_count: usize,
 	cells: Vec<Vec<Index>>,
+	pub nodes: HashMap<Index, AABB>
 }
 
 impl SpatialGrid {
@@ -28,6 +29,7 @@ impl SpatialGrid {
 			cell_size,
 			cell_count,
 			cells,
+			nodes: HashMap::new()
 		}
 	}
 
@@ -36,6 +38,8 @@ impl SpatialGrid {
 	}
 
 	pub fn add_node(&mut self, node: Index, rect: AABB) {
+		log::debug!("add node: {:?} rect: {:?}", node, rect);
+
 		let min_x = (rect.min.x - self.min / self.cell_size as f32).floor();
 		let max_x = (rect.max.x - self.min / self.cell_size as f32).ceil();
 		let min_y = (rect.min.y - self.min / self.cell_size as f32).floor();
@@ -52,6 +56,8 @@ impl SpatialGrid {
 				}
 			}
 		}
+
+		self.nodes.insert(node, rect);
 	}
 
 	pub fn get_cell(&self, x: usize, y: usize, z: usize) -> &Vec<Index> {

@@ -167,34 +167,35 @@ pub enum CollisionShape {
 }
 
 impl CollisionShape {
-    pub fn aabb(&self) -> AABB {
+    pub fn aabb(&self, translation: glam::Vec3) -> AABB {
         match self {
             Self::Sphere { radius } => AABB {
-                min: glam::Vec3::splat(-*radius),
-                max: glam::Vec3::splat(*radius),
-			},
+                min: translation + glam::Vec3::splat(-*radius),
+                max: translation + glam::Vec3::splat(*radius),
+            },
             Self::Box { size } => AABB {
-                min: -*size,
-                max: *size,
-			},
+                min: translation - *size,
+                max: translation + *size,
+            },
             Self::Capsule { radius, height } => AABB {
-                min: glam::Vec3::new(-*radius, -(*height / 2.0 + *radius), -*radius),
-                max: glam::Vec3::new(*radius, *height / 2.0 + *radius, *radius),
-			},
+                min: translation + glam::Vec3::new(-*radius, -(*height / 2.0 + *radius), -*radius),
+                max: translation + glam::Vec3::new(*radius, *height / 2.0 + *radius, *radius),
+            },
             Self::ConvexHull { vertices } => {
                 if vertices.is_empty() {
                     return AABB {
-						min: Vec3::ZERO, 
-						max: Vec3::ZERO
-					};
+                        min: translation,
+                        max: translation,
+                    };
                 }
 
-                let mut min = vertices[0];
-                let mut max = vertices[0];
+                let mut min = translation + vertices[0];
+                let mut max = translation + vertices[0];
 
                 for vertex in vertices.iter().skip(1) {
-                    min = min.min(*vertex);
-                    max = max.max(*vertex);
+                    let translated_vertex = translation + *vertex;
+                    min = min.min(translated_vertex);
+                    max = max.max(translated_vertex);
                 }
 
                 AABB { min, max }
@@ -217,7 +218,6 @@ pub struct Node {
 	pub physics: PhysicsProps,
 	pub forces: Vec<PhysicsForce>,
 	pub flex: Flex,
-	pub aabb: AABB,
 	pub collision_shape: Option<CollisionShape>
 }
 
@@ -237,7 +237,6 @@ impl Node {
 			physics: PhysicsProps::default(),
 			forces: Vec::new(),
 			flex: Flex::None,
-			aabb: AABB::empty(),
 			collision_shape: None
 		}
 	}

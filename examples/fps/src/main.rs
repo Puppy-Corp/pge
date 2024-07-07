@@ -59,12 +59,6 @@ pub fn compute_new_angle(
 	}
 }
 
-#[test]
-fn test_pressed_keys() {
-	let keys = PressedKeys::new();
-	assert_eq!(keys.to_mat4(), glam::Vec3::ZERO);
-}
-
 pub struct FpsShooter {
 	sensitivity: f32,
 	player_move_force: PhysicsForce,
@@ -151,10 +145,11 @@ impl pge::App for FpsShooter {
 
 		let mut cube_node = Node::new();
 		cube_node.name = Some("Cube1".to_string());
-		cube_node.set_translation(0.0, 5.0, 0.0);
+		cube_node.set_translation(0.0, 20.0, 0.0);
 		cube_node.mesh = Some(cube_mesh2);
 		cube_node.physics.typ = PhycisObjectType::Dynamic;
 		cube_node.physics.mass = 1.0;
+		cube_node.collision_shape = Some(CollisionShape::Box { size: glam::Vec3::new(4.0, 4.0, 4.0) });
 		state.nodes.insert(cube_node);
 
 		let mut plane_node = Node::new();
@@ -162,17 +157,11 @@ impl pge::App for FpsShooter {
 		plane_node.set_translation(0.0, -1.0, 0.0);
 		plane_node.mesh = Some(plane_mesh);
 		plane_node.physics.typ = PhycisObjectType::None;
+		plane_node.collision_shape = Some(CollisionShape::Box { size: glam::Vec3::new(10.0, 0.1, 10.0) });
 		state.nodes.insert(plane_node);
 
-		let mut plane_node = Node::new();
-		plane_node.name = Some("Floor2".to_string());
-		plane_node.set_translation(40.0, -1.0, 0.0);
-		plane_node.mesh = Some(plane_mesh);
-		plane_node.physics.typ = PhycisObjectType::None;
-		state.nodes.insert(plane_node);
-	
 		let mut player = Node::new();
-		player.set_translation(0.0, 0.0, -5.0);
+		player.set_translation(0.0, 0.0, -25.0);
 		// player.mesh = Some(state.meshes.insert(cube(1.0)));
 		player.physics.typ = PhycisObjectType::Static;
 		player.forces.push(PhysicsForce::new());

@@ -3,7 +3,6 @@ use std::time::Duration;
 use glam::Vec3;
 use thunderdome::Arena;
 use thunderdome::Index;
-use tokio::time::sleep;
 use winit::keyboard::KeyCode;
 use winit::keyboard::PhysicalKey;
 
@@ -89,12 +88,13 @@ impl Default for PhycisObjectType {
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct PhycicsProps {
+pub struct PhysicsProps {
 	pub typ: PhycisObjectType,
 	pub position: glam::Vec3,
 	pub velocity: glam::Vec3,
 	pub acceleration: glam::Vec3,
 	pub mass: f32,
+	pub stationary: bool,
 }
 
 pub struct Rotation {
@@ -154,6 +154,54 @@ impl AABB {
     }
 }
 
+pub struct ConvexHull {
+	vertices: Vec<glam::Vec3>,
+}
+
+#[derive(Debug, Clone)]
+pub enum CollisionShape {
+	Sphere { radius: f32 },
+	Box { size: glam::Vec3 },
+	Capsule { radius: f32, height: f32 },
+	ConvexHull { vertices: Vec<glam::Vec3> }
+}
+
+impl CollisionShape {
+    pub fn aabb(&self) -> AABB {
+        match self {
+            Self::Sphere { radius } => AABB {
+                min: glam::Vec3::splat(-*radius),
+                max: glam::Vec3::splat(*radius),
+			},
+            Self::Box { size } => AABB {
+                min: -*size,
+                max: *size,
+			},
+            Self::Capsule { radius, height } => AABB {
+                min: glam::Vec3::new(-*radius, -(*height / 2.0 + *radius), -*radius),
+                max: glam::Vec3::new(*radius, *height / 2.0 + *radius, *radius),
+			},
+            Self::ConvexHull { vertices } => {
+                if vertices.is_empty() {
+                    return AABB {
+						min: Vec3::ZERO, 
+						max: Vec3::ZERO
+					};
+                }
+
+                let mut min = vertices[0];
+                let mut max = vertices[0];
+
+                for vertex in vertices.iter().skip(1) {
+                    min = min.min(*vertex);
+                    max = max.max(*vertex);
+                }
+
+                AABB { min, max }
+            }
+        }
+    }
+}
 #[derive(Debug, Clone)]
 pub struct Node {
 	pub id: usize,
@@ -166,10 +214,11 @@ pub struct Node {
 	pub animation: Animation,
 	pub point_light: Option<PointLight>,
 	pub texture: Option<Texture>,
-	pub physics: PhycicsProps,
+	pub physics: PhysicsProps,
 	pub forces: Vec<PhysicsForce>,
 	pub flex: Flex,
-	pub aabb: AABB
+	pub aabb: AABB,
+	pub collision_shape: Option<CollisionShape>
 }
 
 impl Node {
@@ -185,10 +234,11 @@ impl Node {
 			scale: glam::Vec3::ONE,
 			animation: Animation::new(),
 			texture: None,
-			physics: PhycicsProps::default(),
+			physics: PhysicsProps::default(),
 			forces: Vec::new(),
 			flex: Flex::None,
-			aabb: AABB::empty()
+			aabb: AABB::empty(),
+			collision_shape: None
 		}
 	}
 
@@ -291,21 +341,6 @@ impl Scene {
 		Self {
 			nodes: vec![],
 		}
-	}
-}
-
-pub struct Recevier {
-
-}
-
-impl Recevier {
-	pub fn new() -> Self {
-		Self {}
-	}
-
-	pub async fn recv(&self) -> Option<Event> {
-		sleep(Duration::from_secs(5)).await;
-		Some(Event::Redraw)
 	}
 }
 

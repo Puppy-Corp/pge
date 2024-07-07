@@ -13,9 +13,7 @@ winit = "0.30"
 wgpu = "0.20"
 anyhow = "1"
 bytemuck = { version = "1.15", features = ["derive"] }
-tokio = { version = "1", features = ["full"] }
 glam = "0.27.0"
 ttf-parser = "0.21.1"
 lyon = "1.0.1"
 thunderdome = "0.6"
-pollster = "0.3"

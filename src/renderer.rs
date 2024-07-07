@@ -8,7 +8,7 @@ use crate::wgpu_types::*;
 
 
 #[derive(Debug, Default, Hash)]
-pub struct DrawInstruction {
+pub struct DrawCall {
 	pub position_range: Range<u64>,
 	pub index_range: Range<u64>,
 	pub normal_range: Range<u64>,
@@ -17,7 +17,7 @@ pub struct DrawInstruction {
 }
 
 pub struct RenderArgs<'a> {
-	pub instructions: &'a mut dyn Iterator<Item = &'a DrawInstruction>,
+	pub instructions: &'a mut dyn Iterator<Item = &'a DrawCall>,
 	pub node_buffer: &'a FixedBuffer<RawNode>,
 	pub camera_buffer: &'a FixedBuffer<RawCamera>,
 	pub point_light_buffer: &'a FixedBuffer<RawPointLight>,

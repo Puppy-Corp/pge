@@ -18,6 +18,7 @@ use winit::window::WindowId;
 use crate::buffer::*;
 use crate::buffers::*;
 use crate::cube;
+use crate::engine_state::EngineState;
 use crate::physics::node_physics_update;
 use crate::physics::physics_update;
 use crate::spatial_grid::SpatialGrid;
@@ -44,7 +45,7 @@ struct WindowContext<'a> {
 struct Engine<'a, T> {
 	i: usize,
 	app: T,
-	state: State,
+	state: EngineState,
 	adapter: Arc<wgpu::Adapter>,
 	instance: Arc<wgpu::Instance>,
 	queue: Arc<wgpu::Queue>,
@@ -53,21 +54,14 @@ struct Engine<'a, T> {
 	normal_buffer: wgpu::Buffer,
 	tex_coord_buffer: DynamicVertexBuffer,
 	index_buffer: wgpu::Buffer,
-	draw_instructions: Vec<DrawInstruction>,
 	// instaces: Arena<RawInstance>,
 	windows: HashMap<WindowId, WindowContext<'a>>,
 	instance_buffer: wgpu::Buffer,
 	camera_buffer: FixedBuffer<RawCamera>,
 	node_buffer: FixedBuffer<RawNode>,
 	point_light_buffer: FixedBuffer<RawPointLight>,
-	cameras: HashMap<Index, RawCamera>,
-	instances: HashMap<Index, RawInstance>,
-	nodes: HashMap<Index, RawNode>,
-	meshes: HashSet<Index>,
-	draw_instructions2: HashSet<Index>,
 	last_on_process_time: Instant,
-	last_physics_update_time: Instant,
-	grid: SpatialGrid
+	last_physics_update_time: Instant
 }
 
 impl<'a, T> Engine<'a, T>
@@ -110,12 +104,11 @@ where
 		Self {
 			i: 0,
 			app,
-			state: State::default(),
+			state: EngineState::new(),
 			adapter,
 			instance,
 			queue,
 			device,
-			draw_instructions: Vec::new(),
 			position_buffer,
 			normal_buffer,
 			tex_coord_buffer,
@@ -125,174 +118,44 @@ where
 			camera_buffer,
 			node_buffer,
 			point_light_buffer,
-			cameras: HashMap::new(),
-			nodes: HashMap::new(),
-			instances: HashMap::new(),
-			meshes: HashSet::new(),
-			draw_instructions2: HashSet::new(),
 			last_on_process_time: Instant::now(),
 			last_physics_update_time: Instant::now(),
-			grid: SpatialGrid::new(10.0, 100)
 		}
 	}
 
 	pub fn update_buffers(&mut self) {
-		self.app.on_process(&mut self.state, self.last_on_process_time.elapsed().as_secs_f32());
+		self.app.on_process(&mut self.state.state, self.last_on_process_time.elapsed().as_secs_f32());
 		self.last_on_process_time = Instant::now();
-		
-		self.draw_instructions.clear();
-		let mut all_node_data = Vec::new();
-		let mut all_instance_data: Vec<u8> = Vec::new();
-		let mut all_position_data: Vec<u8> = Vec::new();
-		let mut all_indices_data: Vec<u8> = Vec::new();
-		let mut all_normal_data: Vec<u8> = Vec::new();
-		let mut instance_count = 0;
+		self.state.update_buffers();
 
-		let mut mesh_instances: HashMap<Index, Vec<RawInstance>> = HashMap::new();
-		let mut node_indexes: HashMap<Index, i32> = HashMap::new();
-
-		for (node_inx, (node_id, node)) in self.state.nodes.iter().enumerate() {
-			let model = glam::Mat4::from_quat(node.rotation) * glam::Mat4::from_translation(node.translation) * glam::Mat4::from_scale(node.scale);
-			let raw_node = RawNode {
-				model: model.to_cols_array_2d(),
-				parent_index: -1,
-				_padding: [0; 3]
-			};
-
-			match self.nodes.get(&node_id) {
-				Some(node) => {
-					self.nodes.insert(node_id, *node);
-				},
-				None => {
-					println!("new nodex_ix: {}  node_id: {:?} node_name: {:?} node: {:?}", node_inx, node_id, node.name, raw_node);
-					self.nodes.insert(node_id, raw_node);
-				}
-			}
-
-			node_indexes.insert(node_id, node_inx as i32);
-			all_node_data.extend_from_slice(bytes_of(&raw_node));
-			
-			if let Some(mesh_id) = node.mesh {
-				let instance = RawInstance {
-					node_index: node_inx as i32
-				};
-
-				match self.instances.get(&mesh_id) {
-					Some(instance) => {
-						self.instances.insert(mesh_id, *instance);
-					},
-					None => {
-						println!("new instance mesh_id: {:?} instance: {:?}", mesh_id, instance);
-						self.instances.insert(mesh_id, instance);
-					}
-				}
-
-				mesh_instances.entry(mesh_id).or_insert(Vec::new()).push(instance);
-			}
+		if self.state.all_instances_data.len() > 0 {
+			self.queue.write_buffer(&self.instance_buffer, 0, &self.state.all_instances_data);
 		}
-
-		for (mesh_id, mesh) in &self.state.meshes {
-			// println!("mesh_id {:?}", mesh_id);
-			let positions_start = all_position_data.len() as u64;
-			all_position_data.extend_from_slice(bytemuck::cast_slice(&mesh.positions));
-			let positions_end = all_position_data.len() as u64;
-			let indices_start = all_indices_data.len() as u64;
-			all_indices_data.extend_from_slice(bytemuck::cast_slice(&mesh.indices));
-			let indices_end = all_indices_data.len() as u64;
-			let normals_start = all_normal_data.len() as u64;
-			all_normal_data.extend_from_slice(bytemuck::cast_slice(&mesh.normals));
-			let normals_end = all_normal_data.len() as u64;
-
-			let instances: &Vec<RawInstance> = match mesh_instances.get(&mesh_id) {
-				Some(instances) => instances,
-				None => continue,
-			};
-
-			let instance_start = instance_count;
-			all_instance_data.extend_from_slice(bytemuck::cast_slice(instances));
-			instance_count += instances.len() as u32;
-			let instance_end = instance_count;
-
-			let draw_instruction = DrawInstruction {
-				position_range: positions_start..positions_end,
-				normal_range: normals_start..normals_end,
-				index_range: indices_start..indices_end,
-				indices_range: 0..mesh.indices.len() as u32,
-				instances_range: instance_start..instance_end
-			};
-
-			match self.meshes.contains(&mesh_id) {
-				true => {},
-				false => {
-					println!("new mesh mesh_id: {:?} mesh: {:?}", mesh_id, mesh);
-					println!("draw_instruction: {:?}", draw_instruction);
-					println!("instances: {:?}", instances);
-					self.meshes.insert(mesh_id);
-				},
-			}
-
-			self.draw_instructions.push(draw_instruction);
+		if self.state.all_positions_data.len() > 0 {
+			self.queue.write_buffer(&self.position_buffer, 0, &self.state.all_positions_data);
 		}
-
-		let mut all_camera_data: Vec<u8> = Vec::new();
-		for (cam_id, cam) in &self.state.cameras {
-			let node_inx = match cam.node_id {
-				Some(id) => {
-					match node_indexes.get(&id) {
-						Some(inx) => *inx,
-						None => continue,
-					}
-				}
-				None => continue,
-			};
-
-			let cam = RawCamera {
-				proj: glam::Mat4::perspective_rh(cam.fovy, cam.aspect, cam.znear, cam.zfar).to_cols_array_2d(),
-				_padding: [0; 3],
-				node_inx
-			};
-
-			match self.cameras.get(&cam_id) {
-				Some(camera) => {
-					self.cameras.insert(cam_id, *camera);
-				},
-				None => {
-					println!("new camera cam_id: {:?} camera: {:?} node_inx: {}", cam_id, cam, node_inx);
-					self.cameras.insert(cam_id, cam);
-				}
-			}
-
-			all_camera_data.extend_from_slice(bytes_of(&cam));
+		if self.state.all_normals_data.len() > 0 {
+			self.queue.write_buffer(&self.normal_buffer, 0, &self.state.all_normals_data);
 		}
-
-		if all_instance_data.len() > 0 {
-			self.queue.write_buffer(&self.instance_buffer, 0, &all_instance_data);
+		if self.state.all_indices_data.len() > 0 {
+			self.queue.write_buffer(&self.index_buffer, 0, &self.state.all_indices_data);
 		}
-		if all_position_data.len() > 0 {
-			self.queue.write_buffer(&self.position_buffer, 0, &all_position_data);
+		if self.state.all_nodes_data.len() > 0 {
+			self.queue.write_buffer(&self.node_buffer.buffer(), 0, &self.state.all_nodes_data);
 		}
-		if all_normal_data.len() > 0 {
-			self.queue.write_buffer(&self.normal_buffer, 0, &all_normal_data);
-		}
-		if all_indices_data.len() > 0 {
-			self.queue.write_buffer(&self.index_buffer, 0, &all_indices_data);
-		}
-		if all_node_data.len() > 0 {
-			self.queue.write_buffer(&self.node_buffer.buffer(), 0, &all_node_data);
-		}
-		if all_camera_data.len() > 0 {
-			self.queue.write_buffer(&self.camera_buffer.buffer(), 0, &all_camera_data);
+		if self.state.all_cameras_data.len() > 0 {
+			self.queue.write_buffer(&self.camera_buffer.buffer(), 0, &self.state.all_cameras_data);
 		}
 	}
 
 	fn update_physics(&mut self) {
 		let dt = self.last_physics_update_time.elapsed().as_secs_f32();
-		physics_update(&mut self.state, &mut self.grid, dt);
+		self.state.physics_update(dt);
 		self.last_physics_update_time = Instant::now();
 	}
 
 	fn update_windows(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
-		for (window_id, window) in self.state.windows.iter_mut() {
+		for (window_id, window) in self.state.state.windows.iter_mut() {
 			match self.windows.values().find(|window| window.window_id == window_id) {
 				Some(w) => {
 					if w.wininit_window.title() != window.title {
@@ -323,7 +186,7 @@ where
 			}
 		}
 
-		self.windows.retain(|_, w| self.state.windows.contains(w.window_id));
+		self.windows.retain(|_, w| self.state.state.windows.contains(w.window_id));
 
 	}
 
@@ -333,7 +196,7 @@ where
 		});
 
 		for (_, window_ctx) in self.windows.iter_mut() {
-			let window = match self.state.windows.get(window_ctx.window_id) {
+			let window = match self.state.state.windows.get(window_ctx.window_id) {
 				Some(w) => w,
 				None => continue,
 			};
@@ -343,7 +206,7 @@ where
 				None => continue,
 			};
 
-			let camera = match self.state.cameras.get(camera_id) {
+			let camera = match self.state.state.cameras.get(camera_id) {
 				Some(cam) => cam,
 				None => continue,
 			};
@@ -357,7 +220,7 @@ where
 				normal_buffer: &self.normal_buffer,
 				positions_buffer: &self.position_buffer,
 				encoder: &mut encoder,
-				instructions: &mut self.draw_instructions.iter()
+				instructions: &mut self.state.draw_calls.iter(),
 			}).unwrap();
 		}
 		self.queue.submit(std::iter::once(encoder.finish()));
@@ -369,7 +232,7 @@ where
 	T: App
 {
 	fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
-		self.app.on_create(&mut self.state);
+		self.app.on_create(&mut self.state.state);
 		self.update_windows(event_loop);
 	}
 
@@ -440,9 +303,9 @@ where
 					let dy = position.y - middle_y;
 					let dx = dx as f32;
 					let dy = dy as f32;
-					self.app.on_mouse_input(MouseEvent::Moved { dx, dy }, &mut self.state);
+					self.app.on_mouse_input(MouseEvent::Moved { dx, dy }, &mut self.state.state);
 
-					if let Some(window) = self.state.windows.get(window_ctx.window_id) {
+					if let Some(window) = self.state.state.windows.get(window_ctx.window_id) {
 						if window.lock_cursor {
 							window_ctx.wininit_window.set_cursor_position(PhysicalPosition::new(middle_x, middle_y)).unwrap();
 						}
@@ -467,8 +330,8 @@ where
 									}
 
 									match state {
-										winit::event::ElementState::Pressed => self.app.on_keyboard_input(KeyboardKey::from(code), KeyAction::Pressed, &mut self.state),
-										winit::event::ElementState::Released => self.app.on_keyboard_input(KeyboardKey::from(code), KeyAction::Released, &mut self.state),
+										winit::event::ElementState::Pressed => self.app.on_keyboard_input(KeyboardKey::from(code), KeyAction::Pressed, &mut self.state.state),
+										winit::event::ElementState::Released => self.app.on_keyboard_input(KeyboardKey::from(code), KeyAction::Released, &mut self.state.state),
 									}
 								},
 								winit::keyboard::PhysicalKey::Unidentified(_) => {},

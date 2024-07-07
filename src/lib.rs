@@ -15,6 +15,7 @@ mod renderer;
 mod buffers;
 mod physics;
 mod spatial_grid;
+mod engine_state;
 pub mod text;
 pub use engine::run;
 pub use types::*;

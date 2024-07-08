@@ -60,19 +60,14 @@ impl EngineState {
 		let mut node_indexes: HashMap<Index, i32> = HashMap::new();
 
 		for (node_inx, (node_id, node)) in self.state.nodes.iter().enumerate() {
-			let model = glam::Mat4::from_quat(node.rotation) * glam::Mat4::from_translation(node.translation) * glam::Mat4::from_scale(node.scale);
+			let model = glam::Mat4::from_translation(node.translation)
+				* glam::Mat4::from_quat(node.rotation)
+				* glam::Mat4::from_scale(node.scale);
 			let raw_node = RawNode {
 				model: model.to_cols_array_2d(),
 				parent_index: -1,
 				_padding: [0; 3]
 			};
-
-			// if !self.nodes.contains(&node_id) {
-			// 	self.nodes.insert(node_id, node.clone());
-			// 	log::info!("new node: {:?}", node_id);
-			// 	self.grid.add_node(node_id, rect);
-			// 	println!("new nodex_ix: {}  node_id: {:?} node_name: {:?} node: {:?}", node_inx, node_id, node.name, raw_node);
-			// }
 
 			match self.nodes.get(&node_id) {
 				Some(old_node) => {
@@ -170,8 +165,25 @@ impl EngineState {
 				None => continue,
 			};
 
+			let cam_model_matrix = match cam.node_id {
+				Some(id) => {
+					let node = match self.state.nodes.get(id) {
+						Some(node) => node,
+						None => continue,
+					};
+
+					glam::Mat4::from_translation(node.translation) * glam::Mat4::from_quat(node.rotation)
+				},
+				None => glam::Mat4::IDENTITY,
+			};
+
+			let model = glam::Mat4::perspective_lh(cam.fovy, cam.aspect, cam.znear, cam.zfar) * cam_model_matrix.inverse();
+
 			let cam = RawCamera {
-				proj: glam::Mat4::perspective_rh(cam.fovy, cam.aspect, cam.znear, cam.zfar).to_cols_array_2d(),
+				proj: model
+					// .transpose()
+					//.inverse()
+					.to_cols_array_2d(),
 				_padding: [0; 3],
 				node_inx
 			};

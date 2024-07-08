@@ -7,7 +7,7 @@ struct NodeTransform {
 var<storage, read_write> node_transforms: array<NodeTransform>;
 
 struct InstanceInput {
-    @location(5) node_index: i32,
+    @location(5) node_inx: i32,
 }
 
 struct VertexInput {
@@ -39,30 +39,30 @@ struct PointLight {
 @group(2) @binding(0)
 var<storage, read> point_lights: array<PointLight>;
 
-fn get_cumulative_transform(node_index: i32) -> mat4x4<f32> {
-    var cumulative_transform = mat4x4<f32>(
-        vec4<f32>(1.0, 0.0, 0.0, 0.0),
-        vec4<f32>(0.0, 1.0, 0.0, 0.0),
-        vec4<f32>(0.0, 0.0, 1.0, 0.0),
-        vec4<f32>(0.0, 0.0, 0.0, 1.0)
-    );
-    var current_index = node_index;
-    while (current_index != -1) {
-        let current_node = node_transforms[current_index];
-        cumulative_transform = current_node.model * cumulative_transform;
-        current_index = current_node.parent_index;
-    }
-    return cumulative_transform;
-}
+// fn get_cumulative_transform(node_index: i32) -> mat4x4<f32> {
+//     var cumulative_transform = mat4x4<f32>(
+//         vec4<f32>(1.0, 0.0, 0.0, 0.0),
+//         vec4<f32>(0.0, 1.0, 0.0, 0.0),
+//         vec4<f32>(0.0, 0.0, 1.0, 0.0),
+//         vec4<f32>(0.0, 0.0, 0.0, 1.0)
+//     );
+//     var current_index = node_index;
+//     while (current_index != -1) {
+//         let current_node = node_transforms[current_index];
+//         cumulative_transform = current_node.model * cumulative_transform;
+//         current_index = current_node.parent_index;
+//     }
+//     return cumulative_transform;
+// }
 
 @vertex
 fn vs_main(input: VertexInput, instance: InstanceInput) -> VertexOutput {
-    var camera_transform = get_cumulative_transform(camera.node_inx);
-    var cube_transform = get_cumulative_transform(instance.node_index);
+    var cube_transform = node_transforms[instance.node_inx].model;
+	var view_proj_matrix = camera.proj;
 
     var out: VertexOutput;
     let world_position = (cube_transform * vec4<f32>(input.position, 1.0)).xyz;
-    out.clip_position = camera.proj * camera_transform * vec4<f32>(world_position, 1.0);
+    out.clip_position = view_proj_matrix * vec4<f32>(world_position, 1.0);
     out.color = vec3(1.0, 0.0, 0.0); // Placeholder for color, to be modified by lighting calculation
     out.world_position = world_position;
 	let normal = input.normal;

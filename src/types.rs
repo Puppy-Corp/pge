@@ -251,9 +251,11 @@ impl Node {
     }
 
     pub fn looking_at(&mut self, x: f32, y: f32, z: f32) {
-		let target = glam::Vec3::new(x, y, z);
-		let direction = (target - self.translation).normalize();
-		self.rotation = glam::Quat::from_rotation_arc(glam::Vec3::Z, direction);
+		let forward = (glam::Vec3::new(x, y, z) - self.translation).normalize_or_zero();
+		let right = glam::Vec3::Y.cross(forward).normalize_or_zero();
+		let up = forward.cross(right).normalize_or_zero();
+		let rotation_matrix = glam::Mat3::from_cols(right, up, forward);
+		self.rotation = glam::Quat::from_mat3(&rotation_matrix);
     }
 
 	pub fn mov(&mut self, x: f32, y: f32, z: f32) {
@@ -387,7 +389,7 @@ impl Camera {
 		Self {
 			id: 0,
 			aspect: 16.0 / 9.0,
-			fovy: std::f32::consts::PI / 3.0,
+			fovy: 45.0,
 			znear: 0.1,
 			zfar: 100.0,
 			node_id: None

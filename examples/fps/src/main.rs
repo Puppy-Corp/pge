@@ -21,26 +21,27 @@ impl PressedKeys {
 	}
 
 	pub fn to_vec3(&self) -> glam::Vec3 {
-		let mut mat = glam::Vec3::ZERO;
-		if self.forward {
-			mat += glam::Vec3::Z;
-		}
-		if self.backward {
-			mat -= glam::Vec3::Z;
-		}
-		if self.left {
-			mat += glam::Vec3::X;
-		}
-		if self.right {
-			mat -= glam::Vec3::X;
-		}
+        let mut direction = glam::Vec3::ZERO;
 
-		if mat.length() > 0.0 {
-			mat = mat.normalize();
-		}
+        if self.forward {
+            direction += glam::Vec3::Z;
+        }
+        if self.backward {
+            direction -= glam::Vec3::Z;
+        }
+        if self.left {
+            direction -= glam::Vec3::X;
+        }
+        if self.right {
+            direction += glam::Vec3::X;
+        }
 
-		mat
-	}
+        if direction.length_squared() > 0.0 {
+            direction = direction.normalize();
+        }
+
+        direction
+    }
 }
 
 pub fn compute_new_angle(
@@ -143,6 +144,15 @@ impl pge::App for FpsShooter {
 		// cube_node.physics.mass = 1.0;
 		// state.nodes.insert(cube_node);
 
+		let mut player = Node::new();
+		player.set_translation(0.0, 5.0, -20.0);
+		// player.mesh = Some(state.meshes.insert(cube(1.0)));
+		player.physics.typ = PhycisObjectType::Dynamic;
+		player.physics.mass = 1.0;
+		player.looking_at(0.0, 0.0, 0.0);
+		player.collision_shape = Some(CollisionShape::Box { size: glam::Vec3::new(1.0, 2.0, 1.0) });
+		let player_id = state.nodes.insert(player);
+
 		let mut cube_node = Node::new();
 		cube_node.name = Some("Cube1".to_string());
 		cube_node.set_translation(0.0, 20.0, 0.0);
@@ -156,17 +166,9 @@ impl pge::App for FpsShooter {
 		plane_node.name = Some("Floor".to_string());
 		plane_node.set_translation(0.0, -1.0, 0.0);
 		plane_node.mesh = Some(plane_mesh);
-		plane_node.physics.typ = PhycisObjectType::None;
+		plane_node.physics.typ = PhycisObjectType::Static;
 		plane_node.collision_shape = Some(CollisionShape::Box { size: glam::Vec3::new(10.0, 0.1, 10.0) });
 		state.nodes.insert(plane_node);
-
-		let mut player = Node::new();
-		player.set_translation(0.0, 0.0, -25.0);
-		// player.mesh = Some(state.meshes.insert(cube(1.0)));
-		player.physics.typ = PhycisObjectType::Static;
-		player.forces.push(PhysicsForce::new());
-		// player.looking_at(0.0, 0.0, 0.0);
-		let player_id = state.nodes.insert(player);
 
 		let mut camera = Camera::new();
 		camera.node_id = Some(player_id);
@@ -208,6 +210,26 @@ impl pge::App for FpsShooter {
 			},
 		};
 
+		let player = match self.player_inx {
+			Some(index) => match state.nodes.get_mut(index) {
+				Some(node) => node,
+				None => return,
+			},
+			None => return,
+		};
+
+		let dir = self.pressed_keys.to_vec3();
+
+		let force = PhysicsForce {
+			force: dir,
+			id: 1,
+			max_velocity: 200.0,
+		};
+
+		log::info!("move dir: {:?}", dir);
+
+		// player.forces = vec![force];
+
 		// let dir = self.pressed_keys.to_mat4();
 		// println!("dir: {:?}", dir);
 		// let player_inx = match self.player_inx {
@@ -230,7 +252,7 @@ impl pge::App for FpsShooter {
 				};
 				self.rotate_player(dx, dy);
 				let player = state.nodes.get_mut(player_inx).unwrap();
-				player.rotation = glam::Quat::from_euler(glam::EulerRot::XYZ, self.pitch, self.yaw, 0.0);
+				player.rotation = glam::Quat::from_euler(glam::EulerRot::YXZ, self.yaw, self.pitch, 0.0);
 				// player.rotate(dx * self.sensitivity,  dy* self.sensitivity);
 				// let rot = glam::Mat4::from_quat(glam::Quat::from_euler(glam::EulerRot::YXZ, self.yaw, self.pitch, 0.0));
 				// player.model = rot * player.model;
@@ -247,8 +269,8 @@ impl pge::App for FpsShooter {
 			None => return,
 		};
 
-		let amount = self.pressed_keys.to_vec3() * delta;
-		player.translation += player.rotation.inverse() * amount * self.speed;
+		let amount = self.pressed_keys.to_vec3() * delta * self.speed;
+		player.translation += player.rotation * amount;
 	}
 }
 

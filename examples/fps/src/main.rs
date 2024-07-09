@@ -64,6 +64,8 @@ pub struct FpsShooter {
 	sensitivity: f32,
 	player_move_force: PhysicsForce,
 	player_inx: Option<Index>,
+	light_inx: Option<Index>,
+	light_circle_i: f32,
 	pressed_keys: PressedKeys,
 	yaw: f32,
 	pitch: f32,
@@ -74,12 +76,14 @@ impl FpsShooter {
 	pub fn new() -> Self {
 		Self {
 			player_inx: None,
+			light_inx: None,
 			sensitivity: 0.001,
 			player_move_force: PhysicsForce::new(),
 			pressed_keys: PressedKeys::new(),
 			yaw: 0.0,
 			pitch: 0.0,
 			speed: 10.0,
+			light_circle_i: 0.0,
 		}
 	}
 }
@@ -110,6 +114,14 @@ impl pge::App for FpsShooter {
 		// cube_node.set_translation(2.0, 0.0, 0.0);
 		// cube_node.mesh = Some(state.meshes.insert(cube(1.0)));
 		// state.nodes.insert(cube_node);
+
+		let mut light_node = Node::new();
+		light_node.set_translation(10.0, 10.0, 0.0);
+		let light_inx = state.nodes.insert(light_node);
+		self.light_inx = Some(light_inx);
+		let mut light = PointLight::new();
+		light.node_id = Some(light_inx);
+		state.point_lights.insert(light);
 
 		let cube_mesh = state.meshes.insert(cube(1.0));
 		let cube_mesh2 = state.meshes.insert(cube(4.0).set_name("Big CUBE"));
@@ -261,6 +273,14 @@ impl pge::App for FpsShooter {
 	}
 
 	fn on_process(&mut self, state: &mut State, delta: f32) {
+		if let Some(index) = self.light_inx {
+			let light = state.nodes.get_mut(index).unwrap();
+			self.light_circle_i += delta;
+			let x = 10.0 * self.light_circle_i.cos();
+			let z = 10.0 * self.light_circle_i.sin();
+			light.set_translation(x, 10.0, z);
+		}
+
 		let player = match self.player_inx {
 			Some(index) => match state.nodes.get_mut(index) {
 				Some(node) => node,

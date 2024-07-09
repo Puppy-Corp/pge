@@ -25,6 +25,7 @@ pub struct EngineState {
 	pub all_indices_data: Vec<u8>,
 	pub all_nodes_data: Vec<u8>,
 	pub all_cameras_data: Vec<u8>,
+	pub all_point_lights_data: Vec<u8>,
 }
 
 impl EngineState {
@@ -43,6 +44,7 @@ impl EngineState {
 			all_indices_data: Vec::new(),
 			all_nodes_data: Vec::new(),
 			all_cameras_data: Vec::new(),
+			all_point_lights_data: Vec::new(),
 		}
 	}
 
@@ -54,6 +56,7 @@ impl EngineState {
 		self.all_indices_data.clear();
 		self.all_nodes_data.clear();
 		self.all_cameras_data.clear();
+		self.all_point_lights_data.clear();
 		let mut instance_count = 0;
 
 		let mut mesh_instances: HashMap<Index, Vec<RawInstance>> = HashMap::new();
@@ -199,6 +202,26 @@ impl EngineState {
 			}
 
 			self.all_cameras_data.extend_from_slice(bytes_of(&cam));
+		}
+
+		for (node_id, light) in &self.state.point_lights {
+			let node_inx = match light.node_id {
+				Some(id) => {
+					match node_indexes.get(&id) {
+						Some(inx) => *inx,
+						None => continue,
+					}
+				}
+				None => continue,
+			};
+
+			let light = RawPointLight {
+				color: light.color.into(),
+				intensity: light.intensity,
+				node_inx
+			};
+
+			self.all_point_lights_data.extend_from_slice(bytes_of(&light));
 		}
 	}
 

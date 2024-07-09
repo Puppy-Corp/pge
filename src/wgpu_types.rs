@@ -198,15 +198,6 @@ impl WgpuBuffer for RawInstance {
 
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-struct PointLight {
-	position: [f32; 3],
-	intensity: f32,
-	color: [f32; 3],
-	range: f32,
-}
-
-#[repr(C)]
-#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 struct DirectionalLight {
     direction: [f32; 3],
     intensity: f32,
@@ -257,7 +248,7 @@ struct LightUniform {
     num_spot_lights: u32,
     num_directional_lights: u32,
     padding: u32, // Alignment
-    point_lights: [PointLight; MAX_POINT_LIGHTS],
+    point_lights: [RawPointLight; MAX_POINT_LIGHTS],
     spot_lights: [SpotLight; MAX_SPOT_LIGHTS],
     directional_lights: [DirectionalLight; MAX_DIRECTIONAL_LIGHTS],
 }

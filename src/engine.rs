@@ -146,6 +146,9 @@ where
 		if self.state.all_cameras_data.len() > 0 {
 			self.queue.write_buffer(&self.camera_buffer.buffer(), 0, &self.state.all_cameras_data);
 		}
+		if self.state.all_point_lights_data.len() > 0 {
+			self.queue.write_buffer(&self.point_light_buffer.buffer(), 0, &self.state.all_point_lights_data);
+		}
 	}
 
 	fn update_physics(&mut self) {

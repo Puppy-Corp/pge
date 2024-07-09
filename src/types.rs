@@ -510,6 +510,7 @@ pub struct PointLight {
 	pub id: usize,
 	pub color: [f32; 3],
 	pub intensity: f32,
+	pub node_id: Option<Index>
 }
 
 impl PointLight {
@@ -518,13 +519,10 @@ impl PointLight {
 			id: gen_id(),
 			color: [1.0, 1.0, 1.0],
 			intensity: 1.0,
+			node_id: None
 		}
 	}
 }
-
-// pub strut PhycicsProperties {
-	
-// }
 
 #[derive(Debug, Clone)]
 pub struct FontHandle {
@@ -615,6 +613,7 @@ pub struct State {
 	pub cameras: Arena<Camera>,
 	pub windows: Arena<Window>,
 	pub guis: Arena<GUIElement>,
+	pub point_lights: Arena<PointLight>,
 }
 
 pub trait App {

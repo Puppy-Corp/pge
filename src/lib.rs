@@ -23,3 +23,4 @@ pub use shapes::*;
 pub use gui::*;
 pub use thunderdome::Index;
 pub use thunderdome::Arena;
+pub use glam::*;

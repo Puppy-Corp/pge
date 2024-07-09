@@ -32,7 +32,7 @@ impl EngineState {
 	pub fn new() -> Self {
 		Self {
 			state: State::default(),
-			grid: SpatialGrid::new(10.0, 300),
+			grid: SpatialGrid::new(10.0, 200),
 			nodes: HashMap::new(),
 			draw_calls: Vec::new(),
 			instances: HashMap::new(),

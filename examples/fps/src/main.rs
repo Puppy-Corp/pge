@@ -1,6 +1,7 @@
 use std::f32::consts::PI;
 
 use pge::*;
+use rand::Rng;
 
 #[derive(Debug, Clone)]
 struct PressedKeys {
@@ -124,8 +125,7 @@ impl pge::App for FpsShooter {
 		state.point_lights.insert(light);
 
 		let cube_mesh = state.meshes.insert(cube(1.0));
-		let cube_mesh2 = state.meshes.insert(cube(4.0).set_name("Big CUBE"));
-		let plane_mesh = state.meshes.insert(plane(10.0, 10.0));
+		let plane_mesh = state.meshes.insert(plane(1.0, 1.0));
 
 
 
@@ -165,21 +165,29 @@ impl pge::App for FpsShooter {
 		player.collision_shape = Some(CollisionShape::Box { size: glam::Vec3::new(1.0, 2.0, 1.0) });
 		let player_id = state.nodes.insert(player);
 
-		let mut cube_node = Node::new();
-		cube_node.name = Some("Cube1".to_string());
-		cube_node.set_translation(0.0, 20.0, 0.0);
-		cube_node.mesh = Some(cube_mesh2);
-		cube_node.physics.typ = PhycisObjectType::Dynamic;
-		cube_node.physics.mass = 1.0;
-		cube_node.collision_shape = Some(CollisionShape::Box { size: glam::Vec3::new(4.0, 4.0, 4.0) });
-		state.nodes.insert(cube_node);
+
+		// Spawn random cubes
+		let mut rng = rand::thread_rng();
+		for i in 0..10 {
+			let x = rng.gen_range(-20.0..20.0);
+			let z = rng.gen_range(-20.0..20.0);
+			let mut cube_node = Node::new();
+			cube_node.name = Some(format!("Cube{}", i));
+			cube_node.set_translation(x, 5.0, z);
+			cube_node.mesh = Some(cube_mesh);
+			cube_node.physics.typ = PhycisObjectType::Dynamic;
+			cube_node.physics.mass = 1.0;
+			cube_node.collision_shape = Some(CollisionShape::Box { size: glam::Vec3::new(1.0, 1.0, 1.0) });
+			state.nodes.insert(cube_node);
+		}
 
 		let mut plane_node = Node::new();
 		plane_node.name = Some("Floor".to_string());
 		plane_node.set_translation(0.0, -1.0, 0.0);
 		plane_node.mesh = Some(plane_mesh);
 		plane_node.physics.typ = PhycisObjectType::Static;
-		plane_node.collision_shape = Some(CollisionShape::Box { size: glam::Vec3::new(10.0, 0.1, 10.0) });
+		plane_node.scale = glam::Vec3::new(60.0, 1.0, 60.0);
+		plane_node.collision_shape = Some(CollisionShape::Box { size: glam::Vec3::new(60.0, 0.1, 60.0) });
 		state.nodes.insert(plane_node);
 
 		let mut camera = Camera::new();

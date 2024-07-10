@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::time::Instant;
 
 use thunderdome::Index;
 
@@ -58,12 +59,21 @@ fn broad_phase_collisions(state: &mut State, grid: &SpatialGrid) -> Vec<(Index, 
 	collisions
 }
 
-pub fn physics_update(state: &mut State, grid: &mut SpatialGrid, dt: f32) {
+pub struct PhycisTiming {
+	pub node_update_time: u32,
+	pub broad_phase_time: u32,
+	pub narrow_phase_time: u32,
+	pub total_time: u32,
+}
+
+pub fn physics_update(state: &mut State, grid: &mut SpatialGrid, dt: f32) -> PhycisTiming {
+	let timer = Instant::now();
 	update_nodes(state, dt);
+	let node_update_time = timer.elapsed().as_millis() as u32;
 	let collisions = broad_phase_collisions(state, grid);
+	let broad_phase_time = timer.elapsed().as_millis() as u32 - node_update_time;
 
 	if collisions.len() > 0 {
-		// log::info!("THERE ARE COLLISIONS!!");
 		for (node_id1, node_id2) in collisions {
 			if let Some(node1) = state.nodes.get_mut(node_id1) {
 				if node1.physics.typ == crate::PhycisObjectType::Dynamic {
@@ -77,5 +87,14 @@ pub fn physics_update(state: &mut State, grid: &mut SpatialGrid, dt: f32) {
 				}
 			}
 		}
+	}
+	let narrow_phase_time = timer.elapsed().as_millis() as u32 - broad_phase_time;
+	let total_time = timer.elapsed().as_millis() as u32;
+	
+	PhycisTiming {
+		node_update_time,
+		broad_phase_time,
+		narrow_phase_time,
+		total_time,
 	}
 }

@@ -1,15 +1,24 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::time::Instant;
 
 use bytemuck::bytes_of;
 use thunderdome::Index;
 
+use crate::debug::ChangePrinter;
 use crate::physics::physics_update;
 use crate::renderer::DrawCall;
 use crate::spatial_grid::SpatialGrid;
 use crate::wgpu_types::*;
 use crate::Node;
 use crate::State;
+use crate::AABB;
+
+const REM_NODE_SLOT: u8 = 0;
+const ADD_NODE_SLOT: u8 = 1;
+const NODE_UPDATE_TIME_SLOT: u8 = 2;
+const BROAD_PHASE_TIME_SLOT: u8 = 3;
+const NARROW_PHASE_TIME_SLOT: u8 = 4;
 
 pub struct EngineState {
 	pub state: State,
@@ -18,6 +27,7 @@ pub struct EngineState {
 	instances: HashMap<Index, RawInstance>,
 	meshes: HashSet<Index>,
 	cameras: HashMap<Index, RawCamera>,
+	printer: ChangePrinter,
 	pub draw_calls: Vec<DrawCall>,
 	pub all_instances_data: Vec<u8>,
 	pub all_positions_data: Vec<u8>,
@@ -26,13 +36,16 @@ pub struct EngineState {
 	pub all_nodes_data: Vec<u8>,
 	pub all_cameras_data: Vec<u8>,
 	pub all_point_lights_data: Vec<u8>,
+	pub move_nodes: Vec<(Index, AABB)>,
+	rem_nodes: HashSet<Index>,
+	add_nodes: Vec<(Index, AABB)>
 }
 
 impl EngineState {
 	pub fn new() -> Self {
 		Self {
 			state: State::default(),
-			grid: SpatialGrid::new(10.0, 150),
+			grid: SpatialGrid::new(5.0, 80),
 			nodes: HashMap::new(),
 			draw_calls: Vec::new(),
 			instances: HashMap::new(),
@@ -45,10 +58,15 @@ impl EngineState {
 			all_nodes_data: Vec::new(),
 			all_cameras_data: Vec::new(),
 			all_point_lights_data: Vec::new(),
+			printer: ChangePrinter::new(),
+			move_nodes: Vec::new(),
+			rem_nodes: HashSet::new(),
+			add_nodes: Vec::new()
 		}
 	}
 
 	pub fn update_buffers(&mut self) {
+		let timer = Instant::now();
 		self.draw_calls.clear();
 		self.all_instances_data.clear();
 		self.all_positions_data.clear();
@@ -76,7 +94,8 @@ impl EngineState {
 				Some(old_node) => {
 					if let Some(collision_shape) = &node.collision_shape {
 						if old_node.translation != node.translation {
-							self.grid.move_node(node_id, collision_shape.aabb(node.translation))
+							self.rem_nodes.insert(node_id);
+							self.add_nodes.push((node_id, collision_shape.aabb(node.translation)));
 						}
 					}
 
@@ -87,7 +106,7 @@ impl EngineState {
 					self.nodes.insert(node_id, node.clone());
 
 					if let Some(collision_mesh) = &node.collision_shape {
-						self.grid.add_node(node_id, collision_mesh.aabb(node.translation))
+						self.add_nodes.push((node_id, collision_mesh.aabb(node.translation)));
 					}
 				}
 			}
@@ -223,10 +242,34 @@ impl EngineState {
 
 			self.all_point_lights_data.extend_from_slice(bytes_of(&light));
 		}
+
+		if self.rem_nodes.len() > 0 {
+			let rem_timer = Instant::now();
+			self.grid.rem_nodes(&self.rem_nodes);
+			self.printer.print(REM_NODE_SLOT, format!("rem nodes total time: {}ms", rem_timer.elapsed().as_millis()));
+			self.rem_nodes.clear();
+		}
+
+		if self.add_nodes.len() > 0 {
+			let add_timer = Instant::now();
+			for (node_id, aabb) in self.add_nodes.drain(..) {
+				self.grid.add_node(node_id, aabb);
+			}
+			self.printer.print(ADD_NODE_SLOT, format!("add nodes total time: {}ms", add_timer.elapsed().as_millis()));
+		}
 	}
 
 	pub fn physics_update(&mut self, dt: f32) {
 		// update physics
-		physics_update(&mut self.state, &mut self.grid, dt)
+		let timings = physics_update(&mut self.state, &mut self.grid, dt);
+		if timings.node_update_time > 3 {
+			self.printer.print(NODE_UPDATE_TIME_SLOT, format!("node_update_time: {}", timings.node_update_time));
+		}
+		if timings.broad_phase_time > 10 {
+			self.printer.print(BROAD_PHASE_TIME_SLOT, format!("broad_phase_time: {}", timings.broad_phase_time));
+		}
+		if timings.narrow_phase_time > 3 {
+			self.printer.print(NARROW_PHASE_TIME_SLOT, format!("narrow_phase_time: {}", timings.narrow_phase_time));
+		}
 	}
 }

@@ -130,7 +130,7 @@ pub struct AABB {
 }
 
 impl AABB {
-    fn new(min: glam::Vec3, max: glam::Vec3) -> AABB {
+    pub fn new(min: glam::Vec3, max: glam::Vec3) -> AABB {
         AABB { min, max }
     }
 

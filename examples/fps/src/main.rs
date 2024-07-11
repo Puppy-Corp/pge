@@ -99,23 +99,6 @@ impl FpsShooter {
 
 impl pge::App for FpsShooter {
 	fn on_create(&mut self, state: &mut State) {
-		// let mut scene = Scene::new();
-		// let mut floor = Node::new();
-		// floor.physics.typ = PhycisObjectType::Static;
-		// floor.mesh = Some(state.meshes.insert(plane(10.0, 10.0)));
-		// let floor_id = state.nodes.insert(floor);
-		// scene.nodes.push(floor_id);
-
-		// let mut cube_node = Node::new();
-		// cube_node.set_translation(-2.0, 0.0, 0.0);
-		// cube_node.mesh = Some(state.meshes.insert(cube(1.0)));
-		// state.nodes.insert(cube_node);
-
-		// let mut cube_node = Node::new();
-		// cube_node.set_translation(2.0, 0.0, 0.0);
-		// cube_node.mesh = Some(state.meshes.insert(cube(1.0)));
-		// state.nodes.insert(cube_node);
-
 		let mut light_node = Node::new();
 		light_node.set_translation(10.0, 10.0, 0.0);
 		let light_inx = state.nodes.insert(light_node);
@@ -126,35 +109,6 @@ impl pge::App for FpsShooter {
 
 		let cube_mesh = state.meshes.insert(cube(1.0));
 		let plane_mesh = state.meshes.insert(plane(1.0, 1.0));
-
-
-
-		// let mut cube_node = Node::new();
-		// cube_node.name = Some("Cube1".to_string());
-		// cube_node.set_translation(-50.0, 5.0, 0.0);
-		// cube_node.mesh = Some(cube_mesh2);
-		// cube_node.physics.typ = PhycisObjectType::None;
-		// cube_node.physics.mass = 1.0;
-		// state.nodes.insert(cube_node);
-
-		// for i in 0..10 {
-		// 	for j in 0..10 {
-		// 		let mut cube_node = Node::new();
-		// 		cube_node.set_translation(i as f32 * 3.0, 10.0, j as f32 * 3.0);
-		// 		cube_node.mesh = Some(cube_mesh);
-		// 		cube_node.physics.typ = PhycisObjectType::None;
-		// 		cube_node.physics.mass = 1.0;
-		// 		state.nodes.insert(cube_node);
-		// 	}
-		// }
-
-		// let mut cube_node = Node::new();
-		// cube_node.name = Some("Cube2".to_string());
-		// cube_node.set_translation(30.0, 5.0, 0.0);
-		// cube_node.mesh = Some(cube_mesh);
-		// cube_node.physics.typ = PhycisObjectType::None;
-		// cube_node.physics.mass = 1.0;
-		// state.nodes.insert(cube_node);
 
 		let mut player = Node::new();
 		player.set_translation(0.0, 5.0, -20.0);
@@ -200,12 +154,7 @@ impl pge::App for FpsShooter {
 		let gui = camera_view(camera_id);
 		let gui_id = state.guis.insert(gui);
 
-		// state.scenes.insert(scene);
 		state.windows.insert(window().title("FPS Shooter1").cam(gui_id).lock_cursor(true));
-		//.cam(gui_id));
-		// state.windows.insert(window().title("FPS Shooter2").cam(gui_id));
-		// state.windows.insert(window().title("FPS Shooter3").cam(gui_id));
-		// state.windows.insert(window().title("FPS Shooter4").cam(gui_id));
 	}
 
 	fn on_keyboard_input(&mut self, key: KeyboardKey, action: KeyAction, state: &mut State) {
@@ -293,17 +242,6 @@ impl pge::App for FpsShooter {
 			let z = 10.0 * self.light_circle_i.sin();
 			light.set_translation(x, 10.0, z);
 		}
-
-		// let player = match self.player_inx {
-		// 	Some(index) => match state.nodes.get_mut(index) {
-		// 		Some(node) => node,
-		// 		None => return,
-		// 	},
-		// 	None => return,
-		// };
-
-		// let amount = self.pressed_keys.to_vec3() * delta * self.speed;
-		// player.translation += player.rotation * amount;
 	}
 }
 

@@ -19,8 +19,7 @@ use crate::buffer::*;
 use crate::buffers::*;
 use crate::cube;
 use crate::engine_state::EngineState;
-use crate::physics::node_physics_update;
-use crate::physics::physics_update;
+use crate::physics::PhycicsSystem;
 use crate::spatial_grid::SpatialGrid;
 use crate::types::*;
 use crate::renderer::*;
@@ -119,7 +118,7 @@ where
 			node_buffer,
 			point_light_buffer,
 			last_on_process_time: Instant::now(),
-			last_physics_update_time: Instant::now(),
+			last_physics_update_time: Instant::now()
 		}
 	}
 

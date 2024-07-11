@@ -6,7 +6,7 @@ use bytemuck::bytes_of;
 use thunderdome::Index;
 
 use crate::debug::ChangePrinter;
-use crate::physics::physics_update;
+use crate::physics::PhycicsSystem;
 use crate::renderer::DrawCall;
 use crate::spatial_grid::SpatialGrid;
 use crate::wgpu_types::*;
@@ -14,11 +14,11 @@ use crate::Node;
 use crate::State;
 use crate::AABB;
 
-const REM_NODE_SLOT: u8 = 0;
-const ADD_NODE_SLOT: u8 = 1;
-const NODE_UPDATE_TIME_SLOT: u8 = 2;
-const BROAD_PHASE_TIME_SLOT: u8 = 3;
-const NARROW_PHASE_TIME_SLOT: u8 = 4;
+const REM_NODE_SLOT: u32 = 0;
+const ADD_NODE_SLOT: u32 = 1;
+const NODE_UPDATE_TIME_SLOT: u32 = 2;
+const BROAD_PHASE_TIME_SLOT: u32 = 3;
+const NARROW_PHASE_TIME_SLOT: u32 = 4;
 
 pub struct EngineState {
 	pub state: State,
@@ -38,7 +38,8 @@ pub struct EngineState {
 	pub all_point_lights_data: Vec<u8>,
 	pub move_nodes: Vec<(Index, AABB)>,
 	rem_nodes: HashSet<Index>,
-	add_nodes: Vec<(Index, AABB)>
+	add_nodes: Vec<(Index, AABB)>,
+	phycics_system: PhycicsSystem
 }
 
 impl EngineState {
@@ -61,7 +62,8 @@ impl EngineState {
 			printer: ChangePrinter::new(),
 			move_nodes: Vec::new(),
 			rem_nodes: HashSet::new(),
-			add_nodes: Vec::new()
+			add_nodes: Vec::new(),
+			phycics_system: PhycicsSystem::new()
 		}
 	}
 
@@ -261,7 +263,7 @@ impl EngineState {
 
 	pub fn physics_update(&mut self, dt: f32) {
 		// update physics
-		let timings = physics_update(&mut self.state, &mut self.grid, dt);
+		let timings = self.phycics_system.physics_update(&mut self.state, &mut self.grid, dt);
 		if timings.node_update_time > 3 {
 			self.printer.print(NODE_UPDATE_TIME_SLOT, format!("node_update_time: {}", timings.node_update_time));
 		}
@@ -270,6 +272,9 @@ impl EngineState {
 		}
 		if timings.narrow_phase_time > 3 {
 			self.printer.print(NARROW_PHASE_TIME_SLOT, format!("narrow_phase_time: {}", timings.narrow_phase_time));
+		}
+		if timings.resolve_collision_time > 0 {
+			self.printer.print(NARROW_PHASE_TIME_SLOT, format!("resolve_collision_time: {}", timings.resolve_collision_time));
 		}
 	}
 }

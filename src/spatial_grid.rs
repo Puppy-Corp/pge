@@ -8,6 +8,12 @@ use crate::debug::ChangePrinter;
 use crate::AABB;
 
 #[derive(Debug)]
+struct NodeMetadata {
+	rect: AABB,
+	cells: Vec<usize>,
+}
+
+#[derive(Debug)]
 pub struct SpatialGrid {
 	size: f32,
 	min: f32,
@@ -15,7 +21,8 @@ pub struct SpatialGrid {
 	cell_size: f32,
 	cell_count: usize,
 	cells: Vec<Vec<Index>>,
-	pub nodes: HashMap<Index, AABB>,
+	nodes: HashMap<Index, NodeMetadata>,
+	printer: ChangePrinter
 }
 
 impl SpatialGrid {
@@ -34,6 +41,14 @@ impl SpatialGrid {
 			cell_count,
 			cells,
 			nodes: HashMap::new(),
+			printer: ChangePrinter::new(),
+		}
+	}
+
+	pub fn get_node_rect(&self, node: Index) -> Option<&AABB> {
+		match self.nodes.get(&node) {
+			Some(n) => Some(&n.rect),
+			None => None,
 		}
 	}
 
@@ -81,6 +96,8 @@ impl SpatialGrid {
 		let min_z = ((rect.min.z - self.min) / self.cell_size).floor();
 		let max_z = ((rect.max.z - self.min) / self.cell_size).ceil();
 
+		let mut node_cells = Vec::new();
+
 		for x in min_x as usize..max_x as usize {
 			for y in min_y as usize..max_y as usize {
 				for z in min_z as usize..max_z as usize {
@@ -95,12 +112,18 @@ impl SpatialGrid {
 							panic!("cell not found");
 						},
 					};
+					node_cells.push(cell_inx);
 					cell.push(node);
 				}
 			}
 		}
 
-		self.nodes.insert(node, rect);
+		self.printer.print(node.slot(), format!("node {} cells: {:?}", node.slot(), node_cells));
+
+		self.nodes.insert(node, NodeMetadata {
+			rect,
+			cells: node_cells,
+		});
 	}
 
 	pub fn get_cell(&self, x: usize, y: usize, z: usize) -> &Vec<Index> {
@@ -115,6 +138,21 @@ impl SpatialGrid {
 	}
 
 	pub fn rem_nodes(&mut self, nodes: &HashSet<Index>) {
+		for node_inx in nodes {
+			let node = match self.nodes.get(node_inx) {
+				Some(n) => n,
+				None => continue,
+			};
+
+			for cell_inx in &node.cells {
+				let cell = match self.cells.get_mut(*cell_inx) {
+					Some(c) => c,
+					None => continue,
+				};
+				cell.retain(|&inx| inx != *node_inx);
+			}
+		}
+
 		for cell in &mut self.cells {
 			cell.retain(|&inx| !nodes.contains(&inx));
 		}
@@ -133,7 +171,9 @@ impl SpatialGrid {
 #[cfg(test)]
 mod tests {
 	use thunderdome::Arena;
-	use super::*;
+	use crate::CollisionShape;
+
+use super::*;
 
 	#[test]
 	fn test_add_node() {
@@ -169,5 +209,16 @@ mod tests {
 		grid.add_node(id, rect);
 		let cell = grid.get_cell(0, 0, 0);
 		assert_eq!(cell.contains(&id), true);
+	}
+
+	#[test]
+	fn test_considers_grid_cell_size2() {
+		let mut arena = Arena::new();
+		let id = arena.insert(0);
+		let mut big_cell = SpatialGrid::new(5.0, 80);
+		let box_collider = CollisionShape::Box { size: glam::Vec3::new(1.0, 2.0, 1.0) };
+		let box_aabb = box_collider.aabb(glam::Vec3::new(2.0, 2.0, 2.0));
+		println!("box aabb: {:?}", box_aabb);
+		big_cell.add_node(id, box_aabb);
 	}
 }

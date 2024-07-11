@@ -166,7 +166,7 @@ impl pge::App for FpsShooter {
 		let player_id = state.nodes.insert(player);
 
 
-		// Spawn random cubes
+		//Spawn random cubes
 		let mut rng = rand::thread_rng();
 		for i in 0..10 {
 			let x = rng.gen_range(-20.0..20.0);
@@ -240,15 +240,20 @@ impl pge::App for FpsShooter {
 
 		let dir = self.pressed_keys.to_vec3();
 
+		if dir.length_squared() == 0.0 {
+			player.forces = vec![];
+			return;
+		}
+
 		let force = PhysicsForce {
-			force: dir,
+			force: player.rotation * dir * 5.0,
 			id: 1,
 			max_velocity: 200.0,
 		};
 
-		log::info!("move dir: {:?}", dir);
+		// log::info!("move dir: {:?}", dir);
 
-		// player.forces = vec![force];
+		player.forces = vec![force];
 
 		// let dir = self.pressed_keys.to_mat4();
 		// println!("dir: {:?}", dir);
@@ -289,16 +294,16 @@ impl pge::App for FpsShooter {
 			light.set_translation(x, 10.0, z);
 		}
 
-		let player = match self.player_inx {
-			Some(index) => match state.nodes.get_mut(index) {
-				Some(node) => node,
-				None => return,
-			},
-			None => return,
-		};
+		// let player = match self.player_inx {
+		// 	Some(index) => match state.nodes.get_mut(index) {
+		// 		Some(node) => node,
+		// 		None => return,
+		// 	},
+		// 	None => return,
+		// };
 
-		let amount = self.pressed_keys.to_vec3() * delta * self.speed;
-		player.translation += player.rotation * amount;
+		// let amount = self.pressed_keys.to_vec3() * delta * self.speed;
+		// player.translation += player.rotation * amount;
 	}
 }
 

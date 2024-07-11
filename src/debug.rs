@@ -1,25 +1,32 @@
+use std::collections::HashMap;
+
 
 #[derive(Debug)]
 pub struct ChangePrinter {
-    prev: Vec<String>,
+    prev: HashMap<u32, String>
 }
 
 impl ChangePrinter {
     pub fn new() -> Self {
         Self {
-            prev: Vec::new(),
+            prev: HashMap::new()
         }
     }
 
-    pub fn print(&mut self, slot: u8, new: String) {
-        if self.prev.len() <= slot as usize {
-			log::info!("{}", new);
-			self.prev.push(new);
-		} else {
-			if self.prev[slot as usize] != new {
+    pub fn print(&mut self, slot: u32, new: String) {
+        if self.prev.contains_key(&(slot as u32)) {
+			let prev = self.prev.get(&(slot as u32)).unwrap();
+			if prev != &new {
 				log::info!("{}", new);
-				self.prev[slot as usize] = new;
+				self.prev.insert(slot as u32, new);
 			}
+		} else {
+			log::info!("{}", new);
+			self.prev.insert(slot as u32, new);
 		}
     }
+
+	pub fn remove(&mut self, slot: u32) {
+		self.prev.remove(&(slot as u32));
+	}
 }

@@ -147,8 +147,6 @@ impl pge::App for FpsShooter {
 		let mut camera = Camera::new();
 		camera.node_id = Some(player_id);
 		let camera_id = state.cameras.insert(camera);
-		// scene.nodes.push(player_id);
-		println!("player id: {:?}", player_id);
 		self.player_inx = Some(player_id);
 
 		let gui = camera_view(camera_id);
@@ -200,24 +198,10 @@ impl pge::App for FpsShooter {
 			max_velocity: 200.0,
 		};
 
-		// log::info!("move dir: {:?}", dir);
-
 		player.forces = vec![force];
-
-		// let dir = self.pressed_keys.to_mat4();
-		// println!("dir: {:?}", dir);
-		// let player_inx = match self.player_inx {
-		// 	Some(index) => index,
-		// 	None => return,
-		// };
-		// let player = state.nodes.get_mut(player_inx).unwrap();
-		// player.translation += player.rotation.inverse() * dir;
-		// player.mov()
-		// player.forces[0].direction = mat;	
 	}
 
 	fn on_mouse_input(&mut self, event: MouseEvent, state: &mut State) {
-		//println!("mouse event: {:?} state: {:?}", event, state);
 		match event {
 			MouseEvent::Moved { dx, dy } => {
 				let player_inx = match self.player_inx {
@@ -227,9 +211,6 @@ impl pge::App for FpsShooter {
 				self.rotate_player(dx, dy);
 				let player = state.nodes.get_mut(player_inx).unwrap();
 				player.rotation = glam::Quat::from_euler(glam::EulerRot::YXZ, self.yaw, self.pitch, 0.0);
-				// player.rotate(dx * self.sensitivity,  dy* self.sensitivity);
-				// let rot = glam::Mat4::from_quat(glam::Quat::from_euler(glam::EulerRot::YXZ, self.yaw, self.pitch, 0.0));
-				// player.model = rot * player.model;
 			},
 		}
 	}

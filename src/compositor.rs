@@ -59,7 +59,7 @@ impl Outline {
 }
 
 pub struct Lineariser {
-	pub items: Vec<DrawItem>
+	pub items: Vec<DrawItem>,
 }
 
 impl Lineariser {

@@ -35,7 +35,7 @@ pub struct Window {
 	pub title: String,
 	pub width: u32,
 	pub height: u32,
-	pub cam: Option<Index>,
+	pub ui: GUIElement,
 	pub lock_cursor: bool,
 }
 
@@ -46,7 +46,7 @@ impl Window {
 			title: "".to_string(),
 			width: 800,
 			height: 600,
-			cam: None,
+			ui: GUIElement::default(),
 			lock_cursor: false,
 		}
 	}
@@ -56,8 +56,8 @@ impl Window {
 		self
 	}
 
-	pub fn cam(mut self, cam: Index) -> Self {
-		self.cam = Some(cam);
+	pub fn cam(mut self, ui: GUIElement) -> Self {
+		self.ui = ui;
 		self
 	}
 
@@ -102,6 +102,12 @@ pub struct GUIElement {
 }
 
 impl GUIElement {
+	pub fn new() -> Self {
+		Self {
+			..Default::default()
+		}
+	}
+
 	pub fn add(mut self, child: GUIElement) -> Self {
 		self.children.push(child);
 		self
@@ -133,7 +139,7 @@ impl GUIElement {
 	}
 }
 
-pub fn vstack() -> GUIElement {
+pub fn vstack(children: &[GUIElement]) -> GUIElement {
 	GUIElement {
 		flex_dir: Flex::Vertical,
 		..Default::default()

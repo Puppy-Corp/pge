@@ -97,20 +97,6 @@ pub struct PhysicsProps {
 	pub stationary: bool,
 }
 
-pub struct Rotation {
-	
-}
-
-impl Rotation {
-	pub fn new() -> Self {
-		Self {}
-	}
-
-	pub fn rotate(&mut self, x: f32, y: f32) {
-		println!("Rotating: x: {}, y: {}", x, y);
-	}
-}
-
 #[derive(Debug)]
 pub enum UserEvent {
 	CreateWindow
@@ -277,14 +263,6 @@ impl Node {
 	}
 }
 
-pub fn vstack() -> Node {
-	Node::new().flex(Flex::Vertical)
-}
-
-pub fn hstack() -> Node {
-	Node::new().flex(Flex::Horizontal)
-}
-
 #[derive(Debug, Clone)]
 pub struct Mesh {
 	// pub id: usize,
@@ -344,35 +322,6 @@ impl Scene {
 		}
 	}
 }
-
-pub struct EngineContext {
-
-}
-
-impl EngineContext {
-	pub fn new() -> Self {
-		Self {}
-	}
-
-	// pub fn create_3dworld(&self) -> World3D {
-	// 	World3D::new()
-	// }
-}
-
-pub struct Location {
-
-}
-
-impl Location {
-	pub fn new() -> Self {
-		Self {}
-	}
-
-	pub fn animate(&self) {
-		println!("Animating location");
-	}
-}
-
 
 #[derive(Debug, Clone)]
 pub struct Camera {

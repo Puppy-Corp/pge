@@ -93,6 +93,10 @@ pub struct GUIElement {
 	pub top_right_radius: f32,
 	pub bottom_left_radius: f32,
 	pub bottom_right_radius: f32,
+	pub top_margin: f32,
+	pub left_margin: f32,
+	pub right_margin: f32,
+	pub bottom_margin: f32,
 	pub text: Option<String>,
 	pub background_color: Option<[f32; 3]>,
 	pub font_size: u32,
@@ -135,6 +139,14 @@ impl GUIElement {
 
 	pub fn font(mut self, font: FontHandle) -> Self {
 		self.font = Some(font);
+		self
+	}
+
+	pub fn margin(mut self, margin: f32) -> Self {
+		self.top_margin = margin;
+		self.left_margin = margin;
+		self.right_margin = margin;
+		self.bottom_margin = margin;
 		self
 	}
 }

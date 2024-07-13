@@ -150,30 +150,55 @@ impl Lineariser {
 		}
 	}
 
-	fn inner_linearize(&mut self, item: &GUIElement, size: Option<Outline>) {
+	fn inner_linearize(&mut self, item: &GUIElement, outline: Option<Outline>) {
+		let mut outline = outline.unwrap_or(Outline {
+			left_up: [-1.0, 1.0],
+			right_up: [1.0, 1.0],
+			left_down: [-1.0, -1.0],
+			right_down: [1.0, -1.0]
+		});
+
+		outline.left_up[0] += item.left_margin;
+		outline.right_up[0] -= item.right_margin;
+		outline.left_down[0] += item.left_margin;
+		outline.right_down[0] -= item.right_margin;
+		outline.left_up[1] -= item.top_margin;
+		outline.right_up[1] -= item.top_margin;
+		outline.left_down[1] += item.bottom_margin;
+		outline.right_down[1] += item.bottom_margin;
+
 		if let Some(background_color) = item.background_color {
-			match &size {
-				Some(size) => {
-					self.items.push(DrawItem::Rect(DrawRect {
-						top_left: size.left_up,
-						top_right: size.right_up,
-						bottom_left: size.left_down,
-						bottom_right: size.right_down,
-						background_color,
-						..Default::default()
-					}));
-				},
-				None => {
-					self.items.push(DrawItem::Rect(DrawRect {
-						top_left: [-1.0, 1.0],
-						top_right: [1.0, 1.0],
-						bottom_left: [-1.0, -1.0],
-						bottom_right: [1.0, -1.0],
-						background_color,
-						..Default::default()
-					}));
-				}
-			}
+			// match &outline {
+			// 	Some(size) => {
+			// 		self.items.push(DrawItem::Rect(DrawRect {
+			// 			top_left: size.left_up,
+			// 			top_right: size.right_up,
+			// 			bottom_left: size.left_down,
+			// 			bottom_right: size.right_down,
+			// 			background_color,
+			// 			..Default::default()
+			// 		}));
+			// 	},
+			// 	None => {
+			// 		self.items.push(DrawItem::Rect(DrawRect {
+			// 			top_left: [-1.0, 1.0],
+			// 			top_right: [1.0, 1.0],
+			// 			bottom_left: [-1.0, -1.0],
+			// 			bottom_right: [1.0, -1.0],
+			// 			background_color,
+			// 			..Default::default()
+			// 		}));
+			// 	}
+			// }
+
+			self.items.push(DrawItem::Rect(DrawRect {
+				top_left: outline.left_up,
+				top_right: outline.right_up,
+				bottom_left: outline.left_down,
+				bottom_right: outline.right_down,
+				background_color,
+				..Default::default()
+			}));
 		}
 
 		if let Some(text) = &item.text {
@@ -186,14 +211,7 @@ impl Lineariser {
 			self.items.push(DrawItem::Text(text));
 		}
 
-		if item.children.len() > 0 {
-			let outline = size.unwrap_or(Outline {
-				left_up: [-1.0, 1.0],
-				right_up: [1.0, 1.0],
-				left_down: [-1.0, -1.0],
-				right_down: [1.0, -1.0]
-			});
-			
+		if item.children.len() > 0 {	
 			match item.flex_dir {
 				Flex::Horizontal => {
 					let total_grow: f32 = item.children.iter().map(|child| child.grow.max(1) as f32).sum();

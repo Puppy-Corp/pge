@@ -35,7 +35,7 @@ impl pge::App for TodoApp {
 				]),
 				rect().background_color(Color::BLACK),
 				rect().background_color(Color::GREEN)
-			])
+			]).margin(0.2)
 		);
 
 		let window = Window::new().title("Puppy Todo").ui(gui_id);

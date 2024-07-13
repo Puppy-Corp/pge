@@ -19,6 +19,12 @@ pub struct RawPositions {
 }
 
 impl RawPositions {
+	pub fn new() -> Self {
+		Self {
+			position: [0.0, 0.0, 0.0]
+		}
+	}
+
 	pub fn desc() -> wgpu::VertexBufferLayout<'static> {
 		wgpu::VertexBufferLayout {
 			array_stride: std::mem::size_of::<RawPositions>() as wgpu::BufferAddress,
@@ -42,6 +48,7 @@ impl RawPositions {
 		})
 	}
 }
+
 
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
@@ -98,7 +105,7 @@ impl RawTexCoords {
 
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-struct MaterialUniform {
+struct MaterialUniform { 
     base_color: [f32; 4],
     metallic: f32,
     roughness: f32,

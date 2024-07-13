@@ -152,7 +152,7 @@ impl pge::App for FpsShooter {
 		let gui = camera_view(camera_id);
 		let gui_id = state.guis.insert(gui);
 
-		state.windows.insert(window().title("FPS Shooter1").cam(gui_id).lock_cursor(true));
+		state.windows.insert(window().title("FPS Shooter1").ui(gui_id).lock_cursor(true));
 	}
 
 	fn on_keyboard_input(&mut self, key: KeyboardKey, action: KeyAction, state: &mut State) {

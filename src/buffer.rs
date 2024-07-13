@@ -333,61 +333,6 @@ where
 	}
 }
 
-pub struct DynamicVertexBuffer {
-	pub device: Arc<wgpu::Device>,
-	pub queue: Arc<wgpu::Queue>,
-	pub buffer: wgpu::Buffer,
-	pub staging_buffer: DynamicStagingBuffer,
-	alignment: u64,
-}
-
-impl DynamicVertexBuffer {
-	pub fn new(device: Arc<wgpu::Device>, queue: Arc<wgpu::Queue>) -> Self {
-		let buffer = device.create_buffer(&wgpu::BufferDescriptor {
-			label: Some("Dynamic Vertex Buffer"),
-			size: 20_000,
-			usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC | wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::INDEX,
-			mapped_at_creation: false
-		});
-
-		Self {
-			device,
-			queue,
-			buffer,
-			staging_buffer: DynamicStagingBuffer::new(20_000),
-			alignment: 4,
-		}
-	}
-
-	pub fn store(&mut self, id: usize, data: &[u8]) -> Pointer {
-		let aligned_size = self.align_size(data.len() as u64);
-		let mut aligned_data = vec![0u8; aligned_size as usize];
-		aligned_data[..data.len()].copy_from_slice(data);
-		self.staging_buffer.store(id, &aligned_data)
-	}
-
-	pub fn flush(&mut self) {
-		for (offset, data) in self.staging_buffer.iter() {
-			let aligned_offset = self.align_offset(offset as u64);
-			println!("write offset: {}, bytes: {:?}", aligned_offset, data);
-			self.queue.write_buffer(&self.buffer, aligned_offset, data);
-		}
-		self.staging_buffer.clear_write_commands();
-	}
-
-	pub fn wgpu_buffer(&self) -> &wgpu::Buffer {
-		&self.buffer
-	}
-
-	fn align_offset(&self, offset: u64) -> u64 {
-		(offset + self.alignment - 1) & !(self.alignment - 1)
-	}
-
-	fn align_size(&self, size: u64) -> u64 {
-		(size + self.alignment - 1) & !(self.alignment - 1)
-	}
-}
-
 pub struct FixedVertexBuffer<T> {
 	pub device: Arc<wgpu::Device>,
 	pub queue: Arc<wgpu::Queue>,

@@ -1,3 +1,12 @@
+use lyon::math::point;
+use lyon::math::Point;
+use lyon::path::Path;
+use lyon::tessellation::BuffersBuilder;
+use lyon::tessellation::FillOptions;
+use lyon::tessellation::FillTessellator;
+use lyon::tessellation::FillVertex;
+use lyon::tessellation::VertexBuffers;
+
 pub use crate::gui::*;
 
 #[derive(Debug, Default, Clone, PartialEq)]
@@ -10,7 +19,79 @@ pub struct DrawRect {
 	pub top_right_radius: f32,
 	pub bottom_left_radius: f32,
 	pub bottom_right_radius: f32,
-	pub background_color: [f32; 4]
+	pub background_color: [f32; 3]
+}
+
+impl DrawRect {
+    pub fn generate_vertices_indices(&self) -> (Vec<[f32; 2]>, Vec<u16>) {
+        let mut builder = Path::builder();
+
+        // Move to the starting point
+        builder.begin(point(self.top_left[0] + self.top_left_radius, self.top_left[1]));
+
+        // Top line and top right corner
+        builder.line_to(point(self.top_right[0] - self.top_right_radius, self.top_right[1]));
+        builder.cubic_bezier_to(
+            point(self.top_right[0] - self.top_right_radius, self.top_right[1] + self.top_right_radius),
+            point(self.top_right_radius, self.top_right_radius),
+            point(self.top_right[0], self.top_right[1] + self.top_right_radius)
+        );
+
+        // Right line and bottom right corner
+        builder.line_to(point(self.bottom_right[0], self.bottom_right[1] - self.bottom_right_radius));
+        builder.cubic_bezier_to(
+            point(self.bottom_right[0] - self.bottom_right_radius, self.bottom_right[1] - self.bottom_right_radius),
+            point(self.bottom_right_radius, self.bottom_right_radius),
+            point(self.bottom_right[0] - self.bottom_right_radius, self.bottom_right[1])
+        );
+
+        // Bottom line and bottom left corner
+        builder.line_to(point(self.bottom_left[0] + self.bottom_left_radius, self.bottom_left[1]));
+        builder.cubic_bezier_to(
+            point(self.bottom_left[0] + self.bottom_left_radius, self.bottom_left[1] - self.bottom_left_radius),
+            point(self.bottom_left_radius, self.bottom_left_radius),
+            point(self.bottom_left[0], self.bottom_left[1] - self.bottom_left_radius)
+        );
+
+        // Left line and top left corner
+        builder.line_to(point(self.top_left[0], self.top_left[1] + self.top_left_radius));
+        builder.cubic_bezier_to(
+            point(self.top_left[0] + self.top_left_radius, self.top_left[1] + self.top_left_radius),
+            point(self.top_left_radius, self.top_left_radius),
+			point(self.top_left[0] + self.top_left_radius, self.top_left[1])
+        );
+
+        builder.close();
+
+        // Build the path
+        let path = builder.build();
+
+        // Prepare a VertexBuffers to store the geometry
+        let mut buffers: VertexBuffers<Point, u16> = VertexBuffers::new();
+
+        {
+			#[derive(Copy, Clone, Debug)]
+			struct MyVertex { position: [f32; 2] }
+
+            // Create the tessellator
+            let mut tessellator = FillTessellator::new();
+
+            // Use the tessellator to generate vertices and indices
+            tessellator.tessellate_path(
+                &path,
+                &FillOptions::default(),
+                &mut BuffersBuilder::new(&mut buffers, |vertex: FillVertex| {
+                    Point::new(vertex.position().x, vertex.position().y)
+                }),
+            ).unwrap();
+        }
+
+        // Extract vertices and indices and convert them to Vec<[f32; 2]> and Vec<u16>
+        let vertices = buffers.vertices.iter().map(|&p| [p.x, p.y]).collect();
+        let indices = buffers.indices.clone(); // Indices are already in the required format
+
+        (vertices, indices)
+    }
 }
 
 #[derive(Debug, Default, Clone, PartialEq)]
@@ -184,9 +265,55 @@ impl Lineariser {
 		}
 	}
 
-	pub fn linearize(&mut self, item: GUIElement) {
-		let item = item.into();
-		self.inner_linearize(&item, None);
+	pub fn linearize(&mut self, item: &GUIElement) {
+		self.inner_linearize(item, None);
+	}
+}
+
+pub struct UICompositor {
+	lineariser: Lineariser,
+	pub positions: Vec<[f32; 3]>,
+	pub indices: Vec<u16>,
+	pub colors: Vec<[f32; 3]>
+}
+
+impl UICompositor {
+	pub fn new() -> Self {
+		Self {
+			lineariser: Lineariser::new(),
+			positions: Vec::new(),
+			indices: Vec::new(),
+			colors: Vec::new()
+		}
+	}
+
+	pub fn process(&mut self, item: &GUIElement) {
+		self.positions.clear();
+		self.indices.clear();
+		self.colors.clear();
+
+		self.lineariser.linearize(item);
+
+		for draw in &self.lineariser.items {
+			println!("draw item: {:?}", draw);
+
+			match draw {
+				DrawItem::Rect(rect) => {
+					let (vertices, indices) = rect.generate_vertices_indices();
+					println!("vertices: {:?}", vertices);
+					println!("indices: {:?}", indices);
+					let current_offset = self.positions.len() as u16;
+					self.positions.extend(vertices.iter().map(|&p| [p[0], p[1], 0.0]));
+					let adjusted_indices: Vec<u16> = indices.iter().map(|&i| i + current_offset).collect();
+					// self.positions.push(self.positions.last().unwrap().clone());
+					self.indices.extend(adjusted_indices);
+					// self.indices.push(self.indices.last().unwrap().clone());
+					self.colors.extend(std::iter::repeat(rect.background_color).take(vertices.len()));
+					// self.colors.push(self.colors.last().unwrap().clone());
+				},
+				DrawItem::Text(text) => {},
+			}
+		}
 	}
 }
 
@@ -199,7 +326,7 @@ mod tests {
 		let rect = rect()
 			.background_color(Color::RED);
 		let mut linearizer = Lineariser::new();
-		linearizer.linearize(rect);
+		linearizer.linearize(&rect);
 
 		assert_eq!(linearizer.items.len(), 1);
 		let r = DrawRect {
@@ -207,7 +334,7 @@ mod tests {
 			top_right: [1.0, 1.0],
 			bottom_left: [-1.0, -1.0],
 			bottom_right: [1.0, -1.0],
-			background_color: [1.0, 0.0, 0.0, 1.0],
+			background_color: Color::RED,
 			..Default::default()
 		};
 		assert_eq!(linearizer.items[0], DrawItem::Rect(r));
@@ -215,11 +342,12 @@ mod tests {
 
 	#[test]
 	fn test_vstack() {
-		let vstack = vstack()
-			.add(rect().background_color(Color::RED))
-			.add(rect().background_color(Color::GREEN));
+		let vstack = vstack(&[
+			rect().background_color(Color::RED),
+			rect().background_color(Color::GREEN)
+		]);
 		let mut linearizer = Lineariser::new();
-		linearizer.linearize(vstack);
+		linearizer.linearize(&vstack);
 
 		assert_eq!(linearizer.items.len(), 2);
 		let r1 = DrawRect {
@@ -244,11 +372,12 @@ mod tests {
 
 	#[test]
 	fn test_hstack() {
-		let hstack = hstack()
-			.add(rect().background_color(Color::RED))
-			.add(rect().background_color(Color::GREEN));
+		let hstack = hstack(&[
+			rect().background_color(Color::RED),
+			rect().background_color(Color::GREEN)
+		]);
 		let mut linearizer = Lineariser::new();
-		linearizer.linearize(hstack);
+		linearizer.linearize(&hstack);
 
 		assert_eq!(linearizer.items.len(), 2);
 		let r1 = DrawRect {
@@ -273,11 +402,12 @@ mod tests {
 
 	#[test]
 	fn test_vstack_grow() {
-		let vstack = vstack()
-			.add(rect().background_color(Color::RED).grow(3))
-			.add(rect().background_color(Color::GREEN).grow(1));
+		let vstack = vstack(&[
+			rect().background_color(Color::RED).grow(3),
+			rect().background_color(Color::GREEN).grow(1)
+		]);
 		let mut linearizer = Lineariser::new();
-		linearizer.linearize(vstack);
+		linearizer.linearize(&vstack);
 
 		assert_eq!(linearizer.items.len(), 2);
 		let r1 = DrawRect {
@@ -302,11 +432,12 @@ mod tests {
 
 	#[test]
 	fn test_hstack_grow() {
-		let hstack = hstack()
-			.add(rect().background_color(Color::RED).grow(3))
-			.add(rect().background_color(Color::GREEN).grow(1));
+		let hstack = hstack(&[
+			rect().background_color(Color::RED).grow(3),
+			rect().background_color(Color::GREEN).grow(1)
+		]);
 		let mut linearizer = Lineariser::new();
-		linearizer.linearize(hstack);
+		linearizer.linearize(&hstack);
 
 		assert_eq!(linearizer.items.len(), 2);
 		let r1 = DrawRect {
@@ -331,13 +462,14 @@ mod tests {
 
 	#[test]
 	fn test_text_rendering() {
-		let vstack = vstack()
-			.add(text("row 1"))
-			.add(text("row 2"))
-			.add(text("row 3"));
+		let vstack = vstack(&[
+			text("row 1"),
+			text("row 2"),
+			text("row 3")
+		]);
 
 		let mut linearizer = Lineariser::new();
-		linearizer.linearize(vstack);
+		linearizer.linearize(&vstack);
 
 		println!("{:?}", linearizer.items);
 	}

@@ -23,11 +23,23 @@ impl TodoApp {
 
 impl pge::App for TodoApp {
 	fn on_create(&mut self, state: &mut State) {
-		let window = Window::new().title("TodoAPP")
-			.ui(vstack(&[
-				rect().background_color(Color::GREEN),
-				rect().background_color(Color::RED)
-			]));
+		let gui_id = state.guis.insert(
+			hstack(&[
+				vstack(&[
+					rect().background_color(Color::RED),
+					rect().background_color(Color::WHITE),
+					rect().background_color(Color::GREEN),
+					rect().background_color(Color::BLACK),
+					rect().background_color(Color::WHITE),
+					rect().background_color(Color::GREEN),
+				]),
+				rect().background_color(Color::BLACK),
+				rect().background_color(Color::GREEN)
+			])
+		);
+
+		let window = Window::new().title("Puppy Todo").ui(gui_id);
+		state.windows.insert(window);
 	}
 }
 

@@ -344,10 +344,6 @@ impl Camera {
 			node_id: None
 		}
 	}
-
-	pub fn set_location(&self, location: Location) {
-		println!("Setting location");
-	}
 }
 
 pub struct Channel {

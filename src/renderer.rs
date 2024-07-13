@@ -1,11 +1,192 @@
 use std::ops::Range;
 use std::sync::Arc;
+use wgpu::util::RenderEncoder;
+use wgpu::TextureFormat;
 use wgpu::TextureUsages;
 
 use crate::buffer::*;
 use crate::buffers::*;
 use crate::wgpu_types::*;
 
+struct Create3DPipelineArgs<'a> {
+	device: &'a wgpu::Device,
+	surface: &'a wgpu::Surface<'a>,
+	format: TextureFormat,
+	size: winit::dpi::PhysicalSize<u32>,
+}
+
+fn create_3d_pipeline(args: Create3DPipelineArgs) -> wgpu::RenderPipeline {
+	let shader = args.device.create_shader_module(wgpu::ShaderModuleDescriptor {
+		label: Some("Shader"),
+		source: wgpu::ShaderSource::Wgsl(include_str!("./shaders/3d_shader.wgsl").into()),
+	});
+
+	let camera_bind_group_layout = RawCamera::create_bind_group_layout(&args.device);
+	let node_bind_group_layout = RawNode::create_bind_group_layout(&args.device);
+	let point_light_bind_group_layout = RawPointLight::create_bind_group_layout(&args.device);
+
+	let render_pipeline_layout = args.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+		label: Some("Render Pipeline Layout"),
+		bind_group_layouts: &[
+			&camera_bind_group_layout, 
+			&node_bind_group_layout, 
+			&point_light_bind_group_layout
+		],
+		push_constant_ranges: &[],
+	});
+
+	let depth_stencil_state = wgpu::DepthStencilState {
+		format: wgpu::TextureFormat::Depth24PlusStencil8,
+		depth_write_enabled: true,
+		depth_compare: wgpu::CompareFunction::Less,
+		stencil: wgpu::StencilState::default(),
+		bias: wgpu::DepthBiasState::default(),
+	};
+
+	log::info!("creating render pipeline");
+	let render_pipeline = args.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+		label: Some("Render Pipeline"),
+		layout: Some(&render_pipeline_layout),
+		vertex: wgpu::VertexState {
+			module: &shader,
+			entry_point: "vs_main",
+			buffers: &[RawPositions::desc(), RawInstance::desc(), RawNormal::desc()],
+			compilation_options: Default::default()
+		},
+		fragment: Some(wgpu::FragmentState {
+			module: &shader,
+			entry_point: "fs_main",
+			targets: &[Some(wgpu::ColorTargetState {
+				format: args.format,
+				blend: Some(wgpu::BlendState {
+					color: wgpu::BlendComponent::REPLACE,
+					alpha: wgpu::BlendComponent::REPLACE,
+				}),
+				write_mask: wgpu::ColorWrites::ALL,
+			})],
+			compilation_options: Default::default()
+		}),
+		primitive: wgpu::PrimitiveState {
+			topology: wgpu::PrimitiveTopology::TriangleList,
+			strip_index_format: None,
+			front_face: wgpu::FrontFace::Ccw,
+			cull_mode: None,
+			// Setting this to anything other than Fill requires Features::POLYGON_MODE_LINE
+			// or Features::POLYGON_MODE_POINT
+			polygon_mode: wgpu::PolygonMode::Fill,
+			// Requires Features::DEPTH_CLIP_CONTROL
+			unclipped_depth: false,
+			// Requires Features::CONSERVATIVE_RASTERIZATION
+			conservative: false,
+		},
+		depth_stencil: Some(depth_stencil_state),
+		multisample: wgpu::MultisampleState {
+			count: 1,
+			mask: !0,
+			alpha_to_coverage_enabled: false,
+		},
+		// If the pipeline will be used with a multiview render pass, this
+		// indicates how many array layers the attachments will have.
+		multiview: None,
+	});
+	log::info!("created render pipeline");
+
+	render_pipeline
+}
+
+struct CreateGUIPipelineArgs<'a> {
+	device: &'a wgpu::Device,
+	surface: &'a wgpu::Surface<'a>,
+	format: TextureFormat,
+	size: winit::dpi::PhysicalSize<u32>,
+}
+
+fn create_gui_pipeline(args: CreateGUIPipelineArgs) -> wgpu::RenderPipeline {
+	let shader = args.device.create_shader_module(wgpu::ShaderModuleDescriptor {
+		label: Some("Shader"),
+		source: wgpu::ShaderSource::Wgsl(include_str!("./shaders/gui_shader.wgsl").into()),
+	});
+
+	let camera_bind_group_layout = RawCamera::create_bind_group_layout(&args.device);
+	let node_bind_group_layout = RawNode::create_bind_group_layout(&args.device);
+	let point_light_bind_group_layout = RawPointLight::create_bind_group_layout(&args.device);
+
+	let render_pipeline_layout = args.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+		label: Some("Render Pipeline Layout"),
+		bind_group_layouts: &[],
+		push_constant_ranges: &[],
+	});
+
+	let depth_stencil_state = wgpu::DepthStencilState {
+		format: wgpu::TextureFormat::Depth24PlusStencil8,
+		depth_write_enabled: true,
+		depth_compare: wgpu::CompareFunction::Less,
+		stencil: wgpu::StencilState::default(),
+		bias: wgpu::DepthBiasState::default(),
+	};
+
+	let color_layout = wgpu::VertexBufferLayout {
+		array_stride: std::mem::size_of::<RawPositions>() as wgpu::BufferAddress,
+		step_mode: wgpu::VertexStepMode::Vertex,
+		attributes: &[
+			wgpu::VertexAttribute {
+				offset: 0,
+				format: wgpu::VertexFormat::Float32x4,
+				shader_location: 1,
+			}
+		]
+	};
+
+	log::info!("creating render pipeline");
+	let render_pipeline = args.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+		label: Some("Render Pipeline"),
+		layout: Some(&render_pipeline_layout),
+		vertex: wgpu::VertexState {
+			module: &shader,
+			entry_point: "vs_main",
+			buffers: &[RawPositions::desc(), color_layout],
+			compilation_options: Default::default()
+		},
+		fragment: Some(wgpu::FragmentState {
+			module: &shader,
+			entry_point: "fs_main",
+			targets: &[Some(wgpu::ColorTargetState {
+				format: args.format,
+				blend: Some(wgpu::BlendState {
+					color: wgpu::BlendComponent::REPLACE,
+					alpha: wgpu::BlendComponent::REPLACE,
+				}),
+				write_mask: wgpu::ColorWrites::ALL,
+			})],
+			compilation_options: Default::default()
+		}),
+		primitive: wgpu::PrimitiveState {
+			topology: wgpu::PrimitiveTopology::TriangleList,
+			strip_index_format: None,
+			front_face: wgpu::FrontFace::Ccw,
+			cull_mode: None,
+			// Setting this to anything other than Fill requires Features::POLYGON_MODE_LINE
+			// or Features::POLYGON_MODE_POINT
+			polygon_mode: wgpu::PolygonMode::Fill,
+			// Requires Features::DEPTH_CLIP_CONTROL
+			unclipped_depth: false,
+			// Requires Features::CONSERVATIVE_RASTERIZATION
+			conservative: false,
+		},
+		depth_stencil: Some(depth_stencil_state),
+		multisample: wgpu::MultisampleState {
+			count: 1,
+			mask: !0,
+			alpha_to_coverage_enabled: false,
+		},
+		// If the pipeline will be used with a multiview render pass, this
+		// indicates how many array layers the attachments will have.
+		multiview: None,
+	});
+	log::info!("created render pipeline");
+
+	render_pipeline
+}
 
 #[derive(Debug, Default, Hash)]
 pub struct DrawCall {
@@ -16,16 +197,27 @@ pub struct DrawCall {
 	pub indices_range: Range<u32>,
 }
 
-pub struct RenderArgs<'a> {
-	pub instructions: &'a mut dyn Iterator<Item = &'a DrawCall>,
-	pub node_buffer: &'a FixedBuffer<RawNode>,
-	pub camera_buffer: &'a FixedBuffer<RawCamera>,
-	pub point_light_buffer: &'a FixedBuffer<RawPointLight>,
+pub struct Render3D<'a> {
 	pub positions_buffer: &'a wgpu::Buffer,
 	pub index_buffer: &'a wgpu::Buffer,
 	pub normal_buffer: &'a wgpu::Buffer,
 	pub instance_buffer: &'a wgpu::Buffer,
+	pub camera_buffer: &'a FixedBuffer<RawCamera>,
+	pub point_light_buffer: &'a FixedBuffer<RawPointLight>,
+	pub node_buffer: &'a FixedBuffer<RawNode>,
+	pub calls: &'a mut dyn Iterator<Item = &'a DrawCall>,
+}
+
+pub struct RenderArgs<'a> {
 	pub encoder: &'a mut wgpu::CommandEncoder,
+	pub positions_buffer: &'a wgpu::Buffer,
+	pub index_buffer: &'a wgpu::Buffer,
+	pub color_buffer: &'a wgpu::Buffer,
+	pub views_3d: &'a [Render3D<'a>],
+	pub position_range: Range<u64>,
+	pub index_range: Range<u64>,
+	pub indices_range: Range<u32>,
+	pub color_range: Range<u64>,
 }
 
 pub struct NewRendererArgs {
@@ -40,7 +232,8 @@ pub struct NewRendererArgs {
 pub struct Renderer<'a> {
 	pub surface: wgpu::Surface<'a>,
 	pub device: Arc<wgpu::Device>,
-	pub pipeline: wgpu::RenderPipeline,
+	pub pipeline_gui: wgpu::RenderPipeline,
+	pub pipeline_3d: wgpu::RenderPipeline,
 	pub queue: Arc<wgpu::Queue>,
 	pub depth_texture_view: wgpu::TextureView,
 }
@@ -70,6 +263,10 @@ impl Renderer<'_> {
 			desired_maximum_frame_latency: 1
 		};
 
+		log::info!("config {:?}", config);
+		surface.configure(&args.device, &config);
+		log::info!("configured surface");
+
 		let depth_texture = args.device.create_texture(&wgpu::TextureDescriptor {
 			label: None,
 			size: wgpu::Extent3d {
@@ -87,88 +284,24 @@ impl Renderer<'_> {
 	
 		let depth_texture_view = depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
 
-		log::info!("config {:?}", config);
-		surface.configure(&args.device, &config);
-		log::info!("configured surface");
-		let shader = args.device.create_shader_module(wgpu::ShaderModuleDescriptor {
-			label: Some("Shader"),
-			source: wgpu::ShaderSource::Wgsl(include_str!("./shaders/shader.wgsl").into()),
+		let pipeline_3d = create_3d_pipeline(Create3DPipelineArgs {
+			device: &args.device,
+			surface: &surface,
+			format: config.format,
+			size: size,
 		});
-
-		let camera_bind_group_layout = RawCamera::create_bind_group_layout(&args.device);
-		let node_bind_group_layout = RawNode::create_bind_group_layout(&args.device);
-		let point_light_bind_group_layout = RawPointLight::create_bind_group_layout(&args.device);
-
-		let render_pipeline_layout = args.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-			label: Some("Render Pipeline Layout"),
-			bind_group_layouts: &[
-				&camera_bind_group_layout, 
-				&node_bind_group_layout, 
-				&point_light_bind_group_layout
-			],
-			push_constant_ranges: &[],
+		let pipeline_gui = create_gui_pipeline(CreateGUIPipelineArgs {
+			device: &args.device,
+			surface: &surface,
+			format: config.format,
+			size: size,
 		});
-
-		let depth_stencil_state = wgpu::DepthStencilState {
-			format: wgpu::TextureFormat::Depth24PlusStencil8,
-			depth_write_enabled: true,
-			depth_compare: wgpu::CompareFunction::Less,
-			stencil: wgpu::StencilState::default(),
-			bias: wgpu::DepthBiasState::default(),
-		};
-
-		log::info!("creating render pipeline");
-		let render_pipeline = args.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-			label: Some("Render Pipeline"),
-			layout: Some(&render_pipeline_layout),
-			vertex: wgpu::VertexState {
-				module: &shader,
-				entry_point: "vs_main",
-				buffers: &[RawPositions::desc(), RawInstance::desc(), RawNormal::desc()],
-				compilation_options: Default::default()
-			},
-			fragment: Some(wgpu::FragmentState {
-				module: &shader,
-				entry_point: "fs_main",
-				targets: &[Some(wgpu::ColorTargetState {
-					format: config.format,
-					blend: Some(wgpu::BlendState {
-						color: wgpu::BlendComponent::REPLACE,
-						alpha: wgpu::BlendComponent::REPLACE,
-					}),
-					write_mask: wgpu::ColorWrites::ALL,
-				})],
-				compilation_options: Default::default()
-			}),
-			primitive: wgpu::PrimitiveState {
-				topology: wgpu::PrimitiveTopology::TriangleList,
-				strip_index_format: None,
-				front_face: wgpu::FrontFace::Ccw,
-				cull_mode: None,
-				// Setting this to anything other than Fill requires Features::POLYGON_MODE_LINE
-				// or Features::POLYGON_MODE_POINT
-				polygon_mode: wgpu::PolygonMode::Fill,
-				// Requires Features::DEPTH_CLIP_CONTROL
-				unclipped_depth: false,
-				// Requires Features::CONSERVATIVE_RASTERIZATION
-				conservative: false,
-			},
-			depth_stencil: Some(depth_stencil_state),
-			multisample: wgpu::MultisampleState {
-				count: 1,
-				mask: !0,
-				alpha_to_coverage_enabled: false,
-			},
-			// If the pipeline will be used with a multiview render pass, this
-			// indicates how many array layers the attachments will have.
-			multiview: None,
-		});
-		log::info!("created render pipeline");
 
 		Ok(Self {
 			surface: surface,
 			device: args.device,
-			pipeline: render_pipeline,
+			pipeline_3d,
+			pipeline_gui,
 			queue: args.queue,
 			depth_texture_view: depth_texture_view,
 		})
@@ -186,7 +319,7 @@ impl Renderer<'_> {
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.5,
+                            r: 1.0,
                             g: 1.0,
                             b: 1.0,
                             a: 1.0,
@@ -205,21 +338,32 @@ impl Renderer<'_> {
 				..Default::default()
 			});
 
-			render_pass.set_pipeline(&self.pipeline);
-			//render_pass.set_bind_group(0, &args.node_bind_group, &[]);
-			render_pass.set_bind_group(0, &args.camera_buffer.bind_group(), &[]);
-			render_pass.set_bind_group(1, &args.node_buffer.bind_group(), &[]);
-			render_pass.set_bind_group(2, &args.point_light_buffer.bind_group(), &[]);
+			render_pass.set_pipeline(&self.pipeline_gui);
+			render_pass.set_vertex_buffer(0, args.positions_buffer.slice(args.position_range));
+			render_pass.set_vertex_buffer(1, args.color_buffer.slice(args.color_range));
+			render_pass.set_index_buffer(args.index_buffer.slice(args.index_range), wgpu::IndexFormat::Uint16);
+			render_pass.draw_indexed(args.indices_range.clone(), 0, 0..1);
 
-			for draw in args.instructions {
-				render_pass.set_vertex_buffer(0, args.positions_buffer.slice(draw.position_range.clone()));
-				//render_pass.set_vertex_buffer(1, args.positions_buffer.slice(..));
-				render_pass.set_vertex_buffer(1, args.instance_buffer.slice(..));
-				render_pass.set_vertex_buffer(2, args.normal_buffer.slice(draw.normal_range.clone()));
-				// render_pass.set_vertex_buffer(3, args.tex_coords_buffer.slice(..));
-				render_pass.set_index_buffer(args.index_buffer.slice(draw.index_range.clone()), wgpu::IndexFormat::Uint16);
-				render_pass.draw_indexed(draw.indices_range.clone(), 0, draw.instances_range.clone());
-			}
+
+			// for view in args.views_3d {}
+
+			// render_pass.set_viewport(x, y, w, h, min_depth, max_depth)
+
+			// render_pass.set_pipeline(&self.pipeline);
+			// //render_pass.set_bind_group(0, &args.node_bind_group, &[]);
+			// render_pass.set_bind_group(0, &args.camera_buffer.bind_group(), &[]);
+			// render_pass.set_bind_group(1, &args.node_buffer.bind_group(), &[]);
+			// render_pass.set_bind_group(2, &args.point_light_buffer.bind_group(), &[]);
+
+			// for draw in args.instructions {
+			// 	render_pass.set_vertex_buffer(0, args.positions_buffer.slice(draw.position_range.clone()));
+			// 	//render_pass.set_vertex_buffer(1, args.positions_buffer.slice(..));
+			// 	render_pass.set_vertex_buffer(1, args.instance_buffer.slice(..));
+			// 	render_pass.set_vertex_buffer(2, args.normal_buffer.slice(draw.normal_range.clone()));
+			// 	// render_pass.set_vertex_buffer(3, args.tex_coords_buffer.slice(..));
+			// 	render_pass.set_index_buffer(args.index_buffer.slice(draw.index_range.clone()), wgpu::IndexFormat::Uint16);
+			// 	render_pass.draw_indexed(draw.indices_range.clone(), 0, draw.instances_range.clone());
+			// }
 		}
 
 		output.present();

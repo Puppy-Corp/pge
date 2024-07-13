@@ -6,10 +6,10 @@ use crate::FontHandle;
 pub struct Color {}
 
 impl Color {
-	pub const BLACK: [f32; 4] = [0.0, 0.0, 0.0, 1.0];
-	pub const WHITE: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
-	pub const RED: [f32; 4] = [1.0, 0.0, 0.0, 1.0];
-	pub const GREEN: [f32; 4] = [0.0, 1.0, 0.0, 1.0];
+	pub const BLACK: [f32; 3] = [0.0, 0.0, 0.0];
+	pub const WHITE: [f32; 3] = [1.0, 1.0, 1.0];
+	pub const RED: [f32; 3] = [1.0, 0.0, 0.0,];
+	pub const GREEN: [f32; 3] = [0.0, 1.0, 0.0];
 }
 
 pub struct MouseArea {
@@ -35,7 +35,7 @@ pub struct Window {
 	pub title: String,
 	pub width: u32,
 	pub height: u32,
-	pub ui: GUIElement,
+	pub ui: Option<Index>,
 	pub lock_cursor: bool,
 }
 
@@ -46,7 +46,7 @@ impl Window {
 			title: "".to_string(),
 			width: 800,
 			height: 600,
-			ui: GUIElement::default(),
+			ui: None,
 			lock_cursor: false,
 		}
 	}
@@ -56,8 +56,8 @@ impl Window {
 		self
 	}
 
-	pub fn cam(mut self, ui: GUIElement) -> Self {
-		self.ui = ui;
+	pub fn ui(mut self, ui: Index) -> Self {
+		self.ui = Some(ui);
 		self
 	}
 
@@ -94,7 +94,7 @@ pub struct GUIElement {
 	pub bottom_left_radius: f32,
 	pub bottom_right_radius: f32,
 	pub text: Option<String>,
-	pub background_color: Option<[f32; 4]>,
+	pub background_color: Option<[f32; 3]>,
 	pub font_size: u32,
 	pub font_color: [f32; 4],
 	pub camera_id: Option<Index>,
@@ -118,7 +118,7 @@ impl GUIElement {
 		self
 	}
 
-	pub fn background_color(mut self, color: [f32; 4]) -> Self {
+	pub fn background_color(mut self, color: [f32; 3]) -> Self {
 		self.background_color = Some(color);
 		self
 	}
@@ -142,13 +142,15 @@ impl GUIElement {
 pub fn vstack(children: &[GUIElement]) -> GUIElement {
 	GUIElement {
 		flex_dir: Flex::Vertical,
+		children: children.to_vec(),
 		..Default::default()
 	}
 }
 
-pub fn hstack() -> GUIElement {
+pub fn hstack(children: &[GUIElement]) -> GUIElement {
 	GUIElement {
 		flex_dir: Flex::Horizontal,
+		children: children.to_vec(),
 		..Default::default()
 	}
 }

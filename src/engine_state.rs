@@ -5,6 +5,7 @@ use std::time::Instant;
 use bytemuck::bytes_of;
 use thunderdome::Index;
 
+use crate::compositor::UICompositor;
 use crate::debug::ChangePrinter;
 use crate::physics::PhycicsSystem;
 use crate::renderer::DrawCall;
@@ -39,7 +40,8 @@ pub struct EngineState {
 	pub move_nodes: Vec<(Index, AABB)>,
 	rem_nodes: HashSet<Index>,
 	add_nodes: Vec<(Index, AABB)>,
-	phycics_system: PhycicsSystem
+	phycics_system: PhycicsSystem,
+	pub ui_compositors: HashMap<Index, UICompositor>,
 }
 
 impl EngineState {
@@ -63,7 +65,8 @@ impl EngineState {
 			move_nodes: Vec::new(),
 			rem_nodes: HashSet::new(),
 			add_nodes: Vec::new(),
-			phycics_system: PhycicsSystem::new()
+			phycics_system: PhycicsSystem::new(),
+			ui_compositors: HashMap::new(),
 		}
 	}
 
@@ -275,6 +278,13 @@ impl EngineState {
 		}
 		if timings.resolve_collision_time > 0 {
 			self.printer.print(NARROW_PHASE_TIME_SLOT, format!("resolve_collision_time: {}", timings.resolve_collision_time));
+		}
+	}
+
+	pub fn update_guis(&mut self) {
+		for (gui_id, gui) in &self.state.guis {
+			let compositor = self.ui_compositors.entry(gui_id).or_insert(UICompositor::new());
+			compositor.process(gui);
 		}
 	}
 }

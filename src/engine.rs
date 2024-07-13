@@ -39,7 +39,7 @@ struct GuiBuffers {
 }
 
 impl GuiBuffers {
-	pub fn new(device: Arc<wgpu::Device>, queue: Arc<wgpu::Queue>) -> Self {
+	pub fn new(device: Arc<wgpu::Device>) -> Self {
 		let vertices = device.create_buffer(&wgpu::BufferDescriptor {
 			label: Some("Gui Vertex Buffer"),
 			size: 10_000,
@@ -87,7 +87,6 @@ struct Engine<'a, T> {
 	device: Arc<wgpu::Device>,
 	position_buffer: wgpu::Buffer,
 	normal_buffer: wgpu::Buffer,
-	tex_coord_buffer: DynamicVertexBuffer,
 	index_buffer: wgpu::Buffer,
 	// instaces: Arena<RawInstance>,
 	windows: HashMap<WindowId, WindowContext<'a>>,
@@ -125,7 +124,6 @@ where
 
 		let position_buffer = RawPositions::create_buffer(&device, 10_000);
 		let normal_buffer = RawNormal::create_buffer(&device, 10_000);
-		let tex_coord_buffer = DynamicVertexBuffer::new(device.clone(), queue.clone());
 		let index_buffer = device.create_buffer(&wgpu::BufferDescriptor {
 			label: Some("Index Buffer"),
 			size: 10_000,
@@ -147,7 +145,6 @@ where
 			device,
 			position_buffer,
 			normal_buffer,
-			tex_coord_buffer,
 			index_buffer,
 			instance_buffer,
 			windows: HashMap::new(),
@@ -251,12 +248,37 @@ where
 				None => continue,
 			};
 
+			let compositor = match self.state.ui_compositors.get(&gui_id) {
+				Some(c) => c,
+				None => continue,
+			};
+
+			let mut views_3d = Vec::new();
+
+			for v in &compositor.views_3d {
+				let a = Render3D {
+					x: v.x,
+					y: v.y,
+					w: v.w,
+					h: v.h,
+					calls:  &self.state.draw_calls,
+					camera_buffer: &self.camera_buffer,
+					node_buffer: &self.node_buffer,
+					point_light_buffer: &self.point_light_buffer,
+					index_buffer: &self.index_buffer,
+					instance_buffer: &self.instance_buffer,
+					normal_buffer: &self.normal_buffer,
+					positions_buffer: &self.position_buffer,
+				};
+				views_3d.push(a);
+			}
+
 			let args = RenderArgs {
 				encoder: &mut encoder,
 				positions_buffer: &gui_buffers.positions_buffer,
 				index_buffer: &gui_buffers.index_buffer,
 				color_buffer: &gui_buffers.color_buffer,
-				views_3d: &[],
+				views_3d: &views_3d,
 				index_range: gui_buffers.index_range.clone(),
 				indices_range: gui_buffers.indices_range.clone(),
 				position_range: gui_buffers.position_range.clone(),
@@ -293,21 +315,29 @@ where
 	fn update_ui_buffers(&mut self) {
 		for (i, c) in &self.state.ui_compositors {
 			let buffers = self.gui_buffers.entry(*i)
-				.or_insert(GuiBuffers::new(self.device.clone(), self.queue.clone()));
+				.or_insert(GuiBuffers::new(self.device.clone()));
 
-			let positions_data = bytemuck::cast_slice(&c.positions);
-			let positions_data_len = positions_data.len() as u64;
-			self.queue.write_buffer(&buffers.positions_buffer, 0, positions_data);
-			let indices_data = bytemuck::cast_slice(&c.indices);
-			let indices_data_len = indices_data.len() as u64;
-			self.queue.write_buffer(&buffers.index_buffer, 0, indices_data);
-			let colors_data = bytemuck::cast_slice(&c.colors);
-			let colors_data_len = colors_data.len() as u64;
-			self.queue.write_buffer(&buffers.color_buffer, 0, colors_data);
-			buffers.position_range = 0..positions_data_len;
-			buffers.index_range = 0..indices_data_len;
-			buffers.indices_range = 0..c.indices.len() as u32;
-			buffers.colors_range = 0..colors_data_len;
+			// if c.positions.len() > 0 {
+			// 	let positions_data = bytemuck::cast_slice(&c.positions);
+			// 	let positions_data_len = positions_data.len() as u64;
+			// 	self.queue.write_buffer(&buffers.positions_buffer, 0, positions_data);
+			// 	buffers.position_range = 0..positions_data_len;
+			// }
+
+			// if c.indices.len() > 0 {
+			// 	let indices_data = bytemuck::cast_slice(&c.indices);
+			// 	let indices_data_len = indices_data.len() as u64;
+			// 	self.queue.write_buffer(&buffers.index_buffer, 0, indices_data);
+			// 	buffers.index_range = 0..indices_data_len;
+			// 	buffers.indices_range = 0..c.indices.len() as u32;
+			// }
+
+			// if c.colors.len() > 0 {
+			// 	let colors_data = bytemuck::cast_slice(&c.colors);
+			// 	let colors_data_len = colors_data.len() as u64;
+			// 	self.queue.write_buffer(&buffers.color_buffer, 0, colors_data);
+			// 	buffers.colors_range = 0..colors_data_len;
+			// }
 		}
 	}
 }

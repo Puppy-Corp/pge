@@ -6,6 +6,7 @@ use lyon::tessellation::FillOptions;
 use lyon::tessellation::FillTessellator;
 use lyon::tessellation::FillVertex;
 use lyon::tessellation::VertexBuffers;
+use thunderdome::Index;
 
 pub use crate::gui::*;
 
@@ -102,9 +103,19 @@ pub struct DrawText {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct CamView {
+	pub camera_id: Index,
+	pub x: f32,
+	pub y: f32,
+	pub w: f32,
+	pub h: f32
+}
+
+#[derive(Debug, Clone, PartialEq)]
 enum DrawItem {
 	Rect(DrawRect),
-	Text(DrawText)
+	Text(DrawText),
+	CamView(CamView)
 }
 
 pub enum Size {
@@ -211,6 +222,16 @@ impl Lineariser {
 			self.items.push(DrawItem::Text(text));
 		}
 
+		if let Some(camera_id) = item.camera_id {
+			self.items.push(DrawItem::CamView(CamView {
+				camera_id,
+				x: (outline.left_up[0] + 1.0) / 2.0,
+				y: (outline.left_down[1] + 1.0) / 2.0,
+				w: (outline.right_up[0] - outline.left_up[0]) / 2.0,
+				h: (outline.left_up[1] - outline.left_down[1]) / 2.0
+			}));
+		}
+
 		if item.children.len() > 0 {	
 			match item.flex_dir {
 				Flex::Horizontal => {
@@ -292,7 +313,8 @@ pub struct UICompositor {
 	lineariser: Lineariser,
 	pub positions: Vec<[f32; 3]>,
 	pub indices: Vec<u16>,
-	pub colors: Vec<[f32; 3]>
+	pub colors: Vec<[f32; 3]>,
+	pub views_3d: Vec<CamView>
 }
 
 impl UICompositor {
@@ -301,7 +323,8 @@ impl UICompositor {
 			lineariser: Lineariser::new(),
 			positions: Vec::new(),
 			indices: Vec::new(),
-			colors: Vec::new()
+			colors: Vec::new(),
+			views_3d: Vec::new()
 		}
 	}
 
@@ -330,6 +353,9 @@ impl UICompositor {
 					// self.colors.push(self.colors.last().unwrap().clone());
 				},
 				DrawItem::Text(text) => {},
+				DrawItem::CamView(view) => {
+					self.views_3d.push(view.clone());
+				}
 			}
 		}
 	}

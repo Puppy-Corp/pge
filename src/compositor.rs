@@ -283,15 +283,15 @@ impl Lineariser {
 					}
 				},
 				Flex::None => {
-					let mut up_y = outline.left_up[1];
-					let mut down_y = outline.left_down[1];
+					let up_y = outline.left_up[1];
+					let down_y = outline.left_down[1];
+					let left_x = outline.left_up[0];
+					let right_x = outline.right_up[0];
 					for child in item.children.iter() {
-						let left_up = [outline.left_up[0], up_y];
-						let left_down = [outline.left_down[0], down_y];
-						up_y = down_y;
-						down_y -= child.grow as f32;
-						let right_up = [outline.right_up[0], up_y];
-						let right_down = [outline.right_down[0], down_y];
+						let left_up = [left_x, up_y];
+						let left_down = [left_x, down_y];
+						let right_up = [right_x, up_y];
+						let right_down = [right_x, down_y];
 						self.inner_linearize(child, Some(Outline {
 							left_up,
 							right_up,
@@ -386,7 +386,7 @@ mod tests {
 
 	#[test]
 	fn test_vstack() {
-		let vstack = vstack(&[
+		let vstack = column(&[
 			rect().background_color(Color::RED),
 			rect().background_color(Color::GREEN)
 		]);
@@ -416,7 +416,7 @@ mod tests {
 
 	#[test]
 	fn test_hstack() {
-		let hstack = hstack(&[
+		let hstack = row(&[
 			rect().background_color(Color::RED),
 			rect().background_color(Color::GREEN)
 		]);
@@ -446,7 +446,7 @@ mod tests {
 
 	#[test]
 	fn test_vstack_grow() {
-		let vstack = vstack(&[
+		let vstack = column(&[
 			rect().background_color(Color::RED).grow(3),
 			rect().background_color(Color::GREEN).grow(1)
 		]);
@@ -476,7 +476,7 @@ mod tests {
 
 	#[test]
 	fn test_hstack_grow() {
-		let hstack = hstack(&[
+		let hstack = row(&[
 			rect().background_color(Color::RED).grow(3),
 			rect().background_color(Color::GREEN).grow(1)
 		]);
@@ -506,7 +506,7 @@ mod tests {
 
 	#[test]
 	fn test_text_rendering() {
-		let vstack = vstack(&[
+		let vstack = column(&[
 			text("row 1"),
 			text("row 2"),
 			text("row 3")

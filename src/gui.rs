@@ -151,7 +151,7 @@ impl GUIElement {
 	}
 }
 
-pub fn vstack(children: &[GUIElement]) -> GUIElement {
+pub fn column(children: &[GUIElement]) -> GUIElement {
 	GUIElement {
 		flex_dir: Flex::Vertical,
 		children: children.to_vec(),
@@ -159,10 +159,23 @@ pub fn vstack(children: &[GUIElement]) -> GUIElement {
 	}
 }
 
-pub fn hstack(children: &[GUIElement]) -> GUIElement {
+pub fn row(children: &[GUIElement]) -> GUIElement {
 	GUIElement {
 		flex_dir: Flex::Horizontal,
 		children: children.to_vec(),
+		..Default::default()
+	}
+}
+
+pub fn stack(children: &[GUIElement]) -> GUIElement {
+	GUIElement {
+		children: children.to_vec(),
+		..Default::default()
+	}
+}
+
+pub fn empty() -> GUIElement {
+	GUIElement {
 		..Default::default()
 	}
 }

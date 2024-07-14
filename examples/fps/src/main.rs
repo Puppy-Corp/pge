@@ -149,7 +149,13 @@ impl pge::App for FpsShooter {
 		let camera_id = state.cameras.insert(camera);
 		self.player_inx = Some(player_id);
 
-		let gui = camera_view(camera_id);
+		let gui = stack(&[
+			camera_view(camera_id),
+			column(&[
+				empty().grow(3),
+				rect().background_color(Color::GREEN),
+			])
+		]);
 		let gui_id = state.guis.insert(gui);
 
 		state.windows.insert(window().title("FPS Shooter1").ui(gui_id).lock_cursor(true));

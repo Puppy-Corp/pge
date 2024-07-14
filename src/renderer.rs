@@ -347,14 +347,6 @@ impl Renderer<'_> {
 
 			let position_count = args.position_range.clone().count();
 
-			if position_count > 0 {
-				render_pass.set_pipeline(&self.pipeline_gui);
-				render_pass.set_vertex_buffer(0, args.positions_buffer.slice(args.position_range));
-				render_pass.set_vertex_buffer(1, args.color_buffer.slice(args.color_range));
-				render_pass.set_index_buffer(args.index_buffer.slice(args.index_range), wgpu::IndexFormat::Uint16);
-				render_pass.draw_indexed(args.indices_range.clone(), 0, 0..1);
-			}
-
 			for view in args.views_3d {
 				let vx = view.x * self.size.width as f32;
 				let vy = view.y * self.size.height as f32;
@@ -376,28 +368,13 @@ impl Renderer<'_> {
 				}
 			}
 
-
-			// render_pass.set_viewport(x, y, w, h, min_depth, max_depth)
-
-			// for view in args.views_3d {}
-
-			// render_pass.set_viewport(x, y, w, h, min_depth, max_depth)
-
-			// render_pass.set_pipeline(&self.pipeline);
-			// //render_pass.set_bind_group(0, &args.node_bind_group, &[]);
-			// render_pass.set_bind_group(0, &args.camera_buffer.bind_group(), &[]);
-			// render_pass.set_bind_group(1, &args.node_buffer.bind_group(), &[]);
-			// render_pass.set_bind_group(2, &args.point_light_buffer.bind_group(), &[]);
-
-			// for draw in args.instructions {
-			// 	render_pass.set_vertex_buffer(0, args.positions_buffer.slice(draw.position_range.clone()));
-			// 	//render_pass.set_vertex_buffer(1, args.positions_buffer.slice(..));
-			// 	render_pass.set_vertex_buffer(1, args.instance_buffer.slice(..));
-			// 	render_pass.set_vertex_buffer(2, args.normal_buffer.slice(draw.normal_range.clone()));
-			// 	// render_pass.set_vertex_buffer(3, args.tex_coords_buffer.slice(..));
-			// 	render_pass.set_index_buffer(args.index_buffer.slice(draw.index_range.clone()), wgpu::IndexFormat::Uint16);
-			// 	render_pass.draw_indexed(draw.indices_range.clone(), 0, draw.instances_range.clone());
-			// }
+			if position_count > 0 {
+				render_pass.set_pipeline(&self.pipeline_gui);
+				render_pass.set_vertex_buffer(0, args.positions_buffer.slice(args.position_range));
+				render_pass.set_vertex_buffer(1, args.color_buffer.slice(args.color_range));
+				render_pass.set_index_buffer(args.index_buffer.slice(args.index_range), wgpu::IndexFormat::Uint16);
+				render_pass.draw_indexed(args.indices_range.clone(), 0, 0..1);
+			}
 		}
 
 		output.present();

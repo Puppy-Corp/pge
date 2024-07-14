@@ -178,30 +178,27 @@ impl Lineariser {
 		outline.left_down[1] += item.bottom_margin;
 		outline.right_down[1] += item.bottom_margin;
 
-		if let Some(background_color) = item.background_color {
-			// match &outline {
-			// 	Some(size) => {
-			// 		self.items.push(DrawItem::Rect(DrawRect {
-			// 			top_left: size.left_up,
-			// 			top_right: size.right_up,
-			// 			bottom_left: size.left_down,
-			// 			bottom_right: size.right_down,
-			// 			background_color,
-			// 			..Default::default()
-			// 		}));
-			// 	},
-			// 	None => {
-			// 		self.items.push(DrawItem::Rect(DrawRect {
-			// 			top_left: [-1.0, 1.0],
-			// 			top_right: [1.0, 1.0],
-			// 			bottom_left: [-1.0, -1.0],
-			// 			bottom_right: [1.0, -1.0],
-			// 			background_color,
-			// 			..Default::default()
-			// 		}));
-			// 	}
-			// }
+		if let Some(width) = item.width {
+			if item.anchor_left == true && item.anchor_right == false {
+				outline.right_up[0] = outline.left_up[0] + width;
+				outline.right_down[0] = outline.left_down[0] + width;
+			} else if item.anchor_left == false && item.anchor_right == true {
+				outline.left_up[0] = outline.right_up[0] - width;
+				outline.left_down[0] = outline.right_down[0] - width;
+			}
+		}
 
+		if let Some(height) = item.height {
+			if item.anchor_top == true && item.anchor_bottom == false {
+				outline.left_down[1] = outline.left_up[1] - height;
+				outline.right_down[1] = outline.right_up[1] - height;
+			} else if item.anchor_top == false && item.anchor_bottom == true {
+				outline.left_up[1] = outline.left_down[1] + height;
+				outline.right_up[1] = outline.right_down[1] + height;
+			}
+		}
+
+		if let Some(background_color) = item.background_color {
 			self.items.push(DrawItem::Rect(DrawRect {
 				top_left: outline.left_up,
 				top_right: outline.right_up,

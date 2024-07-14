@@ -10,6 +10,13 @@ impl Color {
 	pub const WHITE: [f32; 3] = [1.0, 1.0, 1.0];
 	pub const RED: [f32; 3] = [1.0, 0.0, 0.0,];
 	pub const GREEN: [f32; 3] = [0.0, 1.0, 0.0];
+	pub const BLUE: [f32; 3] = [0.0, 0.0, 1.0];
+	pub const YELLOW: [f32; 3] = [1.0, 1.0, 0.0];
+	pub const CYAN: [f32; 3] = [0.0, 1.0, 1.0];
+	pub const MAGENTA: [f32; 3] = [1.0, 0.0, 1.0];
+	pub const GRAY: [f32; 3] = [0.5, 0.5, 0.5];
+	pub const LIGHT_GRAY: [f32; 3] = [0.75, 0.75, 0.75];
+	pub const DARK_GRAY: [f32; 3] = [0.25, 0.25, 0.25];
 }
 
 pub struct MouseArea {
@@ -102,7 +109,13 @@ pub struct GUIElement {
 	pub font_size: u32,
 	pub font_color: [f32; 4],
 	pub camera_id: Option<Index>,
-	pub font: Option<FontHandle>
+	pub font: Option<FontHandle>,
+	pub height: Option<f32>,
+	pub width: Option<f32>,
+	pub anchor_left: bool,
+	pub anchor_right: bool,
+	pub anchor_top: bool,
+	pub anchor_bottom: bool,
 }
 
 impl GUIElement {
@@ -147,6 +160,36 @@ impl GUIElement {
 		self.left_margin = margin;
 		self.right_margin = margin;
 		self.bottom_margin = margin;
+		self
+	}
+
+	pub fn height(mut self, height: f32) -> Self {
+		self.height = Some(height);
+		self
+	}
+
+	pub fn width(mut self, width: f32) -> Self {
+		self.width = Some(width);
+		self
+	}
+
+	pub fn anchor_left(mut self) -> Self {
+		self.anchor_left = true;
+		self
+	}
+
+	pub fn anchor_right(mut self) -> Self {
+		self.anchor_right = true;
+		self
+	}
+
+	pub fn anchor_top(mut self) -> Self {
+		self.anchor_top = true;
+		self
+	}
+
+	pub fn anchor_bottom(mut self) -> Self {
+		self.anchor_bottom = true;
 		self
 	}
 }

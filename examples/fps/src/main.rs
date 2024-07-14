@@ -151,10 +151,7 @@ impl pge::App for FpsShooter {
 
 		let gui = stack(&[
 			camera_view(camera_id),
-			column(&[
-				empty().grow(3),
-				rect().background_color(Color::GREEN),
-			])
+			rect().background_color(Color::GREEN).height(0.1).anchor_bottom()
 		]);
 		let gui_id = state.guis.insert(gui);
 

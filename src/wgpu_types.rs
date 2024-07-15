@@ -1,7 +1,35 @@
 pub trait BufferRecipe {
-	fn create_buffer(device: &wgpu::Device) -> wgpu::Buffer;
+	fn create_buffer(device: &wgpu::Device, size: u64) -> wgpu::Buffer;
 	fn create_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout;
 	fn create_bind_group(device: &wgpu::Device, buffer: &wgpu::Buffer, layout: &wgpu::BindGroupLayout) -> wgpu::BindGroup;
+}
+
+pub struct TextureBuffer {}
+
+impl TextureBuffer {
+	pub fn create_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
+		device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+			label: Some("Texture Bind Group Layout"),
+			entries: &[
+				wgpu::BindGroupLayoutEntry {
+					binding: 0,
+					visibility: wgpu::ShaderStages::FRAGMENT,
+					ty: wgpu::BindingType::Texture {
+						multisampled: false,
+						view_dimension: wgpu::TextureViewDimension::D2,
+						sample_type: wgpu::TextureSampleType::Float { filterable: true },
+					},
+					count: None,
+				},
+				wgpu::BindGroupLayoutEntry {
+					binding: 1,
+					visibility: wgpu::ShaderStages::FRAGMENT,
+					ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+					count: None,
+				},
+			],
+		})
+	}
 }
 
 pub trait WgpuBuffer {
@@ -121,7 +149,7 @@ pub struct RawCamera {
 }
 
 impl BufferRecipe for RawCamera {
-	fn create_buffer(device: &wgpu::Device) -> wgpu::Buffer {
+	fn create_buffer(device: &wgpu::Device, size: u64) -> wgpu::Buffer {
 		device.create_buffer(&wgpu::BufferDescriptor {
 			label: Some("Camera Buffer"),
 			size: std::mem::size_of::<RawCamera>() as u64,
@@ -135,7 +163,7 @@ impl BufferRecipe for RawCamera {
 			label: Some("Camera Bind Group Layout"),
 			entries: &[
 				wgpu::BindGroupLayoutEntry {
-					binding: 1,
+					binding: 0,
 					visibility: wgpu::ShaderStages::VERTEX,
 					ty: wgpu::BindingType::Buffer {
 						ty: wgpu::BufferBindingType::Uniform,
@@ -153,7 +181,7 @@ impl BufferRecipe for RawCamera {
 			layout,
 			entries: &[
 				wgpu::BindGroupEntry {
-					binding: 1,
+					binding: 0,
 					resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
 						buffer,
 						offset: 0,
@@ -269,10 +297,10 @@ pub struct RawNode {
 }
 
 impl BufferRecipe for RawNode {
-	fn create_buffer(device: &wgpu::Device) -> wgpu::Buffer {
+	fn create_buffer(device: &wgpu::Device, size: u64) -> wgpu::Buffer {
 		device.create_buffer(&wgpu::BufferDescriptor {
 			label: Some("Node Buffer"),
-			size: 10_000,
+			size,
 			usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
 			mapped_at_creation: false,
 		})
@@ -369,10 +397,10 @@ pub struct NodeTransformation {
 }
 
 impl BufferRecipe for NodeTransformation {
-	fn create_buffer(device: &wgpu::Device) -> wgpu::Buffer {
+	fn create_buffer(device: &wgpu::Device, size: u64) -> wgpu::Buffer {
 		device.create_buffer(&wgpu::BufferDescriptor {
 			label: Some("Node Transformation Buffer"),
-			size: 1024,
+			size,
 			usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
 			mapped_at_creation: false,
 		})
@@ -433,10 +461,10 @@ pub struct RawPointLight {
 }
 
 impl BufferRecipe for RawPointLight {
-	fn create_buffer(device: &wgpu::Device) -> wgpu::Buffer {
+	fn create_buffer(device: &wgpu::Device, size: u64) -> wgpu::Buffer {
 		device.create_buffer(&wgpu::BufferDescriptor {
 			label: Some("Point Light Buffer"),
-			size: 1024,
+			size,
 			usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
 			mapped_at_creation: false,
 		})
@@ -486,7 +514,7 @@ pub struct RawAnimation {
 }
 
 impl BufferRecipe for RawAnimation {
-	fn create_buffer(device: &wgpu::Device) -> wgpu::Buffer {
+	fn create_buffer(device: &wgpu::Device, size_: u64) -> wgpu::Buffer {
 		device.create_buffer(&wgpu::BufferDescriptor {
 			label: Some("Animation Buffer"),
 			size: std::mem::size_of::<RawAnimation>() as u64,
@@ -530,56 +558,4 @@ impl BufferRecipe for RawAnimation {
 		})
 	}
 
-}
-
-#[repr(C)]
-#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct RawKeyFrame {
-	pub value: [[f32; 4]; 4],
-}
-
-impl BufferRecipe for RawKeyFrame {
-	fn create_buffer(device: &wgpu::Device) -> wgpu::Buffer {
-		device.create_buffer(&wgpu::BufferDescriptor {
-			label: Some("KeyFrame Buffer"),
-			size: std::mem::size_of::<RawKeyFrame>() as u64,
-			usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-			mapped_at_creation: false,
-		})
-	}
-
-	fn create_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
-		device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-			label: Some("KeyFrame Bind Group Layout"),
-			entries: &[
-				wgpu::BindGroupLayoutEntry {
-					binding: 0,
-					visibility: wgpu::ShaderStages::FRAGMENT,
-					ty: wgpu::BindingType::Buffer {
-						ty: wgpu::BufferBindingType::Storage { read_only: false },
-						has_dynamic_offset: false,
-						min_binding_size: None,
-					},
-					count: None,
-				},
-			],
-		})
-	}
-
-	fn create_bind_group(device: &wgpu::Device, buffer: &wgpu::Buffer, layout: &wgpu::BindGroupLayout) -> wgpu::BindGroup {
-		device.create_bind_group(&wgpu::BindGroupDescriptor {
-			layout,
-			entries: &[
-				wgpu::BindGroupEntry {
-					binding: 0,
-					resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-						buffer,
-						offset: 0,
-						size: None,
-					}),
-				},
-			],
-			label: Some("KeyFrame Bind Group"),
-		})
-	}
 }

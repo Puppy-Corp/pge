@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::path::Path;
 use std::time::Duration;
 use glam::Vec3;
 use thunderdome::Arena;
@@ -273,6 +274,7 @@ pub struct Mesh {
 	pub text_coords: Vec<[f32; 2]>,
 	pub colors: Vec<[f32; 4]>,
 	pub indices: Vec<u16>,
+	pub texture: Option<Index>,
 }
 
 impl Mesh {
@@ -286,6 +288,7 @@ impl Mesh {
 			text_coords: vec![],
 			colors: vec![],
 			indices: vec![],
+			texture: None,
 		}
 	}
 
@@ -296,6 +299,11 @@ impl Mesh {
 
 	pub fn set_material(&mut self, material: Material) {
 		self.material = Some(material);
+	}
+
+	pub fn set_texture(mut self, texture: Index) -> Self {
+		self.texture = Some(texture);
+		self
 	}
 
 	pub fn add_mesh(&mut self, mesh: Mesh) {
@@ -412,6 +420,17 @@ impl Animation {
 pub struct Texture {
     name: String,
     source: String, // URI to the texture image
+}
+
+impl Texture {
+	pub fn new<P: AsRef<Path>>(path: P) -> Self {
+		let path = path.as_ref();
+
+		Self {
+			name: "".to_string(),
+			source: path.to_str().unwrap().to_string(),
+		}
+	}
 }
 
 #[derive(Debug, Clone)]
@@ -559,6 +578,7 @@ pub struct State {
 	pub windows: Arena<Window>,
 	pub guis: Arena<GUIElement>,
 	pub point_lights: Arena<PointLight>,
+	pub textures: Arena<Texture>,
 }
 
 pub trait App {

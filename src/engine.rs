@@ -4,8 +4,10 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::time::Instant;
 use thunderdome::Index;
+use wgpu::naga::back::msl::sampler;
 use wgpu::Backends;
 use wgpu::Features;
+use wgpu::Origin3d;
 use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalPosition;
 use winit::event::WindowEvent;
@@ -15,6 +17,8 @@ use winit::keyboard::KeyCode;
 use winit::window::WindowId;
 use crate::buffer::*;
 use crate::engine_state::EngineState;
+use crate::internal_types::EngineEvent;
+use crate::texture::create_texture_with_uniform_color;
 use crate::types::*;
 use crate::renderer::*;
 use crate::wgpu_types::*;
@@ -24,7 +28,7 @@ where
 	T: App
 {
 	let mut engine = Engine::new(app).await;
-	let event_loop = EventLoop::new()?;
+	let event_loop: EventLoop<EngineEvent> = EventLoop::<EngineEvent>::with_user_event().build()?;
 	Ok(event_loop.run_app(&mut engine)?)
 }
 
@@ -91,12 +95,14 @@ struct Engine<'a, T> {
 	// instaces: Arena<RawInstance>,
 	windows: HashMap<WindowId, WindowContext<'a>>,
 	instance_buffer: wgpu::Buffer,
-	camera_buffer: FixedBuffer<RawCamera>,
-	node_buffer: FixedBuffer<RawNode>,
-	point_light_buffer: FixedBuffer<RawPointLight>,
+	node_buffer: Buffer,
+	point_light_buffer: Buffer,
 	last_on_process_time: Instant,
 	last_physics_update_time: Instant,
 	gui_buffers: HashMap<Index, GuiBuffers>,
+	texture_bind_groups: HashMap<Index, wgpu::BindGroup>,
+	camera_buffers: HashMap<Index, Buffer>,
+	default_texture: wgpu::BindGroup,
 }
 
 impl<'a, T> Engine<'a, T>
@@ -122,6 +128,8 @@ where
 		let adapter = Arc::new(adapter);
 		let instance = Arc::new(instance);
 
+		let default_texture = create_texture_with_uniform_color(&device, &queue);
+
 		let position_buffer = RawPositions::create_buffer(&device, 10_000);
 		let normal_buffer = RawNormal::create_buffer(&device, 10_000);
 		let index_buffer = device.create_buffer(&wgpu::BufferDescriptor {
@@ -131,9 +139,8 @@ where
 			mapped_at_creation: false
 		});
 		let instance_buffer = RawInstance::create_buffer(&device, 10_000);
-		let camera_buffer = FixedBuffer::new(device.clone(), queue.clone());
-		let node_buffer = FixedBuffer::new(device.clone(), queue.clone());
-		let point_light_buffer = FixedBuffer::new(device.clone(), queue.clone());
+		let node_buffer = Buffer::new::<RawNode>(&device, 10_000);
+		let point_light_buffer = Buffer::new::<RawPointLight>(&device, 10_000);
 
 		Self {
 			i: 0,
@@ -148,12 +155,14 @@ where
 			index_buffer,
 			instance_buffer,
 			windows: HashMap::new(),
-			camera_buffer,
 			node_buffer,
 			point_light_buffer,
 			last_on_process_time: Instant::now(),
 			last_physics_update_time: Instant::now(),
 			gui_buffers: HashMap::new(),
+			texture_bind_groups: HashMap::new(),
+			camera_buffers: HashMap::new(),
+			default_texture,
 		}
 	}
 
@@ -175,13 +184,21 @@ where
 			self.queue.write_buffer(&self.index_buffer, 0, &self.state.all_indices_data);
 		}
 		if self.state.all_nodes_data.len() > 0 {
-			self.queue.write_buffer(&self.node_buffer.buffer(), 0, &self.state.all_nodes_data);
+			self.queue.write_buffer(&self.node_buffer.buffer, 0, &self.state.all_nodes_data);
 		}
+		// if self.state.all_cameras_data.len() > 0 {
+		// 	self.queue.write_buffer(&self.camera_buffer.buffer, 0, &self.state.all_cameras_data);
+		// }
+
 		if self.state.all_cameras_data.len() > 0 {
-			self.queue.write_buffer(&self.camera_buffer.buffer(), 0, &self.state.all_cameras_data);
+			for (camera_id, data) in &self.state.all_cameras_data {
+				let camera_buffer = self.camera_buffers.entry(*camera_id)
+					.or_insert(Buffer::new::<RawCamera>(&self.device, 10_000));
+				self.queue.write_buffer(&camera_buffer.buffer, 0, data);
+			}
 		}
 		if self.state.all_point_lights_data.len() > 0 {
-			self.queue.write_buffer(&self.point_light_buffer.buffer(), 0, &self.state.all_point_lights_data);
+			self.queue.write_buffer(&self.point_light_buffer.buffer, 0, &self.state.all_point_lights_data);
 		}
 	}
 
@@ -256,15 +273,36 @@ where
 			let mut views_3d = Vec::new();
 
 			for v in &compositor.views_3d {
-				let a = Render3D {
+				let camera_buffer = match self.camera_buffers.get(&v.camera_id) {
+					Some(b) => b,
+					None => continue,
+				};
+
+				let calls: Vec<_> = self.state.draw_calls.iter().map(|d| {
+					let texture_bind_group = match d.texture {
+						Some(t) => self.texture_bind_groups.get(&t).unwrap_or(&self.default_texture),
+						None => &self.default_texture,
+					};
+				
+					DrawCall {
+						index_range: d.index_range.clone(),
+						indices_range: d.indices_range.clone(),
+						normal_range: d.normal_range.clone(),
+						instances_range: d.instances_range.clone(),
+						position_range: d.position_range.clone(),
+						texture_bind_group,
+					}
+				}).collect();
+
+				let a = Render3DView {
 					x: v.x,
 					y: v.y,
 					w: v.w,
 					h: v.h,
-					calls:  &self.state.draw_calls,
-					camera_buffer: &self.camera_buffer,
-					node_buffer: &self.node_buffer,
-					point_light_buffer: &self.point_light_buffer,
+					calls,
+					camera_bind_group: &camera_buffer.bind_group,
+					node_bind_group: &self.node_buffer.bind_group,
+					point_light_bind_group: &self.point_light_buffer.bind_group,
 					index_buffer: &self.index_buffer,
 					instance_buffer: &self.instance_buffer,
 					normal_buffer: &self.normal_buffer,
@@ -286,28 +324,6 @@ where
 			};
 
 			window_ctx.renderer.render(args).unwrap();
-
-			// let camera_id = match window.cam {
-			// 	Some(cam) => cam,
-			// 	None => continue,
-			// };
-
-			// let camera = match self.state.state.cameras.get(camera_id) {
-			// 	Some(cam) => cam,
-			// 	None => continue,
-			// };
-
-			// window_ctx.renderer.render(RenderArgs {
-			// 	node_buffer: &self.node_buffer,
-			// 	camera_buffer: &self.camera_buffer,
-			// 	point_light_buffer: &self.point_light_buffer,
-			// 	instance_buffer: &self.instance_buffer,
-			// 	index_buffer: &self.index_buffer,
-			// 	normal_buffer: &self.normal_buffer,
-			// 	positions_buffer: &self.position_buffer,
-			// 	encoder: &mut encoder,
-			// 	instructions: &mut self.state.draw_calls.iter(),
-			// }).unwrap();
 		}
 		self.queue.submit(std::iter::once(encoder.finish()));
 	}
@@ -342,7 +358,7 @@ where
 	}
 }
 
-impl<'a, T> ApplicationHandler for Engine<'a, T>
+impl<'a, T> ApplicationHandler<EngineEvent> for Engine<'a, T>
 where
 	T: App
 {
@@ -351,6 +367,77 @@ where
 		self.state.update_guis();
 		self.update_ui_buffers();
 		self.update_windows(event_loop);
+	}
+
+	fn user_event(&mut self, event_loop: &winit::event_loop::ActiveEventLoop, event: EngineEvent) {
+		match event {
+			EngineEvent::ImageLoaded { texture_id, width, height, data } => {
+				let texture = self.device.create_texture(
+					&wgpu::TextureDescriptor {
+						label: Some("Loaded Image"),
+						size: wgpu::Extent3d {
+							width,
+							height,
+							depth_or_array_layers: 1,
+						},
+						mip_level_count: 1,
+						sample_count: 1,
+						dimension: wgpu::TextureDimension::D2,
+						format: wgpu::TextureFormat::Rgba8UnormSrgb,
+						usage: wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::TEXTURE_BINDING,
+						view_formats: &[]
+					}
+				);
+
+				self.queue.write_texture(
+					wgpu::ImageCopyTexture {
+						texture: &texture,
+						mip_level: 1,
+						origin: Origin3d::ZERO,
+						aspect: wgpu::TextureAspect::All,
+					},
+					&data,
+					wgpu::ImageDataLayout {
+						offset: 0,
+						bytes_per_row: Some(4 * width),
+						rows_per_image: Some(height),
+					},
+					wgpu::Extent3d {
+						width,
+						height,
+						depth_or_array_layers: 1,
+					}
+				);
+
+				let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+				let sampler = self.device.create_sampler(&wgpu::SamplerDescriptor {
+					address_mode_u: wgpu::AddressMode::ClampToEdge,
+					address_mode_v: wgpu::AddressMode::ClampToEdge,
+					address_mode_w: wgpu::AddressMode::ClampToEdge,
+					mag_filter: wgpu::FilterMode::Linear,
+					min_filter: wgpu::FilterMode::Linear,
+					mipmap_filter: wgpu::FilterMode::Nearest,
+					..Default::default()
+				});
+
+				let texture_bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+					layout: &TextureBuffer::create_bind_group_layout(&self.device),
+					entries: &[
+						wgpu::BindGroupEntry {
+							binding: 0,
+							resource: wgpu::BindingResource::TextureView(&texture_view),
+						},
+						wgpu::BindGroupEntry {
+							binding: 1,
+							resource: wgpu::BindingResource::Sampler(&sampler),
+						},
+					],
+					label: Some("texture_bind_group"),
+				});
+
+				self.texture_bind_groups.insert(texture_id, texture_bind_group);
+			},
+		}
 	}
 
 	fn about_to_wait(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
@@ -438,7 +525,6 @@ where
 						repeat,
 						..
 					} => {
-						// println!("keyboard input: {:?}", virtual_keycode);
 						if !repeat {
 							match physical_key {
 								winit::keyboard::PhysicalKey::Code(code) => {

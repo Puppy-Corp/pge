@@ -25,13 +25,15 @@ fn create_3d_pipeline(args: Create3DPipelineArgs) -> wgpu::RenderPipeline {
 	let camera_bind_group_layout = RawCamera::create_bind_group_layout(&args.device);
 	let node_bind_group_layout = RawNode::create_bind_group_layout(&args.device);
 	let point_light_bind_group_layout = RawPointLight::create_bind_group_layout(&args.device);
+	let texture_layout = TextureBuffer::create_bind_group_layout(&args.device);
 
 	let render_pipeline_layout = args.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
 		label: Some("Render Pipeline Layout"),
 		bind_group_layouts: &[
 			&camera_bind_group_layout, 
 			&node_bind_group_layout, 
-			&point_light_bind_group_layout
+			&point_light_bind_group_layout,
+			&texture_layout
 		],
 		push_constant_ranges: &[],
 	});
@@ -189,8 +191,9 @@ fn create_gui_pipeline(args: CreateGUIPipelineArgs) -> wgpu::RenderPipeline {
 	render_pipeline
 }
 
-#[derive(Debug, Default, Hash)]
-pub struct DrawCall {
+#[derive(Debug)]
+pub struct DrawCall<'a> {
+	pub texture_bind_group: &'a wgpu::BindGroup,
 	pub position_range: Range<u64>,
 	pub index_range: Range<u64>,
 	pub normal_range: Range<u64>,
@@ -198,15 +201,16 @@ pub struct DrawCall {
 	pub indices_range: Range<u32>,
 }
 
-pub struct Render3D<'a> {
+pub struct Render3DView<'a> {
 	pub positions_buffer: &'a wgpu::Buffer,
 	pub index_buffer: &'a wgpu::Buffer,
 	pub normal_buffer: &'a wgpu::Buffer,
 	pub instance_buffer: &'a wgpu::Buffer,
-	pub camera_buffer: &'a FixedBuffer<RawCamera>,
-	pub point_light_buffer: &'a FixedBuffer<RawPointLight>,
-	pub node_buffer: &'a FixedBuffer<RawNode>,
-	pub calls: &'a [DrawCall],
+	pub camera_bind_group: &'a wgpu::BindGroup,
+	pub point_light_bind_group: &'a wgpu::BindGroup,
+	pub node_bind_group: &'a wgpu::BindGroup,
+	// pub calls: &'a [DrawCall<'a>],
+	pub calls: Vec<DrawCall<'a>>,
 	pub x: f32,
 	pub y: f32,
 	pub w: f32,
@@ -218,7 +222,7 @@ pub struct RenderArgs<'a> {
 	pub positions_buffer: &'a wgpu::Buffer,
 	pub index_buffer: &'a wgpu::Buffer,
 	pub color_buffer: &'a wgpu::Buffer,
-	pub views_3d: &'a [Render3D<'a>],
+	pub views_3d: &'a [Render3DView<'a>],
 	pub position_range: Range<u64>,
 	pub index_range: Range<u64>,
 	pub indices_range: Range<u32>,
@@ -355,11 +359,12 @@ impl Renderer<'_> {
 
 				render_pass.set_viewport(vx, vy, vw, vh, 0.0, 1.0);
 				render_pass.set_pipeline(&self.pipeline_3d);
-				render_pass.set_bind_group(0, &view.camera_buffer.bind_group(), &[]);
-				render_pass.set_bind_group(1, &view.node_buffer.bind_group(), &[]);
-				render_pass.set_bind_group(2, &view.point_light_buffer.bind_group(), &[]);
+				render_pass.set_bind_group(0, &view.camera_bind_group, &[]);
+				render_pass.set_bind_group(1, &view.node_bind_group, &[]);
+				render_pass.set_bind_group(2, &view.point_light_bind_group, &[]);
 
-				for call in view.calls {
+				for call in &view.calls {
+					render_pass.set_bind_group(3, &call.texture_bind_group, &[]);
 					render_pass.set_vertex_buffer(0, view.positions_buffer.slice(call.position_range.clone()));
 					render_pass.set_vertex_buffer(1, view.instance_buffer.slice(..));
 					render_pass.set_vertex_buffer(2, view.normal_buffer.slice(call.normal_range.clone()));
@@ -368,13 +373,13 @@ impl Renderer<'_> {
 				}
 			}
 
-			if position_count > 0 {
-				render_pass.set_pipeline(&self.pipeline_gui);
-				render_pass.set_vertex_buffer(0, args.positions_buffer.slice(args.position_range));
-				render_pass.set_vertex_buffer(1, args.color_buffer.slice(args.color_range));
-				render_pass.set_index_buffer(args.index_buffer.slice(args.index_range), wgpu::IndexFormat::Uint16);
-				render_pass.draw_indexed(args.indices_range.clone(), 0, 0..1);
-			}
+			// if position_count > 0 {
+			// 	render_pass.set_pipeline(&self.pipeline_gui);
+			// 	render_pass.set_vertex_buffer(0, args.positions_buffer.slice(args.position_range));
+			// 	render_pass.set_vertex_buffer(1, args.color_buffer.slice(args.color_range));
+			// 	render_pass.set_index_buffer(args.index_buffer.slice(args.index_range), wgpu::IndexFormat::Uint16);
+			// 	render_pass.draw_indexed(args.indices_range.clone(), 0, 0..1);
+			// }
 		}
 
 		output.present();

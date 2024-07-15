@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::ops::Range;
 use std::time::Instant;
 
 use bytemuck::bytes_of;
@@ -8,7 +9,6 @@ use thunderdome::Index;
 use crate::compositor::UICompositor;
 use crate::debug::ChangePrinter;
 use crate::physics::PhycicsSystem;
-use crate::renderer::DrawCall;
 use crate::spatial_grid::SpatialGrid;
 use crate::wgpu_types::*;
 use crate::Node;
@@ -20,6 +20,16 @@ const ADD_NODE_SLOT: u32 = 1;
 const NODE_UPDATE_TIME_SLOT: u32 = 2;
 const BROAD_PHASE_TIME_SLOT: u32 = 3;
 const NARROW_PHASE_TIME_SLOT: u32 = 4;
+
+#[derive(Debug, Clone)]
+pub struct DrawCall {
+	pub texture: Option<Index>,
+	pub position_range: Range<u64>,
+	pub index_range: Range<u64>,
+	pub normal_range: Range<u64>,
+	pub instances_range: Range<u32>,
+	pub indices_range: Range<u32>,	
+}
 
 pub struct EngineState {
 	pub state: State,
@@ -35,7 +45,7 @@ pub struct EngineState {
 	pub all_normals_data: Vec<u8>,
 	pub all_indices_data: Vec<u8>,
 	pub all_nodes_data: Vec<u8>,
-	pub all_cameras_data: Vec<u8>,
+	pub all_cameras_data: HashMap<Index, Vec<u8>>,
 	pub all_point_lights_data: Vec<u8>,
 	pub move_nodes: Vec<(Index, AABB)>,
 	rem_nodes: HashSet<Index>,
@@ -59,7 +69,7 @@ impl EngineState {
 			all_normals_data: Vec::new(),
 			all_indices_data: Vec::new(),
 			all_nodes_data: Vec::new(),
-			all_cameras_data: Vec::new(),
+			all_cameras_data: HashMap::new(),
 			all_point_lights_data: Vec::new(),
 			printer: ChangePrinter::new(),
 			move_nodes: Vec::new(),
@@ -165,7 +175,8 @@ impl EngineState {
 				normal_range: normals_start..normals_end,
 				index_range: indices_start..indices_end,
 				indices_range: 0..mesh.indices.len() as u32,
-				instances_range: instance_start..instance_end
+				instances_range: instance_start..instance_end,
+				texture: mesh.texture,
 			};
 
 			match self.meshes.contains(&mesh_id) {
@@ -225,7 +236,7 @@ impl EngineState {
 				}
 			}
 
-			self.all_cameras_data.extend_from_slice(bytes_of(&cam));
+			self.all_cameras_data.insert(cam_id, bytes_of(&cam).to_vec());
 		}
 
 		for (node_id, light) in &self.state.point_lights {

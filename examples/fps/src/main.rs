@@ -99,6 +99,9 @@ impl FpsShooter {
 
 impl pge::App for FpsShooter {
 	fn on_create(&mut self, state: &mut State) {
+		let texture = Texture::new("./assets/gandalf.jpg");
+	 	let texture_id = state.textures.insert(texture);
+
 		let mut light_node = Node::new();
 		light_node.set_translation(10.0, 10.0, 0.0);
 		let light_inx = state.nodes.insert(light_node);
@@ -107,7 +110,7 @@ impl pge::App for FpsShooter {
 		light.node_id = Some(light_inx);
 		state.point_lights.insert(light);
 
-		let cube_mesh = state.meshes.insert(cube(1.0));
+		let cube_mesh = state.meshes.insert(cube(1.0).set_texture(texture_id));
 		let plane_mesh = state.meshes.insert(plane(1.0, 1.0));
 
 		let mut player = Node::new();
@@ -196,7 +199,7 @@ impl pge::App for FpsShooter {
 		}
 
 		let force = PhysicsForce {
-			force: player.rotation * dir * 5.0,
+			force: player.rotation * dir * 10.0,
 			id: 1,
 			max_velocity: 200.0,
 		};

@@ -271,7 +271,7 @@ pub struct Mesh {
 	pub material: Option<Material>,
 	pub positions: Vec<[f32; 3]>,
 	pub normals: Vec<[f32; 3]>,
-	pub text_coords: Vec<[f32; 2]>,
+	pub tex_coords: Vec<[f32; 2]>,
 	pub colors: Vec<[f32; 4]>,
 	pub indices: Vec<u16>,
 	pub texture: Option<Index>,
@@ -285,7 +285,7 @@ impl Mesh {
 			material: None,
 			positions: vec![],
 			normals: vec![],
-			text_coords: vec![],
+			tex_coords: vec![],
 			colors: vec![],
 			indices: vec![],
 			texture: None,
@@ -309,7 +309,7 @@ impl Mesh {
 	pub fn add_mesh(&mut self, mesh: Mesh) {
 		self.positions.extend(mesh.positions);
 		self.normals.extend(mesh.normals);
-		self.text_coords.extend(mesh.text_coords);
+		self.tex_coords.extend(mesh.tex_coords);
 		self.indices.extend(mesh.indices);
 	}
 }
@@ -418,8 +418,8 @@ impl Animation {
 
 #[derive(Debug, Clone)]
 pub struct Texture {
-    name: String,
-    source: String, // URI to the texture image
+    pub name: String,
+    pub source: String, // URI to the texture image
 }
 
 impl Texture {

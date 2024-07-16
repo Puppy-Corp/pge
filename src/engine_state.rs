@@ -10,9 +10,11 @@ use crate::compositor::UICompositor;
 use crate::debug::ChangePrinter;
 use crate::physics::PhycicsSystem;
 use crate::spatial_grid::SpatialGrid;
+use crate::texture::load_image;
 use crate::wgpu_types::*;
 use crate::Node;
 use crate::State;
+use crate::Texture;
 use crate::AABB;
 
 const REM_NODE_SLOT: u32 = 0;
@@ -27,8 +29,9 @@ pub struct DrawCall {
 	pub position_range: Range<u64>,
 	pub index_range: Range<u64>,
 	pub normal_range: Range<u64>,
+	pub tex_coords_range: Range<u64>,
 	pub instances_range: Range<u32>,
-	pub indices_range: Range<u32>,	
+	pub indices_range: Range<u32>,
 }
 
 pub struct EngineState {
@@ -42,6 +45,7 @@ pub struct EngineState {
 	pub draw_calls: Vec<DrawCall>,
 	pub all_instances_data: Vec<u8>,
 	pub all_positions_data: Vec<u8>,
+	pub all_tex_coords_data: Vec<u8>,
 	pub all_normals_data: Vec<u8>,
 	pub all_indices_data: Vec<u8>,
 	pub all_nodes_data: Vec<u8>,
@@ -52,6 +56,7 @@ pub struct EngineState {
 	add_nodes: Vec<(Index, AABB)>,
 	phycics_system: PhycicsSystem,
 	pub ui_compositors: HashMap<Index, UICompositor>,
+	pub textures: HashMap<Index, Texture>,
 }
 
 impl EngineState {
@@ -66,6 +71,7 @@ impl EngineState {
 			cameras: HashMap::new(),
 			all_instances_data: Vec::new(),
 			all_positions_data: Vec::new(),
+			all_tex_coords_data: Vec::new(),
 			all_normals_data: Vec::new(),
 			all_indices_data: Vec::new(),
 			all_nodes_data: Vec::new(),
@@ -77,6 +83,7 @@ impl EngineState {
 			add_nodes: Vec::new(),
 			phycics_system: PhycicsSystem::new(),
 			ui_compositors: HashMap::new(),
+			textures: HashMap::new(),
 		}
 	}
 
@@ -85,6 +92,7 @@ impl EngineState {
 		self.draw_calls.clear();
 		self.all_instances_data.clear();
 		self.all_positions_data.clear();
+		self.all_tex_coords_data.clear();
 		self.all_normals_data.clear();
 		self.all_indices_data.clear();
 		self.all_nodes_data.clear();
@@ -159,6 +167,9 @@ impl EngineState {
 			let normals_start = self.all_normals_data.len() as u64;
 			self.all_normals_data.extend_from_slice(bytemuck::cast_slice(&mesh.normals));
 			let normals_end = self.all_normals_data.len() as u64;
+			let tex_coords_start = self.all_tex_coords_data.len() as u64;
+			self.all_tex_coords_data.extend_from_slice(bytemuck::cast_slice(&mesh.tex_coords));
+			let tex_coords_end = self.all_tex_coords_data.len() as u64;
 
 			let instances: &Vec<RawInstance> = match mesh_instances.get(&mesh_id) {
 				Some(instances) => instances,
@@ -176,6 +187,7 @@ impl EngineState {
 				index_range: indices_start..indices_end,
 				indices_range: 0..mesh.indices.len() as u32,
 				instances_range: instance_start..instance_end,
+				tex_coords_range: tex_coords_start..tex_coords_end,
 				texture: mesh.texture,
 			};
 

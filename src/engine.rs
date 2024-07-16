@@ -4,7 +4,6 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::time::Instant;
 use thunderdome::Index;
-use wgpu::naga::back::msl::sampler;
 use wgpu::Backends;
 use wgpu::Features;
 use wgpu::Origin3d;
@@ -13,12 +12,14 @@ use winit::dpi::PhysicalPosition;
 use winit::event::WindowEvent;
 use winit::event_loop::ControlFlow;
 use winit::event_loop::EventLoop;
+use winit::event_loop::EventLoopProxy;
 use winit::keyboard::KeyCode;
 use winit::window::WindowId;
 use crate::buffer::*;
 use crate::engine_state::EngineState;
 use crate::internal_types::EngineEvent;
 use crate::texture::create_texture_with_uniform_color;
+use crate::texture::load_image;
 use crate::types::*;
 use crate::renderer::*;
 use crate::wgpu_types::*;
@@ -27,8 +28,9 @@ pub async fn run<T>(app: T) -> anyhow::Result<()>
 where
 	T: App
 {
-	let mut engine = Engine::new(app).await;
 	let event_loop: EventLoop<EngineEvent> = EventLoop::<EngineEvent>::with_user_event().build()?;
+	let proxy = event_loop.create_proxy();
+	let mut engine = Engine::new(app, proxy).await;
 	Ok(event_loop.run_app(&mut engine)?)
 }
 
@@ -90,6 +92,7 @@ struct Engine<'a, T> {
 	queue: Arc<wgpu::Queue>,
 	device: Arc<wgpu::Device>,
 	position_buffer: wgpu::Buffer,
+	tex_coords_buffer: wgpu::Buffer,
 	normal_buffer: wgpu::Buffer,
 	index_buffer: wgpu::Buffer,
 	// instaces: Arena<RawInstance>,
@@ -103,13 +106,14 @@ struct Engine<'a, T> {
 	texture_bind_groups: HashMap<Index, wgpu::BindGroup>,
 	camera_buffers: HashMap<Index, Buffer>,
 	default_texture: wgpu::BindGroup,
+	proxy: EventLoopProxy<EngineEvent>,
 }
 
 impl<'a, T> Engine<'a, T>
 where
 	T: App
 {
-	pub async fn new(app: T) -> Self {
+	pub async fn new(app: T, proxy: EventLoopProxy<EngineEvent>) -> Self {
 		let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::default());
 		let adapters = instance.enumerate_adapters(Backends::all());
 		for adapter in adapters {
@@ -138,6 +142,12 @@ where
 			usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::INDEX,
 			mapped_at_creation: false
 		});
+		let tex_coords_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+			label: Some("Tex Coords Buffer"),
+			size: 10_000,
+			usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::VERTEX,
+			mapped_at_creation: false
+		});
 		let instance_buffer = RawInstance::create_buffer(&device, 10_000);
 		let node_buffer = Buffer::new::<RawNode>(&device, 10_000);
 		let point_light_buffer = Buffer::new::<RawPointLight>(&device, 10_000);
@@ -151,6 +161,7 @@ where
 			queue,
 			device,
 			position_buffer,
+			tex_coords_buffer,
 			normal_buffer,
 			index_buffer,
 			instance_buffer,
@@ -163,12 +174,25 @@ where
 			texture_bind_groups: HashMap::new(),
 			camera_buffers: HashMap::new(),
 			default_texture,
+			proxy,
 		}
 	}
 
 	pub fn update_buffers(&mut self) {
 		self.app.on_process(&mut self.state.state, self.last_on_process_time.elapsed().as_secs_f32());
 		self.last_on_process_time = Instant::now();
+
+		let mut new_textures = Vec::new();
+		for (texture_id, texture) in &self.state.state.textures {
+			if let None = self.state.textures.get(&texture_id) {
+				new_textures.push((texture_id, texture.clone()));
+				load_image(self.proxy.clone(), texture.source.clone(), texture_id)
+			}
+		}
+		for t in new_textures {
+			self.state.textures.insert(t.0, t.1);
+		}
+
 		self.state.update_buffers();
 
 		if self.state.all_instances_data.len() > 0 {
@@ -179,6 +203,9 @@ where
 		}
 		if self.state.all_normals_data.len() > 0 {
 			self.queue.write_buffer(&self.normal_buffer, 0, &self.state.all_normals_data);
+		}
+		if self.state.all_tex_coords_data.len() > 0 {
+			self.queue.write_buffer(&self.tex_coords_buffer, 0, &self.state.all_tex_coords_data);
 		}
 		if self.state.all_indices_data.len() > 0 {
 			self.queue.write_buffer(&self.index_buffer, 0, &self.state.all_indices_data);
@@ -290,6 +317,7 @@ where
 						normal_range: d.normal_range.clone(),
 						instances_range: d.instances_range.clone(),
 						position_range: d.position_range.clone(),
+						tex_coords_range: d.tex_coords_range.clone(),
 						texture_bind_group,
 					}
 				}).collect();
@@ -306,6 +334,7 @@ where
 					index_buffer: &self.index_buffer,
 					instance_buffer: &self.instance_buffer,
 					normal_buffer: &self.normal_buffer,
+					tex_coords_buffer: &self.tex_coords_buffer,
 					positions_buffer: &self.position_buffer,
 				};
 				views_3d.push(a);
@@ -372,6 +401,9 @@ where
 	fn user_event(&mut self, event_loop: &winit::event_loop::ActiveEventLoop, event: EngineEvent) {
 		match event {
 			EngineEvent::ImageLoaded { texture_id, width, height, data } => {
+				log::info!("Image loading: texture_id={:?}, width={}, height={}", texture_id, width, height);
+				assert_eq!(data.len(), (width * height * 4) as usize, "Texture data size mismatch");
+	
 				let texture = self.device.create_texture(
 					&wgpu::TextureDescriptor {
 						label: Some("Loaded Image"),
@@ -388,12 +420,12 @@ where
 						view_formats: &[]
 					}
 				);
-
+	
 				self.queue.write_texture(
 					wgpu::ImageCopyTexture {
 						texture: &texture,
-						mip_level: 1,
-						origin: Origin3d::ZERO,
+						mip_level: 0,
+						origin: wgpu::Origin3d::ZERO,
 						aspect: wgpu::TextureAspect::All,
 					},
 					&data,
@@ -408,7 +440,7 @@ where
 						depth_or_array_layers: 1,
 					}
 				);
-
+	
 				let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
 				let sampler = self.device.create_sampler(&wgpu::SamplerDescriptor {
 					address_mode_u: wgpu::AddressMode::ClampToEdge,
@@ -419,7 +451,7 @@ where
 					mipmap_filter: wgpu::FilterMode::Nearest,
 					..Default::default()
 				});
-
+	
 				let texture_bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
 					layout: &TextureBuffer::create_bind_group_layout(&self.device),
 					entries: &[
@@ -434,7 +466,7 @@ where
 					],
 					label: Some("texture_bind_group"),
 				});
-
+	
 				self.texture_bind_groups.insert(texture_id, texture_bind_group);
 			},
 		}

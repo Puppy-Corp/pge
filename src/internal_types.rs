@@ -5,6 +5,7 @@ pub struct WriteCommand {
 	pub data: Vec<u8>
 }
 
+#[derive(Debug, Clone)]
 pub enum EngineEvent {
 	ImageLoaded {
 		texture_id: Index,

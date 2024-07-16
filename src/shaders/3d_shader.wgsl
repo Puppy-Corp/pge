@@ -13,7 +13,7 @@ struct InstanceInput {
 struct VertexInput {
     @location(0) position: vec3<f32>,
 	@location(1) normal: vec3<f32>,
-	// @location(2) uv: vec2<f32>,
+	@location(2) tex_coords: vec2<f32>,
 };
 
 struct VertexOutput {
@@ -21,6 +21,7 @@ struct VertexOutput {
     @location(0) color: vec3<f32>,
 	@location(1) world_position: vec3<f32>,
     @location(2) normal: vec3<f32>,
+	@location(3) tex_coords: vec2<f32>,
 };
 
 struct Camera {
@@ -51,6 +52,7 @@ fn vs_main(input: VertexInput, instance: InstanceInput) -> VertexOutput {
     out.world_position = world_position;
 	let normal = input.normal;
 	out.normal = normal;
+	out.tex_coords = input.tex_coords;
     return out;
 }
 
@@ -61,18 +63,24 @@ var s_diffuse: sampler;
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-	let light_color = vec3<f32>(1.0, 1.0, 1.0);
-	var result = vec3<f32>(0.0, 0.0, 0.0);
+    let light_color = vec3<f32>(1.0, 1.0, 1.0);
+    var result = vec3<f32>(0.0, 0.0, 0.0);
 
-	for (var i = 0u; i < 2; i = i + 1u) {
-		let point_light = point_lights[i];
-		let point_light_model = node_transforms[point_light.node_inx].model;
-		let light_position = (point_light_model * vec4<f32>(0.0, 0.0, 0.0, 1.0)).xyz;
-		let light_direction = normalize(light_position - in.world_position);
+    // Sample the texture at the given texture coordinates
+    let texture_color = textureSample(t_diffuse, s_diffuse, in.tex_coords);
 
-		let diffuse_strength = max(dot(in.normal, light_direction), 0.0);
-		let diffuse_color = light_color * diffuse_strength;
-		result = result + diffuse_color * in.color;
-	}
-	return vec4<f32>(result, 1.0);
+    for (var i = 0u; i < 2; i = i + 1u) {
+        let point_light = point_lights[i];
+        let point_light_model = node_transforms[point_light.node_inx].model;
+        let light_position = (point_light_model * vec4<f32>(0.0, 0.0, 0.0, 1.0)).xyz;
+        let light_direction = normalize(light_position - in.world_position);
+        
+        let diffuse_strength = max(dot(in.normal, light_direction), 0.0);
+        let diffuse_color = light_color * diffuse_strength;
+
+        // Multiply diffuse color with the texture color and accumulate to the result
+        result = result + (diffuse_color * texture_color.rgb);
+    }
+
+    return vec4<f32>(result, 1.0);
 }

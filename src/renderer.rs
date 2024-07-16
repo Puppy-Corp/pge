@@ -26,6 +26,17 @@ fn create_3d_pipeline(args: Create3DPipelineArgs) -> wgpu::RenderPipeline {
 	let node_bind_group_layout = RawNode::create_bind_group_layout(&args.device);
 	let point_light_bind_group_layout = RawPointLight::create_bind_group_layout(&args.device);
 	let texture_layout = TextureBuffer::create_bind_group_layout(&args.device);
+	let tex_coords_layout = wgpu::VertexBufferLayout {
+		array_stride: std::mem::size_of::<RawTexCoords>() as wgpu::BufferAddress,
+		step_mode: wgpu::VertexStepMode::Vertex,
+		attributes: &[
+			wgpu::VertexAttribute {
+				offset: 0,
+				format: wgpu::VertexFormat::Float32x2,
+				shader_location: 2,
+			}
+		]
+	};
 
 	let render_pipeline_layout = args.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
 		label: Some("Render Pipeline Layout"),
@@ -53,7 +64,7 @@ fn create_3d_pipeline(args: Create3DPipelineArgs) -> wgpu::RenderPipeline {
 		vertex: wgpu::VertexState {
 			module: &shader,
 			entry_point: "vs_main",
-			buffers: &[RawPositions::desc(), RawInstance::desc(), RawNormal::desc()],
+			buffers: &[RawPositions::desc(), RawInstance::desc(), RawNormal::desc(), tex_coords_layout],
 			compilation_options: Default::default()
 		},
 		fragment: Some(wgpu::FragmentState {
@@ -199,12 +210,14 @@ pub struct DrawCall<'a> {
 	pub normal_range: Range<u64>,
 	pub instances_range: Range<u32>,
 	pub indices_range: Range<u32>,
+	pub tex_coords_range: Range<u64>,
 }
 
 pub struct Render3DView<'a> {
 	pub positions_buffer: &'a wgpu::Buffer,
 	pub index_buffer: &'a wgpu::Buffer,
 	pub normal_buffer: &'a wgpu::Buffer,
+	pub tex_coords_buffer: &'a wgpu::Buffer,
 	pub instance_buffer: &'a wgpu::Buffer,
 	pub camera_bind_group: &'a wgpu::BindGroup,
 	pub point_light_bind_group: &'a wgpu::BindGroup,
@@ -368,18 +381,19 @@ impl Renderer<'_> {
 					render_pass.set_vertex_buffer(0, view.positions_buffer.slice(call.position_range.clone()));
 					render_pass.set_vertex_buffer(1, view.instance_buffer.slice(..));
 					render_pass.set_vertex_buffer(2, view.normal_buffer.slice(call.normal_range.clone()));
+					render_pass.set_vertex_buffer(3, view.tex_coords_buffer.slice(call.tex_coords_range.clone()));
 					render_pass.set_index_buffer(view.index_buffer.slice(call.index_range.clone()), wgpu::IndexFormat::Uint16);
 					render_pass.draw_indexed(call.indices_range.clone(), 0, call.instances_range.clone());
 				}
 			}
 
-			// if position_count > 0 {
-			// 	render_pass.set_pipeline(&self.pipeline_gui);
-			// 	render_pass.set_vertex_buffer(0, args.positions_buffer.slice(args.position_range));
-			// 	render_pass.set_vertex_buffer(1, args.color_buffer.slice(args.color_range));
-			// 	render_pass.set_index_buffer(args.index_buffer.slice(args.index_range), wgpu::IndexFormat::Uint16);
-			// 	render_pass.draw_indexed(args.indices_range.clone(), 0, 0..1);
-			// }
+			if position_count > 0 {
+				render_pass.set_pipeline(&self.pipeline_gui);
+				render_pass.set_vertex_buffer(0, args.positions_buffer.slice(args.position_range));
+				render_pass.set_vertex_buffer(1, args.color_buffer.slice(args.color_range));
+				render_pass.set_index_buffer(args.index_buffer.slice(args.index_range), wgpu::IndexFormat::Uint16);
+				render_pass.draw_indexed(args.indices_range.clone(), 0, 0..1);
+			}
 		}
 
 		output.present();

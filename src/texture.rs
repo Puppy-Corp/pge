@@ -1,4 +1,6 @@
 use std::path::Path;
+use std::thread::sleep;
+use std::time::Duration;
 
 use thunderdome::Index;
 use wgpu::Origin3d;
@@ -7,24 +9,33 @@ use winit::event_loop::EventLoopProxy;
 use crate::internal_types::EngineEvent;
 use crate::wgpu_types::TextureBuffer;
 
-
-
 pub fn load_image<P: AsRef<Path>>(proxy: EventLoopProxy<EngineEvent>, path: P, texture_id: Index) {
-	let path = path.as_ref().to_owned();
+    let path = path.as_ref().to_owned();
+    log::info!("load_image: {:?}", path);
 
-	std::thread::spawn(move || {
-		let img = image::open(&path).unwrap();
-		let img = img.to_rgba8();
-		let (width, height) = img.dimensions();
-		let data = img.into_raw();
+    std::thread::spawn(move || {
+        match image::open(&path) {
+            Ok(img) => {
+                let img: image::ImageBuffer<image::Rgba<u8>, Vec<u8>> = img.to_rgba8();
+                let (width, height) = img.dimensions();
+                let data = img.into_raw();
+                log::info!("Image loaded: {}x{}", width, height);
 
-		proxy.send_event(EngineEvent::ImageLoaded { 
-			texture_id,
-			width, 
-			height, 
-			data 
-		})
-	});
+                match proxy.send_event(EngineEvent::ImageLoaded {
+                    texture_id,
+                    width,
+                    height,
+                    data,
+                }) {
+                    Ok(_) => log::info!("Event sent successfully"),
+                    Err(e) => log::error!("Failed to send event: {:?}", e),
+                }
+            }
+            Err(e) => {
+                log::error!("Failed to load image: {:?}", e);
+            }
+        }
+    });
 }
 
 pub fn create_texture_with_uniform_color(
@@ -46,7 +57,7 @@ pub fn create_texture_with_uniform_color(
         usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
 		view_formats: Default::default(),
     });
-	let data: [u8; 4] = [255, 0, 0, 255]; // red
+	let data: [u8; 4] = [255, 100, 50, 255]; // red
 	queue.write_texture(
 		wgpu::ImageCopyTexture {
 			texture: &texture,
@@ -65,9 +76,9 @@ pub fn create_texture_with_uniform_color(
 
 	let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
 	let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-		address_mode_u: wgpu::AddressMode::ClampToEdge,
-		address_mode_v: wgpu::AddressMode::ClampToEdge,
-		address_mode_w: wgpu::AddressMode::ClampToEdge,
+		address_mode_u: wgpu::AddressMode::Repeat,
+		address_mode_v: wgpu::AddressMode::Repeat,
+		address_mode_w: wgpu::AddressMode::Repeat,
 		mag_filter: wgpu::FilterMode::Linear,
 		min_filter: wgpu::FilterMode::Linear,
 		mipmap_filter: wgpu::FilterMode::Nearest,

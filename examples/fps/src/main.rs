@@ -111,7 +111,7 @@ impl pge::App for FpsShooter {
 		state.point_lights.insert(light);
 
 		let cube_mesh = state.meshes.insert(cube(1.0).set_texture(texture_id));
-		let plane_mesh = state.meshes.insert(plane(1.0, 1.0));
+		let plane_mesh = state.meshes.insert(plane(1.0, 1.0).set_texture(texture_id));
 
 		let mut player = Node::new();
 		player.set_translation(0.0, 5.0, -20.0);

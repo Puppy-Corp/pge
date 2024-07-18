@@ -138,11 +138,21 @@ impl pge::App for FpsShooter {
 			state.nodes.insert(cube_node);
 		}
 
+		// spawn static cube
+		let mut cube_node = Node::new();
+		cube_node.name = Some("Cube".to_string());
+		cube_node.set_translation(0.0, 0.0, 0.0);
+		cube_node.mesh = Some(cube_mesh);
+		cube_node.physics.typ = PhycisObjectType::Static;
+		cube_node.collision_shape = Some(CollisionShape::Box { size: glam::Vec3::new(1.0, 1.0, 1.0) });
+		state.nodes.insert(cube_node);
+
 		let mut plane_node = Node::new();
 		plane_node.name = Some("Floor".to_string());
 		plane_node.set_translation(0.0, -1.0, 0.0);
 		plane_node.mesh = Some(plane_mesh);
 		plane_node.physics.typ = PhycisObjectType::Static;
+		plane_node.physics.mass = 10.0;
 		plane_node.scale = glam::Vec3::new(60.0, 1.0, 60.0);
 		plane_node.collision_shape = Some(CollisionShape::Box { size: glam::Vec3::new(60.0, 0.1, 60.0) });
 		state.nodes.insert(plane_node);
@@ -199,7 +209,7 @@ impl pge::App for FpsShooter {
 		}
 
 		let force = PhysicsForce {
-			force: player.rotation * dir * 10.0,
+			force: player.rotation * dir * 50.0,
 			id: 1,
 			max_velocity: 200.0,
 		};

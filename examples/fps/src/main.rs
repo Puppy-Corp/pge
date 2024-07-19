@@ -114,10 +114,11 @@ impl pge::App for FpsShooter {
 		let plane_mesh = state.meshes.insert(plane(1.0, 1.0).set_texture(texture_id));
 
 		let mut player = Node::new();
-		player.set_translation(0.0, 5.0, -20.0);
+		player.name = Some("Player".to_string());
+		player.set_translation(0.0, 30.0, -20.0);
 		// player.mesh = Some(state.meshes.insert(cube(1.0)));
 		player.physics.typ = PhycisObjectType::Dynamic;
-		player.physics.mass = 1.0;
+		player.physics.mass = 7.0;
 		player.looking_at(0.0, 0.0, 0.0);
 		player.collision_shape = Some(CollisionShape::Box { size: glam::Vec3::new(1.0, 2.0, 1.0) });
 		let player_id = state.nodes.insert(player);
@@ -130,29 +131,28 @@ impl pge::App for FpsShooter {
 			let z = rng.gen_range(-20.0..20.0);
 			let mut cube_node = Node::new();
 			cube_node.name = Some(format!("Cube{}", i));
-			cube_node.set_translation(x, 5.0, z);
+			cube_node.set_translation(x, 10.0, z);
 			cube_node.mesh = Some(cube_mesh);
 			cube_node.physics.typ = PhycisObjectType::Dynamic;
-			cube_node.physics.mass = 1.0;
+			cube_node.physics.mass = 10.0;
 			cube_node.collision_shape = Some(CollisionShape::Box { size: glam::Vec3::new(1.0, 1.0, 1.0) });
 			state.nodes.insert(cube_node);
 		}
 
-		// spawn static cube
-		let mut cube_node = Node::new();
-		cube_node.name = Some("Cube".to_string());
-		cube_node.set_translation(0.0, 0.0, 0.0);
-		cube_node.mesh = Some(cube_mesh);
-		cube_node.physics.typ = PhycisObjectType::Static;
-		cube_node.collision_shape = Some(CollisionShape::Box { size: glam::Vec3::new(1.0, 1.0, 1.0) });
-		state.nodes.insert(cube_node);
+		// // spawn static cube
+		// let mut cube_node = Node::new();
+		// cube_node.name = Some("Cube".to_string());
+		// cube_node.set_translation(0.0, 0.0, 0.0);
+		// cube_node.mesh = Some(cube_mesh);
+		// cube_node.physics.typ = PhycisObjectType::Static;
+		// cube_node.collision_shape = Some(CollisionShape::Box { size: glam::Vec3::new(1.0, 1.0, 1.0) });
+		// state.nodes.insert(cube_node);
 
 		let mut plane_node = Node::new();
 		plane_node.name = Some("Floor".to_string());
 		plane_node.set_translation(0.0, -1.0, 0.0);
 		plane_node.mesh = Some(plane_mesh);
 		plane_node.physics.typ = PhycisObjectType::Static;
-		plane_node.physics.mass = 10.0;
 		plane_node.scale = glam::Vec3::new(60.0, 1.0, 60.0);
 		plane_node.collision_shape = Some(CollisionShape::Box { size: glam::Vec3::new(60.0, 0.1, 60.0) });
 		state.nodes.insert(plane_node);

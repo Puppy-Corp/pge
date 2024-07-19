@@ -26,48 +26,31 @@ pub struct Collision {
 	pub penetration_depth: f32,
 }
 
-// fn calculate_impulse(node1: &Node, node2: &Node, collision: &Collision, coeff_of_friction: f32) -> (glam::Vec3, glam::Vec3) {
-//     let relative_velocity = node2.physics.velocity - node1.physics.velocity;
-//     let velocity_along_normal = relative_velocity.dot(collision.normal);
-
-//     // If velocities are separating, no impulse is needed
-//     if velocity_along_normal > 0.0 {
-//         return (Vec3::ZERO, Vec3::ZERO);
-//     }
-
-//     // Calculate the sum of inverse masses
-//     let inv_mass1 = if node1.physics.mass != 0.0 { 1.0 / node1.physics.mass } else { 0.0 };
-//     let inv_mass2 = if node2.physics.mass != 0.0 { 1.0 / node2.physics.mass } else { 0.0 };
-//     let inv_mass_sum = inv_mass1 + inv_mass2;
-
-//     // Calculate the impulse scalar
-//     let impulse_magnitude = -(1.0 + 0.0) * velocity_along_normal / inv_mass_sum;
-
-//     // Impulse in normal direction
-//     let normal_impulse = collision.normal * impulse_magnitude;
-
-//     // Assuming friction computations if needed (simplified version)
-//     let relative_velocity_tangent = relative_velocity - velocity_along_normal * collision.normal;
-//     let friction_impulse = -relative_velocity_tangent; // This can be refined based on specific friction calculations
-
-//     (normal_impulse, friction_impulse)
-// }
-
-fn calculate_impulse(node1: &Node, node2: &Node, collision: &Collision, coeff_of_friction: f32) -> (glam::Vec3, glam::Vec3) {
+fn calculate_impulse(node1: &Node, node2: &Node, collision: &Collision, 
+	coeff_of_restitution: f32, coeff_of_friction: f32) -> (glam::Vec3, glam::Vec3) {
     let rel_v = node2.physics.velocity - node1.physics.velocity;
+    let velocity_along_normal = rel_v.dot(collision.normal);
 
-    // Calculate normal impulse
-    let normal_impulse = 1.0 * rel_v.dot(collision.normal);
-    let normal_impulse_vec = normal_impulse * collision.normal;
+    if velocity_along_normal < 0.0 {
+        return (Vec3::ZERO, Vec3::ZERO);
+    }
 
-    // Calculate friction direction
-    let tangent_dir = (rel_v - rel_v.dot(collision.normal) * collision.normal).normalize_or_zero();
-    
-    // Calculate friction impulse
-    let friction_impulse_mag = coeff_of_friction * normal_impulse.abs();
-    let friction_impulse_vec = friction_impulse_mag * tangent_dir;
+    let inv_mass1 = if node1.physics.mass != 0.0 { 1.0 / node1.physics.mass } else { 0.0 };
+    let inv_mass2 = if node2.physics.mass != 0.0 { 1.0 / node2.physics.mass } else { 0.0 };
+    let inv_mass_sum = inv_mass1 + inv_mass2;
+    let impulse_magnitude = -(1.0 + coeff_of_restitution) * (velocity_along_normal / inv_mass_sum);
+    let normal_impulse = collision.normal * impulse_magnitude;
+    let relative_velocity_tangent = rel_v - velocity_along_normal * collision.normal;
+    let tangent_velocity_magnitude = relative_velocity_tangent.length();
 
-    (normal_impulse_vec, friction_impulse_vec)
+    let mut tangent_impulse = glam::Vec3::ZERO;
+    if tangent_velocity_magnitude > 0.0 {
+        let tangent_direction = relative_velocity_tangent / tangent_velocity_magnitude;
+        let friction_magnitude = coeff_of_friction * -impulse_magnitude;
+        tangent_impulse = tangent_direction * friction_magnitude;
+    }
+
+    (normal_impulse, -tangent_impulse)
 }
 
 fn calculate_collision_point(a: &AABB, b: &AABB) -> [f32; 3] {
@@ -225,51 +208,31 @@ impl PhycicsSystem {
 			for collision in collisions {
 				let node1 = state.nodes.get(collision.node1).unwrap();
 				let node2 = state.nodes.get(collision.node2).unwrap();
-				let (normal_impulse, friction_impulse) = calculate_impulse(node1, node2, &collision, /* coefficient of friction */ 0.5);
-				//self.printer.print(100_000, format!("friction_impulse: {:?}", friction_impulse));
+
+				if node1.physics.typ == PhycisObjectType::Static && node2.physics.typ == PhycisObjectType::Static {
+					continue;
+				}
+
+				let (normal_impulse, friction_impulse) = calculate_impulse(node1, node2, &collision, 0.3, 0.2);
 				let total_mass = node1.physics.mass + node2.physics.mass;
-				let correction_ratio = 1.0; // tweakable parameter for how strong the correction should be
+				let correction_ratio = 1.0;
 
 				let corr_vec1 = if total_mass > 0.0 { collision.normal * correction_ratio * (collision.penetration_depth / total_mass) * node2.physics.mass } else { glam::Vec3::ZERO };
 				let corr_vec2 = if total_mass > 0.0 { collision.normal * correction_ratio * (collision.penetration_depth / total_mass) * node1.physics.mass } else { glam::Vec3::ZERO };
 
-				// if total_mass > 0.0 {
-				// 	if let Some(node1) = state.nodes.get_mut(collision.node1) {
-				// 		let correction_vector = collision.normal * correction_ratio * (collision.penetration_depth / total_mass) * node2.physics.mass;
-				// 		node1.translation -= correction_vector;
-				// 	}
-				// 	if let Some(node2) = state.nodes.get_mut(collision.node2) {
-				// 		let correction_vector = collision.normal * correction_ratio * (collision.penetration_depth / total_mass) * node1.physics.mass;
-				// 		node2.translation += correction_vector;
-				// 	}
-				// }
-
 				if let Some(node1) = state.nodes.get_mut(collision.node1) {
 					if node1.physics.typ == PhycisObjectType::Dynamic {
-						node1.physics.velocity += normal_impulse + friction_impulse;
+						node1.physics.velocity -= (normal_impulse + friction_impulse) / node1.physics.mass;
 						node1.translation += corr_vec1;
 					}
 				}
 				if let Some(node2) = state.nodes.get_mut(collision.node2) {
 					if node2.physics.typ == PhycisObjectType::Dynamic {
-						node2.physics.velocity -= normal_impulse + friction_impulse;
+						let old_velocity = node2.physics.velocity;
+						node2.physics.velocity += (normal_impulse + friction_impulse) / node2.physics.mass;
 						node2.translation -= corr_vec2;
 					}
 				}
-
-				// // Resolve interpenetration
-				// let total_mass = node1.physics.mass + node2.physics.mass;
-				// let correction_ratio = 0.5; // tweakable parameter for how strong the correction should be
-				// if total_mass > 0.0 {
-				// 	if let Some(node1) = state.nodes.get_mut(collision.node1) {
-				// 		let correction_vector = collision.normal * correction_ratio * (collision.penetration_depth / total_mass) * node2.physics.mass;
-				// 		node1.translation -= correction_vector;
-				// 	}
-				// 	if let Some(node2) = state.nodes.get_mut(collision.node2) {
-				// 		let correction_vector = collision.normal * correction_ratio * (collision.penetration_depth / total_mass) * node1.physics.mass;
-				// 		node2.translation += correction_vector;
-				// 	}
-				// }
 			}
 		}
 		let resolve_collision_time = timer.elapsed().as_millis() as u32 - broad_phase_time;

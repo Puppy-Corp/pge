@@ -154,16 +154,19 @@ impl pge::App for FpsShooter {
 		// cube_node.collision_shape = Some(CollisionShape::Box { size: glam::Vec3::new(1.0, 1.0, 1.0) });
 		// state.nodes.insert(cube_node);
 
+		let plane_size = 1000.0;
+
 		let mut plane_node = Node::new();
 		plane_node.name = Some("Floor".to_string());
 		plane_node.set_translation(0.0, -1.0, 0.0);
 		plane_node.mesh = Some(plane_mesh);
 		plane_node.physics.typ = PhycisObjectType::Static;
-		plane_node.scale = glam::Vec3::new(60.0, 1.0, 60.0);
-		plane_node.collision_shape = Some(CollisionShape::Box { size: glam::Vec3::new(60.0, 0.1, 60.0) });
+		plane_node.scale = glam::Vec3::new(plane_size, 1.0, plane_size);
+		plane_node.collision_shape = Some(CollisionShape::Box { size: glam::Vec3::new(plane_size, 0.1, plane_size) });
 		state.nodes.insert(plane_node);
 
 		let mut camera = Camera::new();
+		camera.zfar = 1000.0;
 		camera.node_id = Some(player_id);
 		let camera_id = state.cameras.insert(camera);
 		self.player_inx = Some(player_id);

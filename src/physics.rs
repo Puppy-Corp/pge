@@ -23,7 +23,6 @@ pub struct Collision {
 	pub node2: Index,
 	pub normal: glam::Vec3,
 	pub point: glam::Vec3,
-	pub penetration_depth: f32,
 	pub correction: glam::Vec3,
 }
 
@@ -106,14 +105,6 @@ fn calculate_collision_normal(a: &AABB, b: &AABB) -> [f32; 3] {
 	normal
 }
 
-fn calculate_penetration_depth(a: &AABB, b: &AABB) -> f32 {
-    let overlap_x = (a.max[0].min(b.max[0]) - a.min[0].max(b.min[0])).max(0.0);
-    let overlap_y = (a.max[1].min(b.max[1]) - a.min[1].max(b.min[1])).max(0.0);
-    let overlap_z = (a.max[2].min(b.max[2]) - a.min[2].max(b.min[2])).max(0.0);
-
-    overlap_x.min(overlap_y).min(overlap_z)
-}
-
 #[derive(Debug, Default, Clone)]
 pub struct PhysicsSystem {
 	printer: ChangePrinter,
@@ -169,7 +160,6 @@ impl PhysicsSystem {
 							continue;
 						}
 	
-						let penetration_depth = calculate_penetration_depth(&node1_aabb, &node2_aabb);
 						let correction = node1_aabb.get_correction(&node2_aabb);
 
 						collisions.push(Collision {
@@ -177,7 +167,6 @@ impl PhysicsSystem {
 							node2: node2_id,
 							normal: calculate_collision_normal(&node1_aabb, &node2_aabb).into(),
 							point: calculate_collision_point(&node1_aabb, &node2_aabb).into(),
-							penetration_depth,
 							correction,
 						});
 					}

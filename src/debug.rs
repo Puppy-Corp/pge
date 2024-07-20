@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 
-#[derive(Debug)]
+#[derive(Debug, Default, Clone)]
 pub struct ChangePrinter {
     prev: HashMap<u32, String>
 }

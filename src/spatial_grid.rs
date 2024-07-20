@@ -60,32 +60,32 @@ impl SpatialGrid {
 		log::debug!("add node: {:?} rect: {:?}", node, rect);
 
 		if rect.min.x < self.min {
-			log::error!("rect min x: {} is less than grid min: {}", rect.min.x, self.min);
+			// log::error!("rect min x: {} is less than grid min: {}", rect.min.x, self.min);
 			return;
 		}
 
 		if rect.min.y < self.min {
-			log::error!("rect min y: {} is less than grid min: {}", rect.min.y, self.min);
+			// log::error!("rect min y: {} is less than grid min: {}", rect.min.y, self.min);
 			return;
 		}
 
 		if rect.min.z < self.min {
-			log::error!("rect min z: {} is less than grid min: {}", rect.min.z, self.min);
+			// log::error!("rect min z: {} is less than grid min: {}", rect.min.z, self.min);
 			return;
 		}
 
 		if rect.max.x > self.max {
-			log::error!("rect max x: {} is greater than grid max: {}", rect.max.x, self.max);
+			// log::error!("rect max x: {} is greater than grid max: {}", rect.max.x, self.max);
 			return;
 		}
 
 		if rect.max.y > self.max {
-			log::error!("rect max y: {} is greater than grid max: {}", rect.max.y, self.max);
+			// log::error!("rect max y: {} is greater than grid max: {}", rect.max.y, self.max);
 			return;
 		}
 
 		if rect.max.z > self.max {
-			log::error!("rect max z: {} is greater than grid max: {}", rect.max.z, self.max);
+			// log::error!("rect max z: {} is greater than grid max: {}", rect.max.z, self.max);
 			return;
 		}
 

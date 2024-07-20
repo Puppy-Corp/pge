@@ -43,6 +43,10 @@ impl PressedKeys {
 
         direction
     }
+
+	pub fn any_pressed(&self) -> bool {
+		self.forward || self.backward || self.left || self.right
+	}
 }
 
 pub fn compute_new_angle(
@@ -63,7 +67,6 @@ pub fn compute_new_angle(
 
 pub struct FpsShooter {
 	sensitivity: f32,
-	player_move_force: PhysicsForce,
 	player_inx: Option<Index>,
 	light_inx: Option<Index>,
 	light_circle_i: f32,
@@ -71,6 +74,8 @@ pub struct FpsShooter {
 	yaw: f32,
 	pitch: f32,
 	speed: f32,
+	dashing: bool,
+	movement_force: f32,
 }
 
 impl FpsShooter {
@@ -79,12 +84,13 @@ impl FpsShooter {
 			player_inx: None,
 			light_inx: None,
 			sensitivity: 0.001,
-			player_move_force: PhysicsForce::new(),
 			pressed_keys: PressedKeys::new(),
 			yaw: 0.0,
 			pitch: 0.0,
 			speed: 10.0,
 			light_circle_i: 0.0,
+			movement_force: 4000.0,
+			dashing: false,
 		}
 	}
 }
@@ -118,7 +124,7 @@ impl pge::App for FpsShooter {
 		player.set_translation(0.0, 30.0, -20.0);
 		// player.mesh = Some(state.meshes.insert(cube(1.0)));
 		player.physics.typ = PhycisObjectType::Dynamic;
-		player.physics.mass = 7.0;
+		player.physics.mass = 70.0;
 		player.looking_at(0.0, 0.0, 0.0);
 		player.collision_shape = Some(CollisionShape::Box { size: glam::Vec3::new(1.0, 2.0, 1.0) });
 		let player_id = state.nodes.insert(player);
@@ -179,6 +185,17 @@ impl pge::App for FpsShooter {
 					KeyboardKey::S => self.pressed_keys.backward = true,
 					KeyboardKey::A => self.pressed_keys.left = true,
 					KeyboardKey::D => self.pressed_keys.right = true,
+					KeyboardKey::Space => {
+						let player_inx = match self.player_inx {
+							Some(index) => index,
+							None => return,
+						};
+						let player = state.nodes.get_mut(player_inx).unwrap();
+						player.physics.velocity.y = 10.0;
+					},
+					KeyboardKey::ShiftLeft => {
+						self.dashing = true;
+					},
 					_ => {}
 				}
 			},
@@ -188,6 +205,9 @@ impl pge::App for FpsShooter {
 					KeyboardKey::S => self.pressed_keys.backward = false,
 					KeyboardKey::A => self.pressed_keys.left = false,
 					KeyboardKey::D => self.pressed_keys.right = false,
+					KeyboardKey::ShiftLeft => {
+						self.dashing = false;
+					},
 					_ => {}
 				}
 			},
@@ -201,20 +221,8 @@ impl pge::App for FpsShooter {
 			None => return,
 		};
 
-		let dir = self.pressed_keys.to_vec3();
-
-		if dir.length_squared() == 0.0 {
-			player.forces = vec![];
-			return;
-		}
-
-		let force = PhysicsForce {
-			force: player.rotation * dir * 50.0,
-			id: 1,
-			max_velocity: 200.0,
-		};
-
-		player.forces = vec![force];
+		// let dir = self.pressed_keys.to_vec3();
+		// player.physics.force = player.rotation * dir * 300.0;
 	}
 
 	fn on_mouse_input(&mut self, event: MouseEvent, state: &mut State) {
@@ -238,6 +246,55 @@ impl pge::App for FpsShooter {
 			let x = 10.0 * self.light_circle_i.cos();
 			let z = 10.0 * self.light_circle_i.sin();
 			light.set_translation(x, 10.0, z);
+		}
+
+		if let Some(player_inx) = self.player_inx {
+			if let Some(player) = state.nodes.get_mut(player_inx) {
+				let current_speed = player.physics.velocity.length();
+				if self.pressed_keys.any_pressed() {
+					let dir = self.pressed_keys.to_vec3();
+					let mut force = player.rotation * dir;
+
+					if force.x > 0.0 && player.physics.velocity.x < 0.0 {
+						force.x += -player.physics.velocity.x * self.movement_force;
+					} else if force.x < 0.0 && player.physics.velocity.x > 0.0 {
+						force.x += -player.physics.velocity.x * self.movement_force;
+					} else if current_speed < 25.0 {
+						force.x *= self.movement_force;
+					}
+
+					if force.z > 0.0 && player.physics.velocity.z < 0.0 {
+						force.z += -player.physics.velocity.z * self.movement_force;
+					} else if force.z < 0.0 && player.physics.velocity.z > 0.0 {
+						force.z += -player.physics.velocity.z * self.movement_force;
+					} else if current_speed < 25.0 {
+						force.z *= self.movement_force;
+					}
+
+					force.y = 0.0;
+
+					player.physics.force = force;
+					log::info!("force: {:?}", player.physics.force);
+				} else {
+					// We calculate force opposite of momevement to slow down the player
+					let force = -player.physics.velocity.xz() * 100.0;
+					player.physics.force = glam::Vec3::new(force.x, 0.0, force.y);
+					//player.physics.force = glam::Vec3::ZERO;
+				}
+			}
+		}
+
+		if self.dashing {
+			let player_inx = match self.player_inx {
+				Some(index) => index,
+				None => return,
+			};
+			let player = match state.nodes.get_mut(player_inx) {
+				Some(node) => node,
+				None => return,
+			};
+			let dir = player.rotation * Vec3::new(0.0, 0.0, 1.0);
+			player.physics.velocity = dir * 100.0;
 		}
 	}
 }

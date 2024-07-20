@@ -8,6 +8,7 @@ use winit::keyboard::KeyCode;
 use winit::keyboard::PhysicalKey;
 
 use crate::idgen::gen_id;
+use crate::physics::PhysicsSystem;
 use crate::GUIElement;
 use crate::Window;
 
@@ -27,6 +28,8 @@ pub enum KeyboardKey {
 	A,
 	S,
 	D,
+	Space,
+	ShiftLeft,
 	Unknow
 }
 
@@ -37,6 +40,8 @@ impl From<KeyCode> for KeyboardKey {
 			KeyCode::KeyA => Self::A,
 			KeyCode::KeyS => Self::S,
 			KeyCode::KeyD => Self::D,
+			KeyCode::Space => Self::Space,
+			KeyCode::ShiftLeft => Self::ShiftLeft,
 			_ => Self::Unknow
 		}
 	}
@@ -96,6 +101,7 @@ pub struct PhysicsProps {
 	pub acceleration: glam::Vec3,
 	pub mass: f32,
 	pub stationary: bool,
+	pub force: Vec3
 }
 
 #[derive(Debug)]
@@ -203,7 +209,6 @@ pub struct Node {
 	pub point_light: Option<PointLight>,
 	pub texture: Option<Texture>,
 	pub physics: PhysicsProps,
-	pub forces: Vec<PhysicsForce>,
 	pub flex: Flex,
 	pub collision_shape: Option<CollisionShape>
 }
@@ -222,7 +227,6 @@ impl Node {
 			animation: Animation::new(),
 			texture: None,
 			physics: PhysicsProps::default(),
-			forces: Vec::new(),
 			flex: Flex::None,
 			collision_shape: None
 		}
@@ -501,24 +505,6 @@ impl FontHandle {
 	}
 }
 
-pub struct WorldHandle {
-
-}
-
-impl WorldHandle {
-	pub fn add_node(&self, node: Node) {
-		println!("Adding node");
-	}
-
-	pub fn create_node(&self) -> Node {
-		Node::new()
-	}
-
-	pub fn create_camera(&self) -> Camera {
-		Camera::new()
-	}
-}
-
 pub struct World3D {
 	pub nodes: HashMap<usize, Node>
 }
@@ -532,40 +518,6 @@ impl World3D {
 
 	pub fn add_node(&mut self, node: Node) {
 		self.nodes.insert(node.id, node);
-	}
-}
-
-pub struct WindowHandle {
-
-}
-
-impl WindowHandle {
-	pub fn set_gui(&self, gui: GUIElement) {
-		println!("Setting GUI");
-	}
-}
-
-#[derive(Debug, Clone)]
-pub struct PhysicsForce {
-	pub id: usize,
-	pub force: glam::Vec3,
-	/// If objects velocity is greater than max_velocity to the direction, 
-	/// this force will not be applied
-	pub max_velocity: f32
-}
-
-impl PhysicsForce {
-	pub fn new() -> Self {
-		Self {
-			id: gen_id(),
-			force: glam::Vec3::ZERO,
-			max_velocity: 0.0,
-		}
-	}
-
-	pub fn set_force(mut self, force: glam::Vec3) -> Self {
-		self.force = force;
-		self
 	}
 }
 

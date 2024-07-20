@@ -8,9 +8,8 @@ use thunderdome::Index;
 
 use crate::compositor::UICompositor;
 use crate::debug::ChangePrinter;
-use crate::physics::PhycicsSystem;
+use crate::physics::PhysicsSystem;
 use crate::spatial_grid::SpatialGrid;
-use crate::texture::load_image;
 use crate::wgpu_types::*;
 use crate::Node;
 use crate::State;
@@ -54,9 +53,9 @@ pub struct EngineState {
 	pub move_nodes: Vec<(Index, AABB)>,
 	rem_nodes: HashSet<Index>,
 	add_nodes: Vec<(Index, AABB)>,
-	phycics_system: PhycicsSystem,
 	pub ui_compositors: HashMap<Index, UICompositor>,
 	pub textures: HashMap<Index, Texture>,
+	pub physics_system: PhysicsSystem,
 }
 
 impl EngineState {
@@ -81,7 +80,7 @@ impl EngineState {
 			move_nodes: Vec::new(),
 			rem_nodes: HashSet::new(),
 			add_nodes: Vec::new(),
-			phycics_system: PhycicsSystem::new(),
+			physics_system: PhysicsSystem::new(),
 			ui_compositors: HashMap::new(),
 			textures: HashMap::new(),
 		}
@@ -289,7 +288,7 @@ impl EngineState {
 
 	pub fn physics_update(&mut self, dt: f32) {
 		// update physics
-		let timings = self.phycics_system.physics_update(&mut self.state, &mut self.grid, dt);
+		let timings = self.physics_system.physics_update(&mut self.state, &mut self.grid, dt);
 		if timings.node_update_time > 3 {
 			self.printer.print(NODE_UPDATE_TIME_SLOT, format!("node_update_time: {}", timings.node_update_time));
 		}

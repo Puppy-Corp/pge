@@ -113,34 +113,24 @@ fn calculate_penetration_depth(a: &AABB, b: &AABB) -> f32 {
     overlap_x.min(overlap_y).min(overlap_z)
 }
 
-pub struct PhycicsSystem {
+#[derive(Debug, Default, Clone)]
+pub struct PhysicsSystem {
 	printer: ChangePrinter,
+	gravity: glam::Vec3,
 }
 
-impl PhycicsSystem {
+impl PhysicsSystem {
 	pub fn new() -> Self {
 		Self {
-			printer: ChangePrinter::new()
+			printer: ChangePrinter::new(),
+			gravity: glam::Vec3::new(0.0, -10.0, 0.0),
 		}
-	}
-
-	fn sum_forces(&mut self, node: &Node) -> glam::Vec3 {
-		let mut total_force = glam::Vec3::ZERO;
-		for force in &node.forces {
-			total_force += force.force;
-		}
-	
-		if node.forces.len() > 0 {
-			self.printer.print(node.id as u32, format!("forces: {:?}", node.forces));
-		}
-	
-		total_force
 	}
 	
 	pub fn node_physics_update(&mut self, node: &mut Node, dt: f32) {
 		let mass = node.physics.mass;
-		let gravity_force = if mass > 0.0 { glam::Vec3::new(0.0, -9.81, 0.0) * mass } else { glam::Vec3::ZERO };
-		let total_force = self.sum_forces(node) + gravity_force;
+		let gravity_force = if mass > 0.0 { self.gravity * mass } else { glam::Vec3::ZERO };
+		let total_force = node.physics.force + gravity_force;
 		let acceleration = if mass > 0.0 { total_force / mass } else { glam::Vec3::ZERO };
 		node.physics.velocity += acceleration * dt;
 		node.translation += node.physics.velocity * dt;
@@ -179,8 +169,6 @@ impl PhycicsSystem {
 						}
 	
 						let penetration_depth = calculate_penetration_depth(&node1_aabb, &node2_aabb);
-
-						log::info!("penetration_depth: {:?}", penetration_depth);
 
 						collisions.push(Collision {
 							node1: node1_id,
@@ -228,7 +216,6 @@ impl PhycicsSystem {
 				}
 				if let Some(node2) = state.nodes.get_mut(collision.node2) {
 					if node2.physics.typ == PhycisObjectType::Dynamic {
-						let old_velocity = node2.physics.velocity;
 						node2.physics.velocity += (normal_impulse + friction_impulse) / node2.physics.mass;
 						node2.translation -= corr_vec2;
 					}

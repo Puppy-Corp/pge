@@ -277,7 +277,7 @@ impl pge::App for FpsShooter {
 					log::info!("force: {:?}", player.physics.force);
 				} else {
 					// We calculate force opposite of momevement to slow down the player
-					let force = -player.physics.velocity.xz() * 100.0;
+					let force = -player.physics.velocity.xz() * self.movement_force;
 					player.physics.force = glam::Vec3::new(force.x, 0.0, force.y);
 					//player.physics.force = glam::Vec3::ZERO;
 				}

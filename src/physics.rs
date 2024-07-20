@@ -194,12 +194,6 @@ impl PhysicsSystem {
 				}
 
 				let (normal_impulse, friction_impulse) = calculate_impulse(node1, node2, &collision, 0.3, 0.2);
-				let total_mass = node1.physics.mass + node2.physics.mass;
-				let correction_ratio = 1.0;
-
-				let corr_vec1 = if total_mass > 0.0 { collision.normal * correction_ratio * (collision.penetration_depth / total_mass) * node2.physics.mass } else { glam::Vec3::ZERO };
-				let corr_vec2 = if total_mass > 0.0 { collision.normal * correction_ratio * (collision.penetration_depth / total_mass) * node1.physics.mass } else { glam::Vec3::ZERO };
-
 				log::info!("correction: {:?}", collision.correction);
 
 				if let Some(node1) = state.nodes.get_mut(collision.node1) {

@@ -140,7 +140,7 @@ impl PhysicsSystem {
 	
 	fn broad_phase_collisions(&mut self, state: &mut State, grid: &SpatialGrid) -> Vec<Collision> {
 		let mut collisions = Vec::new();
-		for cell in grid.get_cells() {
+		for cell in grid.cells.values() {
 			for i in 0..cell.len() {
 				let node1_id = cell[i];
 				let node1_aabb = match grid.get_node_rect(node1_id) {

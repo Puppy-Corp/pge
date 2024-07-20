@@ -194,7 +194,6 @@ impl PhysicsSystem {
 				}
 
 				let (normal_impulse, friction_impulse) = calculate_impulse(node1, node2, &collision, 0.3, 0.2);
-				log::info!("correction: {:?}", collision.correction);
 
 				if let Some(node1) = state.nodes.get_mut(collision.node1) {
 					if node1.physics.typ == PhycisObjectType::Dynamic {

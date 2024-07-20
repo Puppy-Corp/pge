@@ -24,6 +24,7 @@ pub struct Collision {
 	pub normal: glam::Vec3,
 	pub point: glam::Vec3,
 	pub penetration_depth: f32,
+	pub correction: glam::Vec3,
 }
 
 fn calculate_impulse(node1: &Node, node2: &Node, collision: &Collision, 
@@ -169,6 +170,7 @@ impl PhysicsSystem {
 						}
 	
 						let penetration_depth = calculate_penetration_depth(&node1_aabb, &node2_aabb);
+						let correction = node1_aabb.get_correction(&node2_aabb);
 
 						collisions.push(Collision {
 							node1: node1_id,
@@ -176,6 +178,7 @@ impl PhysicsSystem {
 							normal: calculate_collision_normal(&node1_aabb, &node2_aabb).into(),
 							point: calculate_collision_point(&node1_aabb, &node2_aabb).into(),
 							penetration_depth,
+							correction,
 						});
 					}
 				}
@@ -208,16 +211,18 @@ impl PhysicsSystem {
 				let corr_vec1 = if total_mass > 0.0 { collision.normal * correction_ratio * (collision.penetration_depth / total_mass) * node2.physics.mass } else { glam::Vec3::ZERO };
 				let corr_vec2 = if total_mass > 0.0 { collision.normal * correction_ratio * (collision.penetration_depth / total_mass) * node1.physics.mass } else { glam::Vec3::ZERO };
 
+				log::info!("correction: {:?}", collision.correction);
+
 				if let Some(node1) = state.nodes.get_mut(collision.node1) {
 					if node1.physics.typ == PhycisObjectType::Dynamic {
 						node1.physics.velocity -= (normal_impulse + friction_impulse) / node1.physics.mass;
-						node1.translation += corr_vec1;
+						node1.translation += collision.correction;
 					}
 				}
 				if let Some(node2) = state.nodes.get_mut(collision.node2) {
 					if node2.physics.typ == PhycisObjectType::Dynamic {
 						node2.physics.velocity += (normal_impulse + friction_impulse) / node2.physics.mass;
-						node2.translation -= corr_vec2;
+						node2.translation -= collision.correction;
 					}
 				}
 			}

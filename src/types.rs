@@ -145,6 +145,46 @@ impl AABB {
         self.min.y <= other.max.y && self.max.y >= other.min.y &&
         self.min.z <= other.max.z && self.max.z >= other.min.z
     }
+
+    pub fn get_correction(&self, other: &AABB) -> Vec3 {
+        let mut correction = Vec3::ZERO;
+
+        // Calculate penetration depths
+        let dx = (self.max.x - other.min.x).min(other.max.x - self.min.x);
+        let dy = (self.max.y - other.min.y).min(other.max.y - self.min.y);
+        let dz = (self.max.z - other.min.z).min(other.max.z - self.min.z);
+
+        if dx.abs() < dy.abs() && dx.abs() < dz.abs() {
+            // Move along x-axis
+            if self.max.x - other.min.x < other.max.x - self.min.x {
+                // Move self to the left
+                correction.x = -dx;
+            } else {
+                // Move self to the right
+                correction.x = dx;
+            }
+        } else if dy.abs() < dx.abs() && dy.abs() < dz.abs() {
+            // Move along y-axis
+            if self.max.y - other.min.y < other.max.y - self.min.y {
+                // Move self down
+                correction.y = -dy;
+            } else {
+                // Move self up
+                correction.y = dy;
+            }
+        } else {
+            // Move along z-axis
+            if self.max.z - other.min.z < other.max.z - self.min.z {
+                // Move self backward
+                correction.z = -dz;
+            } else {
+                // Move self forward
+                correction.z = dz;
+            }
+        }
+
+        correction
+    }
 }
 
 pub struct ConvexHull {

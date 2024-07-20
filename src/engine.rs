@@ -179,8 +179,9 @@ where
 	}
 
 	pub fn update_buffers(&mut self) {
-		self.app.on_process(&mut self.state.state, self.last_on_process_time.elapsed().as_secs_f32());
+		let dt = self.last_on_process_time.elapsed().as_secs_f32();
 		self.last_on_process_time = Instant::now();
+		self.app.on_process(&mut self.state.state, dt);
 
 		let mut new_textures = Vec::new();
 		for (texture_id, texture) in &self.state.state.textures {
@@ -231,8 +232,8 @@ where
 
 	fn update_physics(&mut self) {
 		let dt = self.last_physics_update_time.elapsed().as_secs_f32();
-		self.state.physics_update(dt);
 		self.last_physics_update_time = Instant::now();
+		self.state.physics_update(dt);
 	}
 
 	fn update_windows(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {

@@ -122,6 +122,37 @@ impl SpatialGrid {
         self.rem_node(node);
         self.add_node(node, rect);
 	}
+
+	pub fn get_line_ray_nodes(&self, start: glam::Vec3, end: glam::Vec3) -> HashSet<Index> {
+		let mut nodes = HashSet::new();
+		let mut current = start;
+		let direction = (end - start).normalize();
+		let distance = (end - start).length();
+		let mut t = 0.0;
+		let mut last_cell = CellCoord { x: 0, y: 0, z: 0 };
+
+		while t < distance {
+			let next = current + direction * t;
+			let cell = CellCoord {
+				x: (next.x / self.cell_size).floor() as i32,
+				y: (next.y / self.cell_size).floor() as i32,
+				z: (next.z / self.cell_size).floor() as i32,
+			};
+
+			if cell != last_cell {
+				last_cell = cell;
+				if let Some(cell_nodes) = self.cells.get(&cell) {
+					for node in cell_nodes {
+						nodes.insert(*node);
+					}
+				}
+			}
+
+			t += self.cell_size;
+		}
+
+		nodes
+	}
 }
 
 #[cfg(test)]

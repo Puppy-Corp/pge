@@ -1,4 +1,5 @@
 use crate::types::Mesh;
+use crate::Primitive;
 
 
 // pub fn plane(w: f32, h: f32) -> Entity {
@@ -13,8 +14,10 @@ pub fn cube(s: f32) -> Mesh {
     let mut m = Mesh::new();
 	m.name = Some("Cube".to_string());
 
+	let mut p = Primitive::new(crate::PrimitiveTopology::TriangleList);
+
     // Define vertex positions for a cube
-    m.positions = vec![
+    p.vertices = vec![
         [-s, -s, -s],
         [-s, s, -s],
         [s, s, -s],
@@ -25,7 +28,7 @@ pub fn cube(s: f32) -> Mesh {
         [s, -s, s],
     ];
 
-	m.normals = vec![
+	p.normals = vec![
 		[-1.0,-1.0,-1.0],
 		[-1.0,1.0,-1.0],
 		[1.0,1.0,-1.0],
@@ -36,7 +39,7 @@ pub fn cube(s: f32) -> Mesh {
 		[1.0,-1.0,1.0],
 	];
 
-    m.indices = vec![
+    p.indices = vec![
         // Front face
         0, 1, 2, 2, 3, 0,
         // Back face
@@ -50,7 +53,7 @@ pub fn cube(s: f32) -> Mesh {
         // Right face
         3, 2, 6, 6, 7, 3,
     ];
-	m.tex_coords = vec![
+	p.tex_coords = vec![
 		[0.0, 0.0],
 		[0.0, 1.0],
 		[1.0, 1.0],
@@ -59,6 +62,7 @@ pub fn cube(s: f32) -> Mesh {
 		[0.0, 1.0],
 		[1.0, 1.0],
 	];
+	m.primitives.push(p);
 
     m
 }
@@ -68,34 +72,32 @@ pub fn plane(w: f32, h: f32) -> Mesh {
 	let mut m = Mesh::new();
 	m.name = Some("Plane".to_string());
 
-	m.positions = vec![
+	let mut p = Primitive::new(crate::PrimitiveTopology::TriangleList);
+
+	p.vertices = vec![
 		[-w, 0.0, -h],
 		[-w, 0.0, h],
 		[w, 0.0, h],
 		[w, 0.0, -h],
 	];
 
-	m.normals = vec![
+	p.normals = vec![
 		[0.0, 1.0, 0.0],
 		[0.0, 1.0, 0.0],
 		[0.0, 1.0, 0.0],
 		[0.0, 1.0, 0.0],
 	];
 
-	m.indices = vec![
+	p.indices = vec![
 		0, 1, 2, 2, 3, 0,
 	];
-	m.tex_coords = vec![
+	p.tex_coords = vec![
 		[0.0, 0.0],
 		[0.0, 1.0],
 		[1.0, 1.0],
 		[1.0, 0.0],
 	];
-	// m.tex_coords = vec![
-	// 	[0.0, 0.0],
-	// 	[0.0, 0.0],
-	// 	[0.0, 0.0],
-	// 	[0.0, 0.0],
-	// ];
+	m.primitives.push(p);
+
 	m
 }

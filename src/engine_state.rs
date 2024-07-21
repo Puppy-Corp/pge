@@ -4,14 +4,18 @@ use std::ops::Range;
 use std::time::Instant;
 
 use bytemuck::bytes_of;
+use glam::Vec2;
+use glam::Vec3;
 use thunderdome::Index;
 
 use crate::compositor::UICompositor;
 use crate::debug::ChangePrinter;
+use crate::gltf::load_gltf;
 use crate::physics::PhysicsSystem;
 use crate::spatial_grid::SpatialGrid;
 use crate::wgpu_types::*;
 use crate::Node;
+use crate::PrimitiveTopology;
 use crate::State;
 use crate::Texture;
 use crate::AABB;
@@ -21,6 +25,32 @@ const ADD_NODE_SLOT: u32 = 1;
 const NODE_UPDATE_TIME_SLOT: u32 = 2;
 const BROAD_PHASE_TIME_SLOT: u32 = 3;
 const NARROW_PHASE_TIME_SLOT: u32 = 4;
+
+#[derive(Debug, Clone)]
+pub struct Gemometry {
+	pub vertices: Vec<u8>,
+	pub normals: Vec<u8>,
+	pub tex_coords: Vec<u8>,
+	pub indices: Vec<u8>,
+}
+
+impl Gemometry {
+	pub fn new() -> Self {
+		Self {
+			vertices: Vec::new(),
+			normals: Vec::new(),
+			tex_coords: Vec::new(),
+			indices: Vec::new(),
+		}
+	}
+
+	pub fn clear(&mut self) {
+		self.vertices.clear();
+		self.normals.clear();
+		self.tex_coords.clear();
+		self.indices.clear();
+	}
+}
 
 #[derive(Debug, Clone)]
 pub struct DrawCall {
@@ -43,16 +73,18 @@ pub struct EngineState {
 	printer: ChangePrinter,
 	pub draw_calls: Vec<DrawCall>,
 	pub all_instances_data: Vec<u8>,
-	pub all_positions_data: Vec<u8>,
-	pub all_tex_coords_data: Vec<u8>,
-	pub all_normals_data: Vec<u8>,
-	pub all_indices_data: Vec<u8>,
+	// pub all_positions_data: Vec<u8>,
+	// pub all_tex_coords_data: Vec<u8>,
+	// pub all_normals_data: Vec<u8>,
+	// pub all_indices_data: Vec<u8>,
 	pub all_nodes_data: Vec<u8>,
 	pub all_cameras_data: HashMap<Index, Vec<u8>>,
 	pub all_point_lights_data: Vec<u8>,
+	pub triangles: Gemometry,
 	pub move_nodes: Vec<(Index, AABB)>,
 	rem_nodes: HashSet<Index>,
 	add_nodes: Vec<(Index, AABB)>,
+	assets: HashSet<String>,
 	pub ui_compositors: HashMap<Index, UICompositor>,
 	pub textures: HashMap<Index, Texture>,
 	pub physics_system: PhysicsSystem,
@@ -69,17 +101,19 @@ impl EngineState {
 			meshes: HashSet::new(),
 			cameras: HashMap::new(),
 			all_instances_data: Vec::new(),
-			all_positions_data: Vec::new(),
-			all_tex_coords_data: Vec::new(),
-			all_normals_data: Vec::new(),
-			all_indices_data: Vec::new(),
+			// all_positions_data: Vec::new(),
+			// all_tex_coords_data: Vec::new(),
+			// all_normals_data: Vec::new(),
+			// all_indices_data: Vec::new(),
 			all_nodes_data: Vec::new(),
 			all_cameras_data: HashMap::new(),
 			all_point_lights_data: Vec::new(),
+			triangles: Gemometry::new(),
 			printer: ChangePrinter::new(),
 			move_nodes: Vec::new(),
 			rem_nodes: HashSet::new(),
 			add_nodes: Vec::new(),
+			assets: HashSet::new(),
 			physics_system: PhysicsSystem::new(),
 			ui_compositors: HashMap::new(),
 			textures: HashMap::new(),
@@ -90,13 +124,14 @@ impl EngineState {
 		let timer = Instant::now();
 		self.draw_calls.clear();
 		self.all_instances_data.clear();
-		self.all_positions_data.clear();
-		self.all_tex_coords_data.clear();
-		self.all_normals_data.clear();
-		self.all_indices_data.clear();
+		// self.all_positions_data.clear();
+		// self.all_tex_coords_data.clear();
+		// self.all_normals_data.clear();
+		// self.all_indices_data.clear();
 		self.all_nodes_data.clear();
 		self.all_cameras_data.clear();
 		self.all_point_lights_data.clear();
+		self.triangles.clear();
 		let mut instance_count = 0;
 
 		let mut mesh_instances: HashMap<Index, Vec<RawInstance>> = HashMap::new();
@@ -140,7 +175,6 @@ impl EngineState {
 				let instance = RawInstance {
 					node_index: node_inx as i32
 				};
-
 				match self.instances.get(&mesh_id) {
 					Some(instance) => {
 						self.instances.insert(mesh_id, *instance);
@@ -156,51 +190,50 @@ impl EngineState {
 		}
 
 		for (mesh_id, mesh) in &self.state.meshes {
-			// println!("mesh_id {:?}", mesh_id);
-			let positions_start = self.all_positions_data.len() as u64;
-			self.all_positions_data.extend_from_slice(bytemuck::cast_slice(&mesh.positions));
-			let positions_end = self.all_positions_data.len() as u64;
-			let indices_start = self.all_indices_data.len() as u64;
-			self.all_indices_data.extend_from_slice(bytemuck::cast_slice(&mesh.indices));
-			let indices_end = self.all_indices_data.len() as u64;
-			let normals_start = self.all_normals_data.len() as u64;
-			self.all_normals_data.extend_from_slice(bytemuck::cast_slice(&mesh.normals));
-			let normals_end = self.all_normals_data.len() as u64;
-			let tex_coords_start = self.all_tex_coords_data.len() as u64;
-			self.all_tex_coords_data.extend_from_slice(bytemuck::cast_slice(&mesh.tex_coords));
-			let tex_coords_end = self.all_tex_coords_data.len() as u64;
+			for primitive in &mesh.primitives {
+				if primitive.topology == PrimitiveTopology::TriangleList {			
+					if primitive.vertices.len() == 0 || primitive.indices.len() == 0 {
+						continue;
+					}
 
-			let instances: &Vec<RawInstance> = match mesh_instances.get(&mesh_id) {
-				Some(instances) => instances,
-				None => continue,
-			};
+					let positions_start = self.triangles.vertices.len() as u64;
+					self.triangles.vertices.extend_from_slice(bytemuck::cast_slice(&primitive.vertices));
+					let positions_end = self.triangles.vertices.len() as u64;
+					let normals_start = self.triangles.normals.len() as u64;
+					self.triangles.normals.extend_from_slice(bytemuck::cast_slice(&primitive.normals));
+					let normals_end = self.triangles.normals.len() as u64;
+					let indices_start = self.triangles.indices.len() as u64;
+					self.triangles.indices.extend_from_slice(bytemuck::cast_slice(&primitive.indices));
+					let indices_end = self.triangles.indices.len() as u64;
+					let tex_coords_start = self.triangles.tex_coords.len() as u64;
+					self.triangles.tex_coords.extend_from_slice(bytemuck::cast_slice(&primitive.tex_coords));
+					let tex_coords_end = self.triangles.tex_coords.len() as u64;
+					
+					let instances = match mesh_instances.get(&mesh_id) {
+						Some(instances) => instances,
+						None => {
+							continue
+						},
+					};
 
-			let instance_start = instance_count;
-			self.all_instances_data.extend_from_slice(bytemuck::cast_slice(instances));
-			instance_count += instances.len() as u32;
-			let instance_end = instance_count;
+					let instance_start = instance_count;
+					self.all_instances_data.extend_from_slice(bytemuck::cast_slice(instances));
+					instance_count += instances.len() as u32;
+					let instance_end = instance_count;
+		
+					let draw_instruction = DrawCall {
+						position_range: positions_start..positions_end,
+						normal_range: normals_start..normals_end,
+						index_range: indices_start..indices_end,
+						indices_range: 0..primitive.indices.len() as u32,
+						instances_range: instance_start..instance_end,
+						tex_coords_range: tex_coords_start..tex_coords_end,
+						texture: mesh.texture,
+					};
 
-			let draw_instruction = DrawCall {
-				position_range: positions_start..positions_end,
-				normal_range: normals_start..normals_end,
-				index_range: indices_start..indices_end,
-				indices_range: 0..mesh.indices.len() as u32,
-				instances_range: instance_start..instance_end,
-				tex_coords_range: tex_coords_start..tex_coords_end,
-				texture: mesh.texture,
-			};
-
-			match self.meshes.contains(&mesh_id) {
-				true => {},
-				false => {
-					log::info!("new mesh mesh_id: {:?} mesh: {:?}", mesh_id, mesh);
-					log::info!("draw_instruction: {:?}", draw_instruction);
-					log::info!("instances: {:?}", instances);
-					self.meshes.insert(mesh_id);
-				},
+					self.draw_calls.push(draw_instruction);
+				}
 			}
-
-			self.draw_calls.push(draw_instruction);
 		}
 
 		for (cam_id, cam) in &self.state.cameras {
@@ -286,6 +319,20 @@ impl EngineState {
 		}
 	}
 
+	pub fn update_assets(&mut self) {
+		let paths = self.state.assets_3d.iter().map(|p| p.1.path.clone()).collect::<Vec<String>>();
+
+		for path in paths {
+			if self.assets.contains(&path) {
+				continue;
+			}
+
+			self.assets.insert(path.clone());
+
+			load_gltf(&path, &mut self.state);
+		}
+	}
+
 	pub fn physics_update(&mut self, dt: f32) {
 		// update physics
 		let timings = self.physics_system.physics_update(&mut self.state, &mut self.grid, dt);
@@ -301,6 +348,42 @@ impl EngineState {
 		if timings.resolve_collision_time > 0 {
 			self.printer.print(NARROW_PHASE_TIME_SLOT, format!("resolve_collision_time: {}", timings.resolve_collision_time));
 		}
+
+		for (_, ray_cast) in &mut self.state.raycasts {
+			ray_cast.intersects.clear();
+		
+			let node = match self.state.nodes.get(ray_cast.node_inx) {
+				Some(node) => node,
+				None => continue,
+			};
+		
+			let start = node.translation;
+			let end = start + node.rotation * Vec3::new(0.0, 0.0, 1.0) * ray_cast.len;
+			let nodes = self.grid.get_line_ray_nodes(start, end);
+		
+			let mut intersections = Vec::new();
+		
+			for node_inx in nodes {
+				if node_inx == ray_cast.node_inx {
+					continue;
+				}
+		
+				let aabb = match self.grid.get_node_rect(node_inx) {
+					Some(aabb) => aabb,
+					None => continue,
+				};
+		
+				if let Some((tmin, _tmax)) = aabb.intersect_ray(start, end) {
+					intersections.push((tmin, node_inx));
+				}
+			}
+		
+			// Sort the intersections by tmin
+			intersections.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+		
+			// Store the sorted node indices
+			ray_cast.intersects = intersections.into_iter().map(|(_, node_inx)| node_inx).collect();
+		}		
 	}
 
 	pub fn update_guis(&mut self) {

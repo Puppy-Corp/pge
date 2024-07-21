@@ -12,10 +12,29 @@ use crate::physics::PhysicsSystem;
 use crate::GUIElement;
 use crate::Window;
 
+#[derive(Debug, Clone)]
+pub enum MouseButton {
+	Left,
+	Right,
+	Middle,
+}
+
+impl From<winit::event::MouseButton> for MouseButton {
+	fn from(button: winit::event::MouseButton) -> Self {
+		match button {
+			winit::event::MouseButton::Left => Self::Left,
+			winit::event::MouseButton::Right => Self::Right,
+			winit::event::MouseButton::Middle => Self::Middle,
+			_ => panic!("Unknown mouse button"),
+		}
+	}
+}
 
 #[derive(Debug, Clone)]
 pub enum MouseEvent {
-	Moved { dx: f32, dy: f32 }
+	Moved { dx: f32, dy: f32 },
+	Pressed { button: MouseButton },
+	Released { button: MouseButton },
 }
 
 #[derive(Debug, Clone)]
@@ -28,6 +47,8 @@ pub enum KeyboardKey {
 	A,
 	S,
 	D,
+	F,
+	G,
 	Space,
 	ShiftLeft,
 	Unknow
@@ -42,6 +63,8 @@ impl From<KeyCode> for KeyboardKey {
 			KeyCode::KeyD => Self::D,
 			KeyCode::Space => Self::Space,
 			KeyCode::ShiftLeft => Self::ShiftLeft,
+			KeyCode::KeyF => Self::F,
+			KeyCode::KeyG => Self::G,
 			_ => Self::Unknow
 		}
 	}
@@ -117,6 +140,29 @@ pub enum Flex {
 }
 
 #[derive(Debug, Clone)]
+pub struct RayCast {
+	pub node_inx: Index,
+	pub len: f32,
+	pub intersects: Vec<Index>,
+}
+
+impl RayCast {
+	pub fn new(node_inx: Index, len: f32) -> Self {
+		Self {
+			node_inx,
+			len,
+			intersects: vec![]
+		}
+	}
+}
+
+pub struct SphereCast {
+	pub origin: glam::Vec3,
+	pub radius: f32,
+	pub length: f32,
+}
+
+#[derive(Debug, Clone)]
 pub struct AABB {
     pub min: glam::Vec3, // minimum point of the box (x, y, z)
     pub max: glam::Vec3, // maximum point of the box (x, y, z)
@@ -185,6 +231,43 @@ impl AABB {
 
         correction
     }
+
+	pub fn intersect_ray(&self, start: Vec3, end: Vec3) -> Option<(f32, f32)> {
+		let dir = end - start;
+		let inv_dir = Vec3::new(1.0 / dir.x, 1.0 / dir.y, 1.0 / dir.z);
+		let len = dir.length();
+	
+		let t1 = (self.min.x - start.x) * inv_dir.x;
+		let t2 = (self.max.x - start.x) * inv_dir.x;
+		let t3 = (self.min.y - start.y) * inv_dir.y;
+		let t4 = (self.max.y - start.y) * inv_dir.y;
+		let t5 = (self.min.z - start.z) * inv_dir.z;
+		let t6 = (self.max.z - start.z) * inv_dir.z;
+	
+		let tmin = t1.min(t2).max(t3.min(t4)).max(t5.min(t6));
+		let tmax = t1.max(t2).min(t3.max(t4)).min(t5.max(t6));
+	
+		if tmax >= tmin && tmin <= len && tmax >= 0.0 {
+			Some((tmin, tmax))
+		} else {
+			None
+		}
+    }
+
+	pub fn intersect_sphere(&self, sphere: &SphereCast) -> bool {
+        let mut closest_point = Vec3::ZERO;
+
+        // Find the closest point on the AABB to the sphere's origin
+        closest_point.x = sphere.origin.x.max(self.min.x).min(self.max.x);
+        closest_point.y = sphere.origin.y.max(self.min.y).min(self.max.y);
+        closest_point.z = sphere.origin.z.max(self.min.z).min(self.max.z);
+
+        // Calculate the distance between the sphere's origin and the closest point
+        let distance = closest_point.distance(sphere.origin);
+
+        // Check if the distance is less than or equal to the sphere's radius
+        distance <= sphere.radius
+    }
 }
 
 pub struct ConvexHull {
@@ -236,7 +319,10 @@ impl CollisionShape {
         }
     }
 }
-#[derive(Debug, Clone)]
+
+
+
+#[derive(Debug, Clone, Default)]
 pub struct Node {
 	pub id: usize,
 	pub name: Option<String>,
@@ -245,12 +331,10 @@ pub struct Node {
 	pub translation: glam::Vec3,
 	pub rotation: glam::Quat,
 	pub scale: glam::Vec3,
-	pub animation: Animation,
 	pub point_light: Option<PointLight>,
 	pub texture: Option<Texture>,
 	pub physics: PhysicsProps,
-	pub flex: Flex,
-	pub collision_shape: Option<CollisionShape>
+	pub collision_shape: Option<CollisionShape>,
 }
 
 impl Node {
@@ -264,10 +348,8 @@ impl Node {
 			translation: glam::Vec3::ZERO,
 			rotation: glam::Quat::IDENTITY,
 			scale: glam::Vec3::ONE,
-			animation: Animation::new(),
 			texture: None,
 			physics: PhysicsProps::default(),
-			flex: Flex::None,
 			collision_shape: None
 		}
 	}
@@ -301,10 +383,48 @@ impl Node {
     pub fn scale(&mut self, x: f32, y: f32, z: f32) {
         self.scale = glam::Vec3::new(x, y, z);
     }
+}
 
-	pub fn flex(mut self, flex: Flex) -> Self {
-		self.flex = flex;
-		self
+#[derive(Debug, Clone, PartialEq)]
+pub enum PrimitiveTopology {
+	PointList,
+	LineList,
+	LineStrip,
+	TriangleList,
+	TriangleStrip
+}
+
+impl PrimitiveTopology {
+	pub fn from_mode(mode: gltf::mesh::Mode) -> Self {
+		match mode {
+			gltf::mesh::Mode::Points => PrimitiveTopology::PointList,
+			gltf::mesh::Mode::Lines => PrimitiveTopology::LineList,
+			gltf::mesh::Mode::LineStrip => PrimitiveTopology::LineStrip,
+			gltf::mesh::Mode::Triangles => PrimitiveTopology::TriangleList,
+			gltf::mesh::Mode::TriangleStrip => PrimitiveTopology::TriangleStrip,
+			_ => panic!("Invalid primitive topology")
+		}
+	}
+}
+
+#[derive(Debug, Clone)]
+pub struct Primitive {
+	pub topology: PrimitiveTopology,
+	pub vertices: Vec<[f32; 3]>,
+	pub indices: Vec<u16>,
+	pub normals: Vec<[f32; 3]>,
+	pub tex_coords: Vec<[f32; 2]>,	
+}
+
+impl Primitive {
+	pub fn new(topology: PrimitiveTopology) -> Self {
+		Self {
+			topology,
+			vertices: vec![],
+			indices: vec![],
+			normals: vec![],
+			tex_coords: vec![],
+		}
 	}
 }
 
@@ -312,13 +432,14 @@ impl Node {
 pub struct Mesh {
 	// pub id: usize,
 	pub name: Option<String>,
-	pub material: Option<Material>,
-	pub positions: Vec<[f32; 3]>,
-	pub normals: Vec<[f32; 3]>,
-	pub tex_coords: Vec<[f32; 2]>,
-	pub colors: Vec<[f32; 4]>,
-	pub indices: Vec<u16>,
+	// pub material: Option<Material>,
+	// pub positions: Vec<[f32; 3]>,
+	// pub normals: Vec<[f32; 3]>,
+	// pub tex_coords: Vec<[f32; 2]>,
+	// pub colors: Vec<[f32; 4]>,
+	// pub indices: Vec<u16>,
 	pub texture: Option<Index>,
+	pub primitives: Vec<Primitive>,
 }
 
 impl Mesh {
@@ -326,13 +447,14 @@ impl Mesh {
 		Self {
 			// id: gen_id(),
 			name: None,
-			material: None,
-			positions: vec![],
-			normals: vec![],
-			tex_coords: vec![],
-			colors: vec![],
-			indices: vec![],
+			// material: None,
+			// positions: vec![],
+			// normals: vec![],
+			// tex_coords: vec![],
+			// colors: vec![],
+			// indices: vec![],
 			texture: None,
+			primitives: vec![],
 		}
 	}
 
@@ -341,20 +463,9 @@ impl Mesh {
 		self
 	}
 
-	pub fn set_material(&mut self, material: Material) {
-		self.material = Some(material);
-	}
-
 	pub fn set_texture(mut self, texture: Index) -> Self {
 		self.texture = Some(texture);
 		self
-	}
-
-	pub fn add_mesh(&mut self, mesh: Mesh) {
-		self.positions.extend(mesh.positions);
-		self.normals.extend(mesh.normals);
-		self.tex_coords.extend(mesh.tex_coords);
-		self.indices.extend(mesh.indices);
 	}
 }
 
@@ -561,6 +672,32 @@ impl World3D {
 	}
 }
 
+#[derive(Debug, Clone)]
+pub struct Asset3D {
+	pub path: String,
+	pub meshes: Vec<Index>,
+	pub textures: Vec<Index>,
+	pub nodes: Vec<Index>,
+	pub animations: Vec<Index>,
+	pub node_id: Option<Index>,
+
+}
+
+impl Asset3D {
+	pub fn from_path<P: AsRef<Path>>(p: P) -> Self {
+		let path = p.as_ref().to_str().unwrap().to_string();
+		
+		Self {
+			path,
+			meshes: vec![],
+			textures: vec![],
+			nodes: vec![],
+			animations: vec![],
+			node_id: None,
+		}
+	}
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct State {
 	pub scenes: Arena<Scene>,
@@ -571,6 +708,8 @@ pub struct State {
 	pub guis: Arena<GUIElement>,
 	pub point_lights: Arena<PointLight>,
 	pub textures: Arena<Texture>,
+	pub raycasts: Arena<RayCast>,
+	pub assets_3d: Arena<Asset3D>,
 }
 
 pub trait App {

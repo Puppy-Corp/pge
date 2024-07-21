@@ -17,6 +17,7 @@ mod spatial_grid;
 mod engine_state;
 mod debug;
 mod texture;
+mod gltf;
 pub mod text;
 pub use engine::run;
 pub use types::*;

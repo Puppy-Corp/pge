@@ -194,29 +194,51 @@ where
 			self.state.textures.insert(t.0, t.1);
 		}
 
+		self.state.update_assets();
 		self.state.update_buffers();
 
 		if self.state.all_instances_data.len() > 0 {
 			self.queue.write_buffer(&self.instance_buffer, 0, &self.state.all_instances_data);
 		}
-		if self.state.all_positions_data.len() > 0 {
-			self.queue.write_buffer(&self.position_buffer, 0, &self.state.all_positions_data);
-		}
-		if self.state.all_normals_data.len() > 0 {
-			self.queue.write_buffer(&self.normal_buffer, 0, &self.state.all_normals_data);
-		}
-		if self.state.all_tex_coords_data.len() > 0 {
-			self.queue.write_buffer(&self.tex_coords_buffer, 0, &self.state.all_tex_coords_data);
-		}
-		if self.state.all_indices_data.len() > 0 {
-			self.queue.write_buffer(&self.index_buffer, 0, &self.state.all_indices_data);
-		}
-		if self.state.all_nodes_data.len() > 0 {
-			self.queue.write_buffer(&self.node_buffer.buffer, 0, &self.state.all_nodes_data);
-		}
+		// if self.state.all_positions_data.len() > 0 {
+		// 	self.queue.write_buffer(&self.position_buffer, 0, &self.state.all_positions_data);
+		// }
+		// if self.state.all_normals_data.len() > 0 {
+		// 	self.queue.write_buffer(&self.normal_buffer, 0, &self.state.all_normals_data);
+		// }
+		// if self.state.all_tex_coords_data.len() > 0 {
+		// 	self.queue.write_buffer(&self.tex_coords_buffer, 0, &self.state.all_tex_coords_data);
+		// }
+		// if self.state.all_indices_data.len() > 0 {
+		// 	self.queue.write_buffer(&self.index_buffer, 0, &self.state.all_indices_data);
+		// }
+		// if self.state.all_nodes_data.len() > 0 {
+		// 	self.queue.write_buffer(&self.node_buffer.buffer, 0, &self.state.all_nodes_data);
+		// }
 		// if self.state.all_cameras_data.len() > 0 {
 		// 	self.queue.write_buffer(&self.camera_buffer.buffer, 0, &self.state.all_cameras_data);
 		// }
+
+		if self.state.triangles.vertices.len() > 0 {
+			//log::info!("writing vertices {} {:?}", self.state.triangles.vertices.len(), self.state.triangles);
+			self.queue.write_buffer(&self.position_buffer, 0, &self.state.triangles.vertices);
+		}
+		if self.state.triangles.normals.len() > 0 {
+			//log::info!("writing normals {}", self.state.triangles.normals.len());
+			self.queue.write_buffer(&self.normal_buffer, 0, &self.state.triangles.normals);
+		}
+		if self.state.triangles.indices.len() > 0 {
+			//log::info!("writing indices {}", self.state.triangles.indices.len());
+			self.queue.write_buffer(&self.index_buffer, 0, &self.state.triangles.indices);
+		}
+		if self.state.triangles.tex_coords.len() > 0 {
+			//log::info!("writing tex_coords {}", self.state.triangles.tex_coords.len());
+			self.queue.write_buffer(&self.tex_coords_buffer, 0, &self.state.triangles.tex_coords);
+		}
+		if self.state.all_nodes_data.len() > 0 {
+			//log::info!("writing nodes {}", self.state.all_nodes_data.len());
+			self.queue.write_buffer(&self.node_buffer.buffer, 0, &self.state.all_nodes_data);
+		}
 
 		if self.state.all_cameras_data.len() > 0 {
 			for (camera_id, data) in &self.state.all_cameras_data {
@@ -547,6 +569,12 @@ where
 							window_ctx.wininit_window.set_cursor_position(PhysicalPosition::new(middle_x, middle_y)).unwrap();
 						}
 					}
+				}
+			}
+			WindowEvent::MouseInput { device_id, state, button } => {
+				match state {
+					winit::event::ElementState::Pressed => self.app.on_mouse_input(MouseEvent::Pressed { button: MouseButton::from(button) }, &mut self.state.state),
+					winit::event::ElementState::Released => self.app.on_mouse_input(MouseEvent::Released { button: MouseButton::from(button) }, &mut self.state.state),
 				}
 			}
 			WindowEvent::KeyboardInput { device_id, event, is_synthetic } => {

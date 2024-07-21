@@ -16,6 +16,8 @@ use ttf_parser::OutlineBuilder;
 use ttf_parser::Rect;
 
 use crate::Mesh;
+use crate::Primitive;
+use crate::PrimitiveTopology;
 
 // pub struct Mesh {
 //     pub id: usize,
@@ -77,10 +79,12 @@ impl GlyphMeshBuilder {
 		}
 
 		let mut mesh = Mesh::new();
-		mesh.positions = geometry.vertices.iter().map(|v| [v.position[0], v.position[1], 0.0]).collect();
-		mesh.indices = geometry.indices.chunks(3).flat_map(|chunk| chunk.iter().rev()).map(|i| *i as u16).collect();
-		mesh.normals = vec![[0.0, 0.0, 1.0]; mesh.positions.len()];
-		normalize(&mut mesh.positions, &rect);
+		let mut p = Primitive::new(PrimitiveTopology::TriangleList);
+
+		p.vertices = geometry.vertices.iter().map(|v| [v.position[0], v.position[1], 0.0]).collect();
+		p.indices = geometry.indices.chunks(3).flat_map(|chunk| chunk.iter().rev()).map(|i| *i as u16).collect();
+		p.normals = vec![[0.0, 0.0, 1.0]; p.vertices.len()];
+		normalize(&mut p.vertices, &rect);
 		mesh
     }
 }
@@ -248,15 +252,17 @@ pub struct TextRenderer {
 impl TextRenderer {
 	pub fn render(&self, text: &str) -> Mesh {
 		let mut mesh = Mesh::new();
-		for c in text.chars() {
-			println!("char: {:?}", c);
-			match self.font.get_mesh(c) {
-				Some(char_mesh) => {
-					mesh.add_mesh(char_mesh);
-				}
-				None => {}
-			}
-		}
+		// let p = Primitive::new(PrimitiveTopology::TriangleList);
+		// for c in text.chars() {
+		// 	println!("char: {:?}", c);
+		// 	match self.font.get_mesh(c) {
+		// 		Some(char_mesh) => {
+		// 			mesh.add_mesh(char_mesh);
+		// 		}
+		// 		None => {}
+		// 	}
+		// }
+		// mesh
 		mesh
 	}
 }

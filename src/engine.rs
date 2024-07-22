@@ -98,13 +98,13 @@ struct Engine<'a, T> {
 	// instaces: Arena<RawInstance>,
 	windows: HashMap<WindowId, WindowContext<'a>>,
 	instance_buffer: wgpu::Buffer,
-	node_buffer: Buffer,
-	point_light_buffer: Buffer,
+	node_buffer: Bindablebuffer,
+	point_light_buffer: Bindablebuffer,
 	last_on_process_time: Instant,
 	last_physics_update_time: Instant,
 	gui_buffers: HashMap<Index, GuiBuffers>,
 	texture_bind_groups: HashMap<Index, wgpu::BindGroup>,
-	camera_buffers: HashMap<Index, Buffer>,
+	camera_buffers: HashMap<Index, Bindablebuffer>,
 	default_texture: wgpu::BindGroup,
 	proxy: EventLoopProxy<EngineEvent>,
 }
@@ -134,23 +134,23 @@ where
 
 		let default_texture = create_texture_with_uniform_color(&device, &queue);
 
-		let position_buffer = RawPositions::create_buffer(&device, 10_000);
-		let normal_buffer = RawNormal::create_buffer(&device, 10_000);
+		let position_buffer = RawPositions::create_buffer(&device, 1_000_000);
+		let normal_buffer = RawNormal::create_buffer(&device, 1_000_000);
 		let index_buffer = device.create_buffer(&wgpu::BufferDescriptor {
 			label: Some("Index Buffer"),
-			size: 10_000,
+			size: 1_000_000,
 			usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::INDEX,
 			mapped_at_creation: false
 		});
 		let tex_coords_buffer = device.create_buffer(&wgpu::BufferDescriptor {
 			label: Some("Tex Coords Buffer"),
-			size: 10_000,
+			size: 1_000_000,
 			usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::VERTEX,
 			mapped_at_creation: false
 		});
-		let instance_buffer = RawInstance::create_buffer(&device, 10_000);
-		let node_buffer = Buffer::new::<RawNode>(&device, 10_000);
-		let point_light_buffer = Buffer::new::<RawPointLight>(&device, 10_000);
+		let instance_buffer = RawInstance::create_buffer(&device, 1_000_000);
+		let node_buffer = Bindablebuffer::new::<RawNode>(&device, 1_000_000);
+		let point_light_buffer = Bindablebuffer::new::<RawPointLight>(&device, 1_000_000);
 
 		Self {
 			i: 0,
@@ -243,7 +243,7 @@ where
 		if self.state.all_cameras_data.len() > 0 {
 			for (camera_id, data) in &self.state.all_cameras_data {
 				let camera_buffer = self.camera_buffers.entry(*camera_id)
-					.or_insert(Buffer::new::<RawCamera>(&self.device, 10_000));
+					.or_insert(Bindablebuffer::new::<RawCamera>(&self.device, 10_000));
 				self.queue.write_buffer(&camera_buffer.buffer, 0, data);
 			}
 		}
@@ -333,6 +333,30 @@ where
 						Some(t) => self.texture_bind_groups.get(&t).unwrap_or(&self.default_texture),
 						None => &self.default_texture,
 					};
+
+					if d.index_range.start == d.index_range.end {
+						panic!("Index range is empty");
+					}
+
+					if d.indices_range.start == d.indices_range.end {
+						panic!("Indices range is empty");
+					}
+
+					if d.normal_range.start == d.normal_range.end {
+						panic!("Normal range is empty");
+					}
+
+					if d.instances_range.start == d.instances_range.end {
+						panic!("Instances range is empty");
+					}
+
+					if d.position_range.start == d.position_range.end {
+						panic!("Position range is empty");
+					}
+
+					if d.tex_coords_range.start == d.tex_coords_range.end {
+						panic!("Tex coords range is empty");
+					}
 				
 					DrawCall {
 						index_range: d.index_range.clone(),

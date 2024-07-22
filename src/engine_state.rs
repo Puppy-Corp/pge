@@ -206,7 +206,12 @@ impl EngineState {
 					self.triangles.indices.extend_from_slice(bytemuck::cast_slice(&primitive.indices));
 					let indices_end = self.triangles.indices.len() as u64;
 					let tex_coords_start = self.triangles.tex_coords.len() as u64;
-					self.triangles.tex_coords.extend_from_slice(bytemuck::cast_slice(&primitive.tex_coords));
+					if primitive.tex_coords.len() > 0 {
+						self.triangles.tex_coords.extend_from_slice(bytemuck::cast_slice(&primitive.tex_coords));
+					} else {
+						let tex_coords = vec![[0.0, 0.0]; primitive.vertices.len()];
+						self.triangles.tex_coords.extend_from_slice(bytemuck::cast_slice(&tex_coords));
+					}
 					let tex_coords_end = self.triangles.tex_coords.len() as u64;
 					
 					let instances = match mesh_instances.get(&mesh_id) {

@@ -144,9 +144,9 @@ impl pge::App for FpsShooter {
 		let texture = Texture::new("./assets/gandalf.jpg");
 	 	let texture_id = state.textures.insert(texture);
 
-		// for orc in self.orcs.iter_mut() {
-		// 	orc.on_create(state);
-		// }
+		for orc in self.orcs.iter_mut() {
+			orc.on_create(state);
+		}
 
 		let cube_mesh = state.meshes.insert(cube(1.0).set_texture(texture_id));
 		let plane_mesh = state.meshes.insert(plane(1.0, 1.0).set_texture(texture_id));

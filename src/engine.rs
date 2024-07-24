@@ -194,49 +194,25 @@ where
 			self.state.textures.insert(t.0, t.1);
 		}
 
-		self.state.update_assets();
+		self.state.process_assets();
 		self.state.update_buffers();
 
 		if self.state.all_instances_data.len() > 0 {
 			self.queue.write_buffer(&self.instance_buffer, 0, &self.state.all_instances_data);
 		}
-		// if self.state.all_positions_data.len() > 0 {
-		// 	self.queue.write_buffer(&self.position_buffer, 0, &self.state.all_positions_data);
-		// }
-		// if self.state.all_normals_data.len() > 0 {
-		// 	self.queue.write_buffer(&self.normal_buffer, 0, &self.state.all_normals_data);
-		// }
-		// if self.state.all_tex_coords_data.len() > 0 {
-		// 	self.queue.write_buffer(&self.tex_coords_buffer, 0, &self.state.all_tex_coords_data);
-		// }
-		// if self.state.all_indices_data.len() > 0 {
-		// 	self.queue.write_buffer(&self.index_buffer, 0, &self.state.all_indices_data);
-		// }
-		// if self.state.all_nodes_data.len() > 0 {
-		// 	self.queue.write_buffer(&self.node_buffer.buffer, 0, &self.state.all_nodes_data);
-		// }
-		// if self.state.all_cameras_data.len() > 0 {
-		// 	self.queue.write_buffer(&self.camera_buffer.buffer, 0, &self.state.all_cameras_data);
-		// }
-
 		if self.state.triangles.vertices.len() > 0 {
-			//log::info!("writing vertices {} {:?}", self.state.triangles.vertices.len(), self.state.triangles);
 			self.queue.write_buffer(&self.position_buffer, 0, &self.state.triangles.vertices);
 		}
 		if self.state.triangles.normals.len() > 0 {
-			//log::info!("writing normals {}", self.state.triangles.normals.len());
 			self.queue.write_buffer(&self.normal_buffer, 0, &self.state.triangles.normals);
 		}
 		if self.state.triangles.indices.len() > 0 {
-			//log::info!("writing indices {}", self.state.triangles.indices.len());
 			self.queue.write_buffer(&self.index_buffer, 0, &self.state.triangles.indices);
 		}
 		if self.state.triangles.tex_coords.len() > 0 {
-			//log::info!("writing tex_coords {}", self.state.triangles.tex_coords.len());
 			self.queue.write_buffer(&self.tex_coords_buffer, 0, &self.state.triangles.tex_coords);
 		}
 		if self.state.all_nodes_data.len() > 0 {
-			//log::info!("writing nodes {}", self.state.all_nodes_data.len());
 			self.queue.write_buffer(&self.node_buffer.buffer, 0, &self.state.all_nodes_data);
 		}
 
@@ -255,7 +231,7 @@ where
 	fn update_physics(&mut self) {
 		let dt = self.last_physics_update_time.elapsed().as_secs_f32();
 		self.last_physics_update_time = Instant::now();
-		self.state.physics_update(dt);
+		self.state.process_phycis(dt);
 	}
 
 	fn update_windows(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {

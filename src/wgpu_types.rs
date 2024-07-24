@@ -143,8 +143,7 @@ struct MaterialUniform {
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct RawCamera {
-    pub proj: [[f32; 4]; 4],
-	pub node_inx: i32,
+    pub model: [[f32; 4]; 4],
 	pub _padding: [u32; 3],
 }
 

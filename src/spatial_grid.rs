@@ -20,7 +20,7 @@ pub struct CellCoord {
 	z: i32,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SpatialGrid {
 	cell_size: f32,
 	pub cells: HashMap<CellCoord, Vec<Index>>,

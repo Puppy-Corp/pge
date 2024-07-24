@@ -126,7 +126,6 @@ impl PhysicsSystem {
 		let acceleration = if mass > 0.0 { total_force / mass } else { glam::Vec3::ZERO };
 		node.physics.velocity += acceleration * dt;
 		node.translation += node.physics.velocity * dt;
-		log::debug!("[{}] total force: {:?} acceleration: {:?} velocity: {:?} translation: {:?}", node.id, total_force, acceleration, node.physics.velocity, node.translation);	
 		node.physics.acceleration = acceleration;
 	}
 	

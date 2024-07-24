@@ -144,9 +144,11 @@ impl pge::App for FpsShooter {
 		let texture = Texture::new("./assets/gandalf.jpg");
 	 	let texture_id = state.textures.insert(texture);
 
-		for orc in self.orcs.iter_mut() {
-			orc.on_create(state);
-		}
+		// for orc in self.orcs.iter_mut() {
+		// 	orc.on_create(state);
+		// }
+
+		let mut scene = Scene::new();
 
 		let cube_mesh = state.meshes.insert(cube(1.0).set_texture(texture_id));
 		let plane_mesh = state.meshes.insert(plane(1.0, 1.0).set_texture(texture_id));
@@ -156,10 +158,11 @@ impl pge::App for FpsShooter {
 		let mut light_node = Node::new();
 		light_node.name = Some("Light".to_string());
 		light_node.set_translation(10.0, 10.0, 0.0);
-		let light_inx = state.nodes.insert(light_node);
-		self.light_inx = Some(light_inx);
+		let light_node_id = state.nodes.insert(light_node);
+		self.light_inx = Some(light_node_id);
+		scene.nodes.push(light_node_id);
 		let mut light = PointLight::new();
-		light.node_id = Some(light_inx);
+		light.node_id = Some(light_node_id);
 		state.point_lights.insert(light);
 
 		let mut plane_node = Node::new();
@@ -169,7 +172,8 @@ impl pge::App for FpsShooter {
 		plane_node.physics.typ = PhycisObjectType::Static;
 		plane_node.scale = glam::Vec3::new(plane_size, 1.0, plane_size);
 		plane_node.collision_shape = Some(CollisionShape::Box { size: glam::Vec3::new(plane_size, 0.1, plane_size) });
-		state.nodes.insert(plane_node);
+		let plane_node_id = state.nodes.insert(plane_node);
+		scene.nodes.push(plane_node_id);
 
 		let mut player = Node::new();
 		player.name = Some("Player".to_string());
@@ -180,6 +184,7 @@ impl pge::App for FpsShooter {
 		player.looking_at(0.0, 0.0, 0.0);
 		player.collision_shape = Some(CollisionShape::Box { size: glam::Vec3::new(1.0, 2.0, 1.0) });
 		let player_id = state.nodes.insert(player);
+		scene.nodes.push(player_id);
 
 		let raycast = RayCast::new(player_id, 10.0);
 		let player_ray_inx = state.raycasts.insert(raycast);
@@ -197,7 +202,8 @@ impl pge::App for FpsShooter {
 			cube_node.physics.typ = PhycisObjectType::Dynamic;
 			cube_node.physics.mass = 10.0;
 			cube_node.collision_shape = Some(CollisionShape::Box { size: glam::Vec3::new(1.0, 1.0, 1.0) });
-			state.nodes.insert(cube_node);
+			let node_id = state.nodes.insert(cube_node);
+			scene.nodes.push(node_id);
 		}
 
 		let mut camera = Camera::new();

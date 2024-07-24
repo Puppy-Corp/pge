@@ -4,20 +4,18 @@ use gltf::buffer::Data;
 
 use crate::Mesh;
 use crate::Node;
+use crate::NodeParent;
 use crate::Primitive;
 use crate::PrimitiveTopology;
+use crate::Scene;
 use crate::State;
 
 
-pub fn load_node(n: &gltf::Node, buffers: &[Data], state: &mut State) {
+pub fn load_node(n: &gltf::Node, buffers: &[Data], state: &mut State, parent: NodeParent) {
 	let mut node = Node {
 		name: Some(n.name().unwrap_or_default().to_string()),
 		..Default::default()
 	};
-
-	for child in n.children() {
-		load_node(&child, buffers, state);
-	}
 
 	match n.mesh() {
 		Some(gltf_mesh) => {
@@ -56,6 +54,8 @@ pub fn load_node(n: &gltf::Node, buffers: &[Data], state: &mut State) {
 					}
 				});
 
+				// reader.read_tex_coords()
+
 				mesh.primitives.push(primitive);
 			}
 
@@ -64,6 +64,27 @@ pub fn load_node(n: &gltf::Node, buffers: &[Data], state: &mut State) {
 		},
 		None => {}
 	}
+	
+	let node_id = state.nodes.insert(node);
+
+	for child in n.children() {
+		load_node(&child, buffers, state, NodeParent::Node(node_id));
+	}
+}
+
+pub fn load_scene(s: &gltf::Scene, buffers: &[Data], state: &mut State) {
+	let scene = Scene {
+		name: Some(s.name().unwrap_or_default().to_string()),
+		..Default::default()
+	};
+
+	let scene_id = state.scenes.insert(scene);
+
+	let parent = NodeParent::Scene(scene_id);
+
+	for node in s.nodes() {
+		load_node(&node, buffers, state, parent);
+	}	
 }
 
 pub fn load_gltf<P: AsRef<Path>>(p: P, state: &mut State) {
@@ -78,7 +99,7 @@ pub fn load_gltf<P: AsRef<Path>>(p: P, state: &mut State) {
 		},
 	};
 
-	for n in document.nodes() {
-		load_node(&n, &buffers, state); 
+	for s in document.scenes() {
+		load_scene(&s, &buffers, state)
 	}
 }

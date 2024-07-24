@@ -306,6 +306,7 @@ impl Lineariser {
 	}
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct UICompositor {
 	lineariser: Lineariser,
 	pub positions: Vec<[f32; 3]>,

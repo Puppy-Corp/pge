@@ -320,13 +320,23 @@ impl CollisionShape {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum NodeParent {
+	Node(Index),
+	Scene(Index),
+	Orphan
+}
 
+impl Default for NodeParent {
+	fn default() -> Self {
+		Self::Orphan
+	}
+}
 
 #[derive(Debug, Clone, Default)]
 pub struct Node {
-	pub id: usize,
 	pub name: Option<String>,
-	pub parent: Option<Index>,
+	pub parent: NodeParent,
 	pub mesh: Option<Index>,
 	pub translation: glam::Vec3,
 	pub rotation: glam::Quat,
@@ -339,19 +349,7 @@ pub struct Node {
 
 impl Node {
 	pub fn new() -> Self {
-		Self {
-			id: gen_id(),
-			name: None,
-			parent: None,
-			mesh: None,
-			point_light: None,
-			translation: glam::Vec3::ZERO,
-			rotation: glam::Quat::IDENTITY,
-			scale: glam::Vec3::ONE,
-			texture: None,
-			physics: PhysicsProps::default(),
-			collision_shape: None
-		}
+		Default::default()
 	}
 
 	pub fn set_mesh(mut self, mesh_id: Index) -> Node {
@@ -473,15 +471,15 @@ pub struct Asset {
 	ascenes: Vec<Scene>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Scene {
-	pub nodes: Vec<Index>,
+	pub name: Option<String>,
 }
 
 impl Scene {
 	pub fn new() -> Self {
 		Self {
-			nodes: vec![],
+			name: None,
 		}
 	}
 }
@@ -653,22 +651,6 @@ impl FontHandle {
 		Self {
 			id
 		}
-	}
-}
-
-pub struct World3D {
-	pub nodes: HashMap<usize, Node>
-}
-
-impl World3D {
-	pub fn new() -> Self {
-		Self {
-			nodes: HashMap::new()
-		}
-	}
-
-	pub fn add_node(&mut self, node: Node) {
-		self.nodes.insert(node.id, node);
 	}
 }
 

@@ -144,7 +144,6 @@ struct MaterialUniform {
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct RawCamera {
     pub model: [[f32; 4]; 4],
-	pub _padding: [u32; 3],
 }
 
 impl BufferRecipe for RawCamera {
@@ -197,7 +196,7 @@ impl BufferRecipe for RawCamera {
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable, Debug)]
 pub struct RawInstance {
-    pub node_index: i32
+    pub model: [[f32; 4]; 4],
 }
 
 impl RawInstance {
@@ -454,9 +453,7 @@ pub struct Keyframe {
 pub struct RawPointLight {
 	pub color: [f32; 3],
 	pub intensity: f32,
-	// pub _padding: f32,
-	pub node_inx: i32,
-	// pub _padding2: [f32; 3],
+	pub position: [f32; 3],
 }
 
 impl BufferRecipe for RawPointLight {

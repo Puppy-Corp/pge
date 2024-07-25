@@ -205,7 +205,7 @@ fn create_gui_pipeline(args: CreateGUIPipelineArgs) -> wgpu::RenderPipeline {
 #[derive(Debug)]
 pub struct DrawCall<'a> {
 	pub texture_bind_group: &'a wgpu::BindGroup,
-	pub position_range: Range<u64>,
+	pub vertices: Range<u64>,
 	pub index_range: Range<u64>,
 	pub normal_range: Range<u64>,
 	pub instances_range: Range<u32>,
@@ -235,7 +235,7 @@ pub struct RenderArgs<'a> {
 	pub positions_buffer: &'a wgpu::Buffer,
 	pub index_buffer: &'a wgpu::Buffer,
 	pub color_buffer: &'a wgpu::Buffer,
-	pub views_3d: &'a [Render3DView<'a>],
+	pub views: &'a [Render3DView<'a>],
 	pub position_range: Range<u64>,
 	pub index_range: Range<u64>,
 	pub indices_range: Range<u32>,
@@ -364,7 +364,7 @@ impl Renderer<'_> {
 
 			let position_count = args.position_range.clone().count();
 
-			for view in args.views_3d {
+			for view in args.views {
 				let vx = view.x * self.size.width as f32;
 				let vy = view.y * self.size.height as f32;
 				let vw = view.w * self.size.width as f32;
@@ -378,7 +378,7 @@ impl Renderer<'_> {
 
 				for call in &view.calls {
 					render_pass.set_bind_group(3, &call.texture_bind_group, &[]);
-					render_pass.set_vertex_buffer(0, view.positions_buffer.slice(call.position_range.clone()));
+					render_pass.set_vertex_buffer(0, view.positions_buffer.slice(call.vertices.clone()));
 					render_pass.set_vertex_buffer(1, view.instance_buffer.slice(..));
 					render_pass.set_vertex_buffer(2, view.normal_buffer.slice(call.normal_range.clone()));
 					render_pass.set_vertex_buffer(3, view.tex_coords_buffer.slice(call.tex_coords_range.clone()));

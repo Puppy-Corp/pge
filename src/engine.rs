@@ -84,14 +84,13 @@ struct WindowContext<'a> {
 }
 
 struct Engine<'a, T> {
-	i: usize,
 	app: T,
 	state: EngineState,
 	adapter: Arc<wgpu::Adapter>,
 	instance: Arc<wgpu::Instance>,
 	queue: Arc<wgpu::Queue>,
 	device: Arc<wgpu::Device>,
-	position_buffer: wgpu::Buffer,
+	vertices_buffer: wgpu::Buffer,
 	tex_coords_buffer: wgpu::Buffer,
 	normal_buffer: wgpu::Buffer,
 	index_buffer: wgpu::Buffer,
@@ -153,14 +152,13 @@ where
 		let point_light_buffer = Bindablebuffer::new::<RawPointLight>(&device, 1_000_000);
 
 		Self {
-			i: 0,
 			app,
 			state: EngineState::new(),
 			adapter,
 			instance,
 			queue,
 			device,
-			position_buffer,
+			vertices_buffer: position_buffer,
 			tex_coords_buffer,
 			normal_buffer,
 			index_buffer,
@@ -179,10 +177,6 @@ where
 	}
 
 	pub fn update_buffers(&mut self) {
-		let dt = self.last_on_process_time.elapsed().as_secs_f32();
-		self.last_on_process_time = Instant::now();
-		self.app.on_process(&mut self.state.state, dt);
-
 		let mut new_textures = Vec::new();
 		for (texture_id, texture) in &self.state.state.textures {
 			if let None = self.state.textures.get(&texture_id) {
@@ -194,27 +188,37 @@ where
 			self.state.textures.insert(t.0, t.1);
 		}
 
-		self.state.process_assets();
-		self.state.update_buffers();
+		for buffer in &self.state.buffers {
+			// ??
+		}
 
-		if self.state.all_instances_data.len() > 0 {
-			self.queue.write_buffer(&self.instance_buffer, 0, &self.state.all_instances_data);
+		if self.state.triangles.vertices.len() > 0 && self.state.triangles.vertices.dirty {
+			self.queue.write_buffer(&self.vertices_buffer, 0, &self.state.triangles.vertices.data);
 		}
-		if self.state.triangles.vertices.len() > 0 {
-			self.queue.write_buffer(&self.position_buffer, 0, &self.state.triangles.vertices);
+		if self.state.triangles.indices.len() > 0 && self.state.triangles.indices.dirty {
+			self.queue.write_buffer(&self.index_buffer, 0, &self.state.triangles.indices.data);
 		}
-		if self.state.triangles.normals.len() > 0 {
-			self.queue.write_buffer(&self.normal_buffer, 0, &self.state.triangles.normals);
+		if self.state.triangles.tex_coords.len() > 0 && self.state.triangles.tex_coords.dirty {
+			self.queue.write_buffer(&self.tex_coords_buffer, 0, &self.state.triangles.tex_coords.data);
 		}
-		if self.state.triangles.indices.len() > 0 {
-			self.queue.write_buffer(&self.index_buffer, 0, &self.state.triangles.indices);
+		if self.state.triangles.normals.len() > 0 && self.state.triangles.normals.dirty {
+			self.queue.write_buffer(&self.normal_buffer, 0, &self.state.triangles.normals.data);
 		}
-		if self.state.triangles.tex_coords.len() > 0 {
-			self.queue.write_buffer(&self.tex_coords_buffer, 0, &self.state.triangles.tex_coords);
-		}
-		if self.state.all_nodes_data.len() > 0 {
-			self.queue.write_buffer(&self.node_buffer.buffer, 0, &self.state.all_nodes_data);
-		}
+		// if self.state.all_instances_data.len() > 0 {
+		// 	self.queue.write_buffer(&self.instance_buffer, 0, &self.state.all_instances_data);
+		// }
+		// if self.state.triangles.normals.len() > 0 {
+		// 	self.queue.write_buffer(&self.normal_buffer, 0, &self.state.triangles.normals);
+		// }
+		// if self.state.triangles.indices.len() > 0 {
+		// 	self.queue.write_buffer(&self.index_buffer, 0, &self.state.triangles.indices);
+		// }
+		// if self.state.triangles.tex_coords.len() > 0 {
+		// 	self.queue.write_buffer(&self.tex_coords_buffer, 0, &self.state.triangles.tex_coords);
+		// }
+		// if self.state.all_nodes_data.len() > 0 {
+		// 	self.queue.write_buffer(&self.node_buffer.buffer, 0, &self.state.all_nodes_data);
+		// }
 
 		if self.state.all_cameras_data.len() > 0 {
 			for (camera_id, data) in &self.state.all_cameras_data {
@@ -226,12 +230,6 @@ where
 		if self.state.all_point_lights_data.len() > 0 {
 			self.queue.write_buffer(&self.point_light_buffer.buffer, 0, &self.state.all_point_lights_data);
 		}
-	}
-
-	fn update_physics(&mut self) {
-		let dt = self.last_physics_update_time.elapsed().as_secs_f32();
-		self.last_physics_update_time = Instant::now();
-		self.state.process_phycis(dt);
 	}
 
 	fn update_windows(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
@@ -276,41 +274,36 @@ where
 		});
 
 		for (_, window_ctx) in self.windows.iter_mut() {
-			let window = match self.state.state.windows.get(window_ctx.window_id) {
-				Some(w) => w,
+			let args = match self.state.get_window_render_args(window_ctx.window_id) {
+				Some(a) => a,
 				None => continue,
 			};
 
-			let gui_id = match window.ui {
-				Some(id) => id,
-				None => continue,
-			};
-
-			let gui_buffers = match self.gui_buffers.get(&gui_id) {
+			let gui_buffers = match self.gui_buffers.get(&args.ui) {
 				Some(b) => b,
 				None => continue,
 			};
+			
 
-			let compositor = match self.state.ui_compositors.get(&gui_id) {
-				Some(c) => c,
-				None => continue,
-			};
-
-			let mut views_3d = Vec::new();
-
-			for v in &compositor.views_3d {
+			let mut views = Vec::new();
+			for v in &args.views {
 				let camera_buffer = match self.camera_buffers.get(&v.camera_id) {
 					Some(b) => b,
 					None => continue,
 				};
 
-				let calls: Vec<_> = self.state.draw_calls.iter().map(|d| {
+				let calls = match self.state.get_camera_draw_calls(v.camera_id) {
+					Some(c) => c,
+					None => continue,
+				};
+
+				let calls: Vec<_> = calls.iter().map(|d| {
 					let texture_bind_group = match d.texture {
 						Some(t) => self.texture_bind_groups.get(&t).unwrap_or(&self.default_texture),
 						None => &self.default_texture,
 					};
 
-					if d.index_range.start == d.index_range.end {
+					if d.indices.start == d.indices.end {
 						panic!("Index range is empty");
 					}
 
@@ -318,29 +311,29 @@ where
 						panic!("Indices range is empty");
 					}
 
-					if d.normal_range.start == d.normal_range.end {
+					if d.normals.start == d.normals.end {
 						panic!("Normal range is empty");
 					}
 
-					if d.instances_range.start == d.instances_range.end {
+					if d.instances.start == d.instances.end {
 						panic!("Instances range is empty");
 					}
 
-					if d.position_range.start == d.position_range.end {
+					if d.vertices.start == d.vertices.end {
 						panic!("Position range is empty");
 					}
 
-					if d.tex_coords_range.start == d.tex_coords_range.end {
+					if d.tex_coords.start == d.tex_coords.end {
 						panic!("Tex coords range is empty");
 					}
 				
 					DrawCall {
-						index_range: d.index_range.clone(),
+						index_range: d.indices.clone(),
 						indices_range: d.indices_range.clone(),
-						normal_range: d.normal_range.clone(),
-						instances_range: d.instances_range.clone(),
-						position_range: d.position_range.clone(),
-						tex_coords_range: d.tex_coords_range.clone(),
+						normal_range: d.normals.clone(),
+						instances_range: d.instances.clone(),
+						vertices: d.vertices.clone(),
+						tex_coords_range: d.tex_coords.clone(),
 						texture_bind_group,
 					}
 				}).collect();
@@ -358,17 +351,104 @@ where
 					instance_buffer: &self.instance_buffer,
 					normal_buffer: &self.normal_buffer,
 					tex_coords_buffer: &self.tex_coords_buffer,
-					positions_buffer: &self.position_buffer,
+					positions_buffer: &self.vertices_buffer,
 				};
-				views_3d.push(a);
+				views.push(a);
 			}
+
+			// let window = match self.state.state.windows.get(window_ctx.window_id) {
+			// 	Some(w) => w,
+			// 	None => continue,
+			// };
+
+			// let gui_id = match window.ui {
+			// 	Some(id) => id,
+			// 	None => continue,
+			// };
+
+			// let gui_buffers = match self.gui_buffers.get(&gui_id) {
+			// 	Some(b) => b,
+			// 	None => continue,
+			// };
+
+			// let compositor = match self.state.ui_compositors.get(&gui_id) {
+			// 	Some(c) => c,
+			// 	None => continue,
+			// };
+
+			// let mut views_3d = Vec::new();
+
+			// for v in &compositor.views_3d {
+			// 	let camera_buffer = match self.camera_buffers.get(&v.camera_id) {
+			// 		Some(b) => b,
+			// 		None => continue,
+			// 	};
+
+			// 	let calls: Vec<_> = self.state.draw_calls.iter().map(|d| {
+			// 		let texture_bind_group = match d.texture {
+			// 			Some(t) => self.texture_bind_groups.get(&t).unwrap_or(&self.default_texture),
+			// 			None => &self.default_texture,
+			// 		};
+
+			// 		if d.indices.start == d.indices.end {
+			// 			panic!("Index range is empty");
+			// 		}
+
+			// 		if d.indices_range.start == d.indices_range.end {
+			// 			panic!("Indices range is empty");
+			// 		}
+
+			// 		if d.normals.start == d.normals.end {
+			// 			panic!("Normal range is empty");
+			// 		}
+
+			// 		if d.instances_range.start == d.instances_range.end {
+			// 			panic!("Instances range is empty");
+			// 		}
+
+			// 		if d.vertices.start == d.vertices.end {
+			// 			panic!("Position range is empty");
+			// 		}
+
+			// 		if d.tex_coords.start == d.tex_coords.end {
+			// 			panic!("Tex coords range is empty");
+			// 		}
+				
+			// 		DrawCall {
+			// 			index_range: d.indices.clone(),
+			// 			indices_range: d.indices_range.clone(),
+			// 			normal_range: d.normals.clone(),
+			// 			instances_range: d.instances_range.clone(),
+			// 			vertices: d.vertices.clone(),
+			// 			tex_coords_range: d.tex_coords.clone(),
+			// 			texture_bind_group,
+			// 		}
+			// 	}).collect();
+
+			// 	let a = Render3DView {
+			// 		x: v.x,
+			// 		y: v.y,
+			// 		w: v.w,
+			// 		h: v.h,
+			// 		calls,
+			// 		camera_bind_group: &camera_buffer.bind_group,
+			// 		node_bind_group: &self.node_buffer.bind_group,
+			// 		point_light_bind_group: &self.point_light_buffer.bind_group,
+			// 		index_buffer: &self.index_buffer,
+			// 		instance_buffer: &self.instance_buffer,
+			// 		normal_buffer: &self.normal_buffer,
+			// 		tex_coords_buffer: &self.tex_coords_buffer,
+			// 		positions_buffer: &self.position_buffer,
+			// 	};
+			// 	views_3d.push(a);
+			// }
 
 			let args = RenderArgs {
 				encoder: &mut encoder,
 				positions_buffer: &gui_buffers.positions_buffer,
 				index_buffer: &gui_buffers.index_buffer,
 				color_buffer: &gui_buffers.color_buffer,
-				views_3d: &views_3d,
+				views: &views,
 				index_range: gui_buffers.index_range.clone(),
 				indices_range: gui_buffers.indices_range.clone(),
 				position_range: gui_buffers.position_range.clone(),
@@ -416,7 +496,7 @@ where
 {
 	fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
 		self.app.on_create(&mut self.state.state);
-		self.state.update_guis();
+		self.state.process(0.0);
 		self.update_ui_buffers();
 		self.update_windows(event_loop);
 	}
@@ -496,17 +576,15 @@ where
 	}
 
 	fn about_to_wait(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
-		// println!("about to wait {}", self.i);
-		self.i += 1;
-
 		let timer = Instant::now();
 		let timer = timer.checked_add(Duration::from_millis(500)).unwrap();
 		event_loop
 			.set_control_flow(ControlFlow::WaitUntil(Instant::now() + Duration::from_millis(16)));
 
-		// self.render_every_window();
-
-		self.update_physics();
+		let dt = self.last_on_process_time.elapsed().as_secs_f32();
+		self.last_on_process_time = Instant::now();
+		self.app.on_process(&mut self.state.state, dt);
+		self.state.process(dt);
 		self.update_buffers();
 		self.render_windows();
 	}

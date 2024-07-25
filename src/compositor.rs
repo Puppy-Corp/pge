@@ -6,9 +6,9 @@ use lyon::tessellation::FillOptions;
 use lyon::tessellation::FillTessellator;
 use lyon::tessellation::FillVertex;
 use lyon::tessellation::VertexBuffers;
-use thunderdome::Index;
 
 pub use crate::gui::*;
+use crate::internal_types::*;
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct DrawRect {
@@ -102,14 +102,7 @@ pub struct DrawText {
 	pub font_color: [f32; 4],
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct CamView {
-	pub camera_id: Index,
-	pub x: f32,
-	pub y: f32,
-	pub w: f32,
-	pub h: f32
-}
+
 
 #[derive(Debug, Clone, PartialEq)]
 enum DrawItem {
@@ -150,6 +143,7 @@ impl Outline {
 	}
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct Lineariser {
 	pub items: Vec<DrawItem>,
 }

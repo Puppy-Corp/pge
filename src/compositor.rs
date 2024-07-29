@@ -296,6 +296,7 @@ impl Lineariser {
 	}
 
 	pub fn linearize(&mut self, item: &GUIElement) {
+		self.items.clear();
 		self.inner_linearize(item, None);
 	}
 }
@@ -306,7 +307,7 @@ pub struct UICompositor {
 	pub positions: Vec<[f32; 3]>,
 	pub indices: Vec<u16>,
 	pub colors: Vec<[f32; 3]>,
-	pub views_3d: Vec<CamView>
+	pub views: Vec<CamView>
 }
 
 impl UICompositor {
@@ -316,7 +317,7 @@ impl UICompositor {
 			positions: Vec::new(),
 			indices: Vec::new(),
 			colors: Vec::new(),
-			views_3d: Vec::new()
+			views: Vec::new()
 		}
 	}
 
@@ -324,17 +325,14 @@ impl UICompositor {
 		self.positions.clear();
 		self.indices.clear();
 		self.colors.clear();
+		self.views.clear();
 
 		self.lineariser.linearize(item);
 
 		for draw in &self.lineariser.items {
-			println!("draw item: {:?}", draw);
-
 			match draw {
 				DrawItem::Rect(rect) => {
 					let (vertices, indices) = rect.generate_vertices_indices();
-					println!("vertices: {:?}", vertices);
-					println!("indices: {:?}", indices);
 					let current_offset = self.positions.len() as u16;
 					self.positions.extend(vertices.iter().map(|&p| [p[0], p[1], 0.0]));
 					let adjusted_indices: Vec<u16> = indices.iter().map(|&i| i + current_offset).collect();
@@ -346,7 +344,7 @@ impl UICompositor {
 				},
 				DrawItem::Text(text) => {},
 				DrawItem::CamView(view) => {
-					self.views_3d.push(view.clone());
+					self.views.push(view.clone());
 				}
 			}
 		}

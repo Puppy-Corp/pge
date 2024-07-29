@@ -213,6 +213,7 @@ pub struct DrawCall<'a> {
 	pub tex_coords_range: Range<u64>,
 }
 
+#[derive(Debug)]
 pub struct Render3DView<'a> {
 	pub positions_buffer: &'a wgpu::Buffer,
 	pub index_buffer: &'a wgpu::Buffer,
@@ -221,7 +222,6 @@ pub struct Render3DView<'a> {
 	pub instance_buffer: &'a wgpu::Buffer,
 	pub camera_bind_group: &'a wgpu::BindGroup,
 	pub point_light_bind_group: &'a wgpu::BindGroup,
-	pub node_bind_group: &'a wgpu::BindGroup,
 	// pub calls: &'a [DrawCall<'a>],
 	pub calls: Vec<DrawCall<'a>>,
 	pub x: f32,
@@ -230,6 +230,7 @@ pub struct Render3DView<'a> {
 	pub h: f32,
 }
 
+#[derive(Debug)]
 pub struct RenderArgs<'a> {
 	pub encoder: &'a mut wgpu::CommandEncoder,
 	pub positions_buffer: &'a wgpu::Buffer,
@@ -373,8 +374,8 @@ impl Renderer<'_> {
 				render_pass.set_viewport(vx, vy, vw, vh, 0.0, 1.0);
 				render_pass.set_pipeline(&self.pipeline_3d);
 				render_pass.set_bind_group(0, &view.camera_bind_group, &[]);
-				render_pass.set_bind_group(1, &view.node_bind_group, &[]);
-				render_pass.set_bind_group(2, &view.point_light_bind_group, &[]);
+				// render_pass.set_bind_group(1, &view.node_bind_group, &[]);
+				render_pass.set_bind_group(1, &view.point_light_bind_group, &[]);
 
 				for call in &view.calls {
 					render_pass.set_bind_group(3, &call.texture_bind_group, &[]);

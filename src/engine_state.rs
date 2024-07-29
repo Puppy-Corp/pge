@@ -9,6 +9,7 @@ use glam::Vec3;
 use thunderdome::Arena;
 use thunderdome::Index;
 
+use crate::buffer::DirtyBuffer;
 use crate::compositor::UICompositor;
 use crate::debug::ChangePrinter;
 use crate::gltf::load_gltf;
@@ -28,35 +29,17 @@ const ADD_NODE_SLOT: u32 = 1;
 const NODE_UPDATE_TIME_SLOT: u32 = 2;
 const BROAD_PHASE_TIME_SLOT: u32 = 3;
 const NARROW_PHASE_TIME_SLOT: u32 = 4;
+const NODES_COUNT_SLOT: u32 = 5;
+const MESHES_COUNT_SLOT: u32 = 6;
+const CAMERAS_SLOT: u32 = 7;
+const POINT_LIGHTS_COUNT_SLOT: u32 = 8;
+const SCENES_COUNT_SLOT: u32 = 9;
+const DRAW_CALLS_SLOT: u32 = 10;
+const MESH_NODES_SLOT: u32 = 11;
+const UI_RENDER_ARGS_SLOT: u32 = 12;
 
-#[derive(Debug, Clone, Default)]
-pub struct DirtyBuffer {
-	pub data: Vec<u8>,
-	pub dirty: bool,
-}
 
-impl DirtyBuffer {
-	pub fn new() -> Self {
-		Self {
-			data: Vec::new(),
-			dirty: false,
-		}
-	}
 
-	pub fn clear(&mut self) {
-		self.data.clear();
-		self.dirty = true;
-	}
-
-	pub fn len(&self) -> usize {
-		self.data.len()
-	}
-
-	pub fn extend_from_slice(&mut self, slice: &[u8]) {
-		self.data.extend_from_slice(slice);
-		self.dirty = true;
-	}
-}
 
 #[derive(Debug, Clone, Default)]
 pub struct Gemometry {
@@ -69,18 +52,11 @@ pub struct Gemometry {
 impl Gemometry {
 	pub fn new() -> Self {
 		Self {
-			vertices: DirtyBuffer::new(),
-			normals: DirtyBuffer::new(),
-			tex_coords: DirtyBuffer::new(),
-			indices: DirtyBuffer::new(),
+			vertices: DirtyBuffer::new("vertices"),
+			normals: DirtyBuffer::new("normals"),
+			tex_coords: DirtyBuffer::new("tex_coords"),
+			indices: DirtyBuffer::new("indices"),
 		}
-	}
-
-	pub fn clear(&mut self) {
-		self.vertices.clear();
-		self.normals.clear();
-		self.tex_coords.clear();
-		self.indices.clear();
 	}
 }
 
@@ -155,9 +131,15 @@ struct SceneDrawInstruction {
 }
 
 #[derive(Debug, Clone)]
+pub struct View {
+	pub camview: CamView,
+	pub scene_id: Index
+} 
+
+#[derive(Debug, Clone)]
 pub struct UIRenderArgs {
 	pub ui: Index,
-	pub views: Vec<CamView>,
+	pub views: Vec<View>,
 }
 
 #[derive(Debug, Clone)]
@@ -184,7 +166,6 @@ pub struct EngineState {
 	cameras: HashMap<Index, RawCamera>,
 	printer: ChangePrinter,
 	pub all_instances_data: Vec<u8>,
-	pub all_cameras_data: HashMap<Index, Vec<u8>>,
 	pub camera_buffer: DirtyBuffer,
 	camera_pointers: HashMap<Index, Range<u64>>,
 	// camera_draw_calls: HashMap<Index, Vec<DrawCall>>,
@@ -203,11 +184,12 @@ pub struct EngineState {
 	mesh_nodes: HashMap<Index, Vec<Index>>,
 	scene_collision_nodes: HashMap<Index, Vec<CollisionNode>>,
 	scene_draw_calls: HashMap<Index, Vec<DrawCall>>,
-	scene_lights: HashMap<Index, DirtyBuffer>,
+	pub scene_point_lights: HashMap<Index, DirtyBuffer>,
 	// scene_meshes: HashMap<Index, Vec<Index>>,
-	scene_instance_buffers: HashMap<Index, DirtyBuffer>,
+	pub scene_instance_buffers: HashMap<Index, DirtyBuffer>,
 	scene_collections: HashMap<Index, SceneCollection>,
 	pub buffers: Arena<Buffer>,
+	point_lights: HashMap<Index, RawPointLight>,
 }
 
 impl EngineState {
@@ -216,7 +198,11 @@ impl EngineState {
 	}
 
 	fn process_nodes(&mut self) {
+		self.printer.print(NODES_COUNT_SLOT, format!("nodes count: {}", self.state.nodes.len()));
 		let mut processed_nodes: HashSet<Index> = HashSet::new();
+		for (_, nodes) in &mut self.mesh_nodes {
+			nodes.clear();
+		}
 
 		for (node_id, node) in &self.state.nodes {
 			if processed_nodes.contains(&node_id) {
@@ -305,9 +291,24 @@ impl EngineState {
 				processed_nodes.insert(node_id);
 			}
 		}
+
+		// log::info!("mesh_nodes: {:?}", self.mesh_nodes);
+		self.printer.print(MESH_NODES_SLOT, format!("mesh nodes: {:?}", self.mesh_nodes));
 	}
 
 	fn process_meshes(&mut self) {
+		// log::info!("meshes: {:?}", self.state.meshes.len());
+		self.printer.print(MESHES_COUNT_SLOT, format!("meshes count: {}", self.state.meshes.len()));
+		self.triangles.vertices.reset_offset();
+		self.triangles.normals.reset_offset();
+		self.triangles.tex_coords.reset_offset();
+		self.triangles.indices.reset_offset();
+		for (_, s) in &mut self.scene_instance_buffers {
+			s.reset_offset();
+		}
+		for (_, s) in &mut self.scene_draw_calls {
+			s.clear();
+		}
 		for (mesh_id, mesh) in &self.state.meshes {
 			for primitive in &mesh.primitives {
 				if primitive.topology == PrimitiveTopology::TriangleList {
@@ -363,7 +364,7 @@ impl EngineState {
 							model: node.model.to_cols_array_2d(),
 						};
 
-						let buffer = self.scene_instance_buffers.entry(node.scene_id).or_insert(DirtyBuffer::new());
+						let buffer = self.scene_instance_buffers.entry(node.scene_id).or_insert(DirtyBuffer::new("instances"));
 						let instance_start = buffer.len() as u32;
 						buffer.extend_from_slice(bytemuck::bytes_of(&instance));
 						let instance_end = buffer.len() as u32;
@@ -374,6 +375,9 @@ impl EngineState {
 
 					for (scene_id, instances) in checkpoints {
 						let draw_calls = self.scene_draw_calls.entry(scene_id).or_insert(Vec::new());
+
+
+						// log::info!("draw_calls: {:?}", draw_calls.len());
 
 						draw_calls.push(DrawCall {
 							texture: mesh.texture,
@@ -388,9 +392,14 @@ impl EngineState {
 				}
 			}
 		}
+
+		// log::info!("scene_draw_calls: {:?}", self.scene_draw_calls.len());
+		self.printer.print(DRAW_CALLS_SLOT, format!("scene draw calls: {:?}", self.scene_draw_calls));
 	}
 
 	fn process_cameras(&mut self) {
+		self.camera_buffer.reset_offset();
+
 		for (cam_id, cam) in &self.state.cameras {
 			let cam_node = match cam.node_id {
 				Some(id) => {
@@ -403,7 +412,7 @@ impl EngineState {
 			};
 
 			let model = glam::Mat4::perspective_lh(cam.fovy, cam.aspect, cam.znear, cam.zfar) 
-				* cam_node.model.inverse();
+				* cam_node.model;
 
 			let cam = RawCamera {
 				model: model.to_cols_array_2d(),
@@ -414,6 +423,8 @@ impl EngineState {
 					self.cameras.insert(cam_id, *camera);
 				},
 				None => {
+					log::info!("can_node: {:?}", cam_node);
+					log::info!("model: {:?}", model);
 					log::info!("new camera cam_id: {:?} camera: {:?}", cam_id, cam);
 					self.cameras.insert(cam_id, cam);
 				}
@@ -422,32 +433,49 @@ impl EngineState {
 			let start = self.camera_buffer.len() as u64;
 			self.camera_buffer.extend_from_slice(bytemuck::bytes_of(&cam));
 			let end = self.camera_buffer.len() as u64;
-
-			self.all_cameras_data.insert(cam_id, bytes_of(&cam).to_vec());
 			self.camera_pointers.insert(cam_id, start..end);
 		}
+
+		self.printer.print(CAMERAS_SLOT, format!("cameras: {:?}", self.cameras));
 	}
 
 	fn process_point_lights(&mut self) {
-		for (_, light) in &self.state.point_lights {
-			let node = match light.node_id {
-				Some(id) => {
-					match self.nodes.get(&id) {
-						Some(node) => node,
-						None => continue,
-					}
-				}
-				None => continue,
-			};
-
-			let light = RawPointLight {
-				color: light.color.into(),
-				intensity: light.intensity,
-				position: node.model.w_axis.truncate().into(),
-			};
-
-			self.scene_lights.entry(node.scene_id).or_insert(DirtyBuffer::new()).extend_from_slice(bytes_of(&light));
+		for (_, s) in &mut self.scene_point_lights {
+			s.reset_offset();
 		}
+
+		// for (light_id, light) in &self.state.point_lights {
+		// 	let node = match light.node_id {
+		// 		Some(id) => {
+		// 			match self.nodes.get(&id) {
+		// 				Some(node) => node,
+		// 				None => continue,
+		// 			}
+		// 		}
+		// 		None => continue,
+		// 	};
+
+		// 	let light = RawPointLight {
+		// 		color: light.color.into(),
+		// 		intensity: light.intensity,
+		// 		position: node.model.w_axis.truncate().into(),
+		// 	};
+
+		// 	match self.point_lights.get(&light_id) {
+		// 		Some(old_light) => {
+		// 			if old_light != &light {
+		// 				//log::info!("point light modified {:?} {:?}", light_id, light);
+		// 				self.point_lights.insert(light_id, light);
+		// 			}
+		// 		},
+		// 		None => {
+		// 			log::info!("new point light {:?} {:?}", light_id, light);
+		// 			self.point_lights.insert(light_id, light);
+		// 		}
+		// 	}
+
+		// 	self.scene_point_lights.entry(node.scene_id).or_insert(DirtyBuffer::new()).extend_from_slice(bytes_of(&light));
+		// }
 	}
 
 	fn process_scenes(&mut self) {
@@ -478,7 +506,7 @@ impl EngineState {
 	// }
 
 
-	fn process_gui(&mut self) {
+	fn process_ui(&mut self) {
 		for (ui_id, gui) in &self.state.guis {
 			let compositor = self.ui_compositors.entry(ui_id).or_insert(UICompositor::new());
 			compositor.process(gui);
@@ -488,18 +516,30 @@ impl EngineState {
 				views: Vec::new(),
 			});
 
-			render_args.views.extend_from_slice(compositor.views_3d.as_slice());
-		}
-	}
+			render_args.views.clear();
 
-	// fn process_windows(&mut self) {
-	// 	for (window_id, window) in &self.state.windows {
-	// 		let a = WindowRenderArgs {
-	// 			ui: window.ui,
-	// 			views: 
-	// 		}
-	// 	}
-	// }
+			for view in &compositor.views {
+				let camera = match self.state.cameras.get(view.camera_id) {
+					Some(camera) => camera,
+					None => continue,
+				};
+
+				let camera_node = match camera.node_id {
+					Some(node_id) => {
+						match self.nodes.get(&node_id) {
+							Some(node) => node,
+							None => continue,
+						}
+					},
+					None => continue,
+				};
+
+				render_args.views.push(View { camview: view.clone(), scene_id: camera_node.scene_id });
+			}
+		}
+	
+		self.printer.print(UI_RENDER_ARGS_SLOT, format!("ui_render_args: {:?}", self.ui_render_args));
+	}
 
 	fn process_phycis(&mut self, dt: f32) {
 		for (_, c) in &mut self.scene_collections {
@@ -563,89 +603,26 @@ impl EngineState {
 		// self.all_tex_coords_data.clear();
 		// self.all_normals_data.clear();
 		// self.all_indices_data.clear();
-		self.all_cameras_data.clear();
 		self.all_point_lights_data.clear();
-		self.triangles.clear();
 
 		self.process_nodes();
 		self.process_meshes();
 		self.process_cameras();
 		self.process_point_lights();
+		self.process_ui();
 		self.process_scenes();
 		self.process_phycis(dt);
-
-		// for (node_inx, (node_id, node)) in self.state.nodes.iter().enumerate() {
-		// 	let model = glam::Mat4::from_translation(node.translation)
-		// 		* glam::Mat4::from_quat(node.rotation)
-		// 		* glam::Mat4::from_scale(node.scale);
-		// 	let raw_node = RawNode {
-		// 		model: model.to_cols_array_2d(),
-		// 		parent_index: -1,
-		// 		_padding: [0; 3]
-		// 	};
-
-		// 	match self.nodes.get(&node_id) {
-		// 		Some(old_node) => {
-		// 			if let Some(collision_shape) = &node.collision_shape {
-		// 				if old_node.translation != node.translation {
-		// 					self.rem_nodes.insert(node_id);
-		// 					self.add_nodes.push((node_id, collision_shape.aabb(node.translation)));
-		// 				}
-		// 			}
-
-		// 			self.nodes.insert(node_id, node.clone());
-		// 		},
-		// 		None => {
-		// 			log::info!("new node node_id: {:?} node: {:?}", node_id, node);
-		// 			self.nodes.insert(node_id, node.clone());
-
-		// 			if let Some(collision_mesh) = &node.collision_shape {
-		// 				self.add_nodes.push((node_id, collision_mesh.aabb(node.translation)));
-		// 			}
-		// 		}
-		// 	}
-
-		// 	node_indexes.insert(node_id, node_inx as i32);
-		// 	self.all_nodes_data.extend_from_slice(bytes_of(&raw_node));
-			
-		// 	if let Some(mesh_id) = node.mesh {
-		// 		let instance = RawInstance {
-		// 			node_index: node_inx as i32
-		// 		};
-		// 		match self.instances.get(&mesh_id) {
-		// 			Some(instance) => {
-		// 				self.instances.insert(mesh_id, *instance);
-		// 			},
-		// 			None => {
-		// 				log::info!("new instance mesh_id: {:?} instance: {:?}", mesh_id, instance);
-		// 				self.instances.insert(mesh_id, instance);
-		// 			}
-		// 		}
-
-		// 		mesh_instances.entry(mesh_id).or_insert(Vec::new()).push(instance);
-		// 	}
-		// }
-
-
-
-		// if self.rem_nodes.len() > 0 {
-		// 	let rem_timer = Instant::now();
-		// 	self.grid.rem_nodes(&self.rem_nodes);
-		// 	self.printer.print(REM_NODE_SLOT, format!("rem nodes total time: {}ms", rem_timer.elapsed().as_millis()));
-		// 	self.rem_nodes.clear();
-		// }
-
-		// if self.add_nodes.len() > 0 {
-		// 	let add_timer = Instant::now();
-		// 	for (node_id, aabb) in self.add_nodes.drain(..) {
-		// 		self.grid.add_node(node_id, aabb);
-		// 	}
-		// 	self.printer.print(ADD_NODE_SLOT, format!("add nodes total time: {}ms", add_timer.elapsed().as_millis()));
-		// }
 	}
 
 	pub fn get_window_render_args(&self, window_id: Index) -> Option<&UIRenderArgs> {
-		self.ui_render_args.get(&window_id)
+		let window = match self.ui_render_args.get(&window_id) {
+			Some(window) => window,
+			None => return None,
+		};
+
+		let ui_id = window.ui;
+		
+		self.ui_render_args.get(&ui_id)
 	}
 
 	pub fn get_camera_draw_calls(&self, camera_id: Index) -> Option<&Vec<DrawCall>> {

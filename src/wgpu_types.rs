@@ -449,7 +449,7 @@ pub struct Keyframe {
 }
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct RawPointLight {
 	pub color: [f32; 3],
 	pub intensity: f32,

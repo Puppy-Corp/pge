@@ -7,7 +7,7 @@ use thunderdome::Index;
 use crate::debug::ChangePrinter;
 use crate::AABB;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct NodeMetadata {
 	rect: AABB,
 	cells: Vec<CellCoord>,

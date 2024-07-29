@@ -90,15 +90,12 @@ struct Engine<'a, T> {
 	instance: Arc<wgpu::Instance>,
 	queue: Arc<wgpu::Queue>,
 	device: Arc<wgpu::Device>,
-	vertices_buffer: wgpu::Buffer,
-	tex_coords_buffer: wgpu::Buffer,
-	normal_buffer: wgpu::Buffer,
-	index_buffer: wgpu::Buffer,
-	// instaces: Arena<RawInstance>,
+	vertices_buffer: Buffer,
+	tex_coords_buffer: Buffer,
+	normal_buffer: Buffer,
+	index_buffer: Buffer,
 	windows: HashMap<WindowId, WindowContext<'a>>,
-	instance_buffer: wgpu::Buffer,
-	node_buffer: Bindablebuffer,
-	point_light_buffer: Bindablebuffer,
+	point_light_buffers: HashMap<Index, Buffer>,
 	last_on_process_time: Instant,
 	last_physics_update_time: Instant,
 	gui_buffers: HashMap<Index, GuiBuffers>,
@@ -106,6 +103,7 @@ struct Engine<'a, T> {
 	camera_buffers: HashMap<Index, Bindablebuffer>,
 	default_texture: wgpu::BindGroup,
 	proxy: EventLoopProxy<EngineEvent>,
+	scene_instance_buffers: HashMap<Index, Buffer>,
 }
 
 impl<'a, T> Engine<'a, T>
@@ -133,23 +131,10 @@ where
 
 		let default_texture = create_texture_with_uniform_color(&device, &queue);
 
-		let position_buffer = RawPositions::create_buffer(&device, 1_000_000);
-		let normal_buffer = RawNormal::create_buffer(&device, 1_000_000);
-		let index_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-			label: Some("Index Buffer"),
-			size: 1_000_000,
-			usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::INDEX,
-			mapped_at_creation: false
-		});
-		let tex_coords_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-			label: Some("Tex Coords Buffer"),
-			size: 1_000_000,
-			usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::VERTEX,
-			mapped_at_creation: false
-		});
-		let instance_buffer = RawInstance::create_buffer(&device, 1_000_000);
-		let node_buffer = Bindablebuffer::new::<RawNode>(&device, 1_000_000);
-		let point_light_buffer = Bindablebuffer::new::<RawPointLight>(&device, 1_000_000);
+		let vertices_buffer = Buffer::new(device.clone(), queue.clone());
+		let tex_coords_buffer = Buffer::new(device.clone(), queue.clone());
+		let normal_buffer = Buffer::new(device.clone(), queue.clone());
+		let index_buffer = Buffer::new(device.clone(), queue.clone());
 
 		Self {
 			app,
@@ -158,14 +143,12 @@ where
 			instance,
 			queue,
 			device,
-			vertices_buffer: position_buffer,
+			vertices_buffer,
 			tex_coords_buffer,
 			normal_buffer,
 			index_buffer,
-			instance_buffer,
 			windows: HashMap::new(),
-			node_buffer,
-			point_light_buffer,
+			point_light_buffers: HashMap::new(),
 			last_on_process_time: Instant::now(),
 			last_physics_update_time: Instant::now(),
 			gui_buffers: HashMap::new(),
@@ -173,6 +156,7 @@ where
 			camera_buffers: HashMap::new(),
 			default_texture,
 			proxy,
+			scene_instance_buffers: HashMap::new(),
 		}
 	}
 
@@ -188,22 +172,48 @@ where
 			self.state.textures.insert(t.0, t.1);
 		}
 
-		for buffer in &self.state.buffers {
-			// ??
-		}
-
 		if self.state.triangles.vertices.len() > 0 && self.state.triangles.vertices.dirty {
-			self.queue.write_buffer(&self.vertices_buffer, 0, &self.state.triangles.vertices.data);
+			log::info!("writing triangle vertices");
+			self.vertices_buffer.write(&self.state.triangles.vertices.data);
+			self.state.triangles.vertices.dirty = false;
 		}
 		if self.state.triangles.indices.len() > 0 && self.state.triangles.indices.dirty {
-			self.queue.write_buffer(&self.index_buffer, 0, &self.state.triangles.indices.data);
+			log::info!("writing triangle indices");
+			self.index_buffer.write(&self.state.triangles.indices.data);
+			self.state.triangles.indices.dirty = false;
 		}
 		if self.state.triangles.tex_coords.len() > 0 && self.state.triangles.tex_coords.dirty {
-			self.queue.write_buffer(&self.tex_coords_buffer, 0, &self.state.triangles.tex_coords.data);
+			log::info!("writing triangle tex coords");
+			self.tex_coords_buffer.write(&self.state.triangles.tex_coords.data);
+			self.state.triangles.tex_coords.dirty = false;
 		}
 		if self.state.triangles.normals.len() > 0 && self.state.triangles.normals.dirty {
-			self.queue.write_buffer(&self.normal_buffer, 0, &self.state.triangles.normals.data);
+			log::info!("writing triangle normals");
+			self.normal_buffer.write(&self.state.triangles.normals.data);
+			self.state.triangles.normals.dirty = false;
 		}
+
+		for (index, b) in &self.state.scene_instance_buffers {
+			if !b.dirty {
+				continue;
+			}
+
+			let buff = self.scene_instance_buffers.entry(*index)
+				.or_insert(Buffer::new(self.device.clone(), self.queue.clone()));
+
+			buff.write(&b.data);
+		}
+		for (index, b) in &self.state.scene_point_lights {
+			if !b.dirty {
+				continue;
+			}
+
+			let buff = self.point_light_buffers.entry(*index)
+				.or_insert(Buffer::new(self.device.clone(), self.queue.clone()));
+
+			buff.write(&b.data);
+		}
+
 		// if self.state.all_instances_data.len() > 0 {
 		// 	self.queue.write_buffer(&self.instance_buffer, 0, &self.state.all_instances_data);
 		// }
@@ -220,15 +230,14 @@ where
 		// 	self.queue.write_buffer(&self.node_buffer.buffer, 0, &self.state.all_nodes_data);
 		// }
 
-		if self.state.all_cameras_data.len() > 0 {
+		if self.state.camera_buffer.len() > 0 && self.state.camera_buffer.dirty {
+			log::info!("writing camera buffer");
+			self.camer
 			for (camera_id, data) in &self.state.all_cameras_data {
 				let camera_buffer = self.camera_buffers.entry(*camera_id)
 					.or_insert(Bindablebuffer::new::<RawCamera>(&self.device, 10_000));
 				self.queue.write_buffer(&camera_buffer.buffer, 0, data);
 			}
-		}
-		if self.state.all_point_lights_data.len() > 0 {
-			self.queue.write_buffer(&self.point_light_buffer.buffer, 0, &self.state.all_point_lights_data);
 		}
 	}
 
@@ -276,25 +285,33 @@ where
 		for (_, window_ctx) in self.windows.iter_mut() {
 			let args = match self.state.get_window_render_args(window_ctx.window_id) {
 				Some(a) => a,
-				None => continue,
+				None => {
+					panic!("Window render args not found");
+				},
 			};
 
 			let gui_buffers = match self.gui_buffers.get(&args.ui) {
 				Some(b) => b,
-				None => continue,
+				None => {
+					panic!("Gui buffers not found");
+				},
 			};
 			
 
 			let mut views = Vec::new();
 			for v in &args.views {
-				let camera_buffer = match self.camera_buffers.get(&v.camera_id) {
+				let camera_buffer = match self.camera_buffers.get(&v.camview.camera_id) {
 					Some(b) => b,
-					None => continue,
+					None => {
+						panic!("Camera buffer not found");
+					},
 				};
 
-				let calls = match self.state.get_camera_draw_calls(v.camera_id) {
+				let calls = match self.state.get_camera_draw_calls(v.camview.camera_id) {
 					Some(c) => c,
-					None => continue,
+					None => {
+						panic!("Draw calls not found");
+					},
 				};
 
 				let calls: Vec<_> = calls.iter().map(|d| {
@@ -338,20 +355,33 @@ where
 					}
 				}).collect();
 
+				let instance_buffer = match self.scene_instance_buffers.get(&v.scene_id) {
+					Some(b) => b,
+					None => {
+						panic!("Instance buffer not found");
+					},
+				};
+
+				let point_light_buffer = match self.point_light_buffers.get(&v.scene_id) {
+					Some(b) => b,
+					None => {
+						panic!("Point light buffer not found");
+					},
+				};
+
 				let a = Render3DView {
-					x: v.x,
-					y: v.y,
-					w: v.w,
-					h: v.h,
+					x: v.camview.x,
+					y: v.camview.y,
+					w: v.camview.w,
+					h: v.camview.h,
 					calls,
 					camera_bind_group: &camera_buffer.bind_group,
-					node_bind_group: &self.node_buffer.bind_group,
-					point_light_bind_group: &self.point_light_buffer.bind_group,
-					index_buffer: &self.index_buffer,
-					instance_buffer: &self.instance_buffer,
-					normal_buffer: &self.normal_buffer,
-					tex_coords_buffer: &self.tex_coords_buffer,
-					positions_buffer: &self.vertices_buffer,
+					point_light_bind_group: &point_light_buffer.bind_group(),
+					index_buffer: &self.index_buffer.buffer(),
+					instance_buffer: &instance_buffer.buffer(),
+					normal_buffer: &self.normal_buffer.buffer(),
+					tex_coords_buffer: &self.tex_coords_buffer.buffer(),
+					positions_buffer: &self.vertices_buffer.buffer(),
 				};
 				views.push(a);
 			}

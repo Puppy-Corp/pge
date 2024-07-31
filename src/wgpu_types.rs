@@ -1,76 +1,83 @@
 pub trait BufferRecipe {
-	fn create_buffer(device: &wgpu::Device, size: u64) -> wgpu::Buffer;
-	fn create_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout;
-	fn create_bind_group(device: &wgpu::Device, buffer: &wgpu::Buffer, layout: &wgpu::BindGroupLayout) -> wgpu::BindGroup;
+    fn create_buffer(device: &wgpu::Device, size: u64) -> wgpu::Buffer;
+}
+
+pub trait BindableBufferRecipe {
+    fn create_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout;
+    fn create_bind_group(
+        device: &wgpu::Device,
+        buffer: &wgpu::Buffer,
+        layout: &wgpu::BindGroupLayout,
+    ) -> wgpu::BindGroup;
 }
 
 pub struct TextureBuffer {}
 
 impl TextureBuffer {
-	pub fn create_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
-		device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-			label: Some("Texture Bind Group Layout"),
-			entries: &[
-				wgpu::BindGroupLayoutEntry {
-					binding: 0,
-					visibility: wgpu::ShaderStages::FRAGMENT,
-					ty: wgpu::BindingType::Texture {
-						multisampled: false,
-						view_dimension: wgpu::TextureViewDimension::D2,
-						sample_type: wgpu::TextureSampleType::Float { filterable: true },
-					},
-					count: None,
-				},
-				wgpu::BindGroupLayoutEntry {
-					binding: 1,
-					visibility: wgpu::ShaderStages::FRAGMENT,
-					ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-					count: None,
-				},
-			],
-		})
-	}
+    pub fn create_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
+        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("Texture Bind Group Layout"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        multisampled: false,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+            ],
+        })
+    }
 }
 
 pub trait WgpuBuffer {
-	fn create_buffer(device: &wgpu::Device, size: usize) -> wgpu::Buffer;
+    fn create_buffer(device: &wgpu::Device, size: usize) -> wgpu::Buffer;
 }
 
 pub trait VertexBufferRecipe {
-	fn desc() -> wgpu::VertexBufferLayout<'static>;
+    fn desc() -> wgpu::VertexBufferLayout<'static>;
 }
 
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct RawPositions {
-	pub position: [f32; 3],
+pub struct Vertices {
+    pub position: [f32; 3],
 }
 
-impl RawPositions {
-	pub fn new() -> Self {
-		Self {
-			position: [0.0, 0.0, 0.0]
-		}
-	}
+impl Vertices {
+    pub fn new() -> Self {
+        Self {
+            position: [0.0, 0.0, 0.0],
+        }
+    }
 
-	pub fn desc() -> wgpu::VertexBufferLayout<'static> {
-		wgpu::VertexBufferLayout {
-			array_stride: std::mem::size_of::<RawPositions>() as wgpu::BufferAddress,
-			step_mode: wgpu::VertexStepMode::Vertex,
-			attributes: &[
-				wgpu::VertexAttribute {
-					offset: 0,
-					format: wgpu::VertexFormat::Float32x3,
-					shader_location: 0,
-				}
-			]
-		}
-	}
+    pub fn desc() -> wgpu::VertexBufferLayout<'static> {
+        wgpu::VertexBufferLayout {
+            array_stride: std::mem::size_of::<Vertices>() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &[wgpu::VertexAttribute {
+                offset: 0,
+                format: wgpu::VertexFormat::Float32x3,
+                shader_location: 0,
+            }],
+        }
+    }
+}
 
-	pub fn create_buffer(device: &wgpu::Device, size: usize) -> wgpu::Buffer {
+impl BufferRecipe for Vertices {
+	fn create_buffer(device: &wgpu::Device, size: u64) -> wgpu::Buffer {
 		device.create_buffer(&wgpu::BufferDescriptor {
 			label: Some("Position Buffer"),
-			size: (std::mem::size_of::<RawPositions>() * size) as u64,
+			size,
 			usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
 			mapped_at_creation: false,
 		})
@@ -78,31 +85,44 @@ impl RawPositions {
 }
 
 
+pub struct Indexes {}
+
+impl BufferRecipe for Indexes {
+	fn create_buffer(device: &wgpu::Device, size: u64) -> wgpu::Buffer {
+		device.create_buffer(&wgpu::BufferDescriptor {
+			label: Some("Index Buffer"),
+			size,
+			usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
+			mapped_at_creation: false,
+		})
+	}
+}
+
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct RawNormal {
+pub struct Normals {
     normal: [f32; 3],
 }
 
-impl RawNormal {
-	pub fn desc() -> wgpu::VertexBufferLayout<'static> {
-		wgpu::VertexBufferLayout {
-			array_stride: std::mem::size_of::<RawNormal>() as wgpu::BufferAddress,
-			step_mode: wgpu::VertexStepMode::Vertex,
-			attributes: &[
-				wgpu::VertexAttribute {
-					offset: 0,
-					format: wgpu::VertexFormat::Float32x3,
-					shader_location: 1,
-				}
-			]
-		}
-	}
+impl Normals {
+    pub fn desc() -> wgpu::VertexBufferLayout<'static> {
+        wgpu::VertexBufferLayout {
+            array_stride: std::mem::size_of::<Normals>() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &[wgpu::VertexAttribute {
+                offset: 0,
+                format: wgpu::VertexFormat::Float32x3,
+                shader_location: 1,
+            }],
+        }
+    }
+}
 
-	pub fn create_buffer(device: &wgpu::Device, size: usize) -> wgpu::Buffer {
+impl BufferRecipe for Normals {
+	fn create_buffer(device: &wgpu::Device, size: u64) -> wgpu::Buffer {
 		device.create_buffer(&wgpu::BufferDescriptor {
 			label: Some("Normal Buffer"),
-			size: (std::mem::size_of::<RawNormal>() * size) as u64,
+			size,
 			usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
 			mapped_at_creation: false,
 		})
@@ -111,33 +131,42 @@ impl RawNormal {
 
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct RawTexCoords {
+pub struct TexCoords {
     tex_coords: [f32; 2],
 }
 
-impl RawTexCoords {
-	pub fn desc() -> wgpu::VertexBufferLayout<'static> {
-		wgpu::VertexBufferLayout {
-			array_stride: std::mem::size_of::<RawTexCoords>() as wgpu::BufferAddress,
-			step_mode: wgpu::VertexStepMode::Vertex,
-			attributes: &[
-				wgpu::VertexAttribute {
-					offset: 0,
-					format: wgpu::VertexFormat::Float32x2,
-					shader_location: 2,
-				}
-			]
-		}
+impl TexCoords {
+    pub fn desc() -> wgpu::VertexBufferLayout<'static> {
+        wgpu::VertexBufferLayout {
+            array_stride: std::mem::size_of::<TexCoords>() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &[wgpu::VertexAttribute {
+                offset: 0,
+                format: wgpu::VertexFormat::Float32x2,
+                shader_location: 2,
+            }],
+        }
+    }
+}
+
+impl BufferRecipe for TexCoords {
+	fn create_buffer(device: &wgpu::Device, size: u64) -> wgpu::Buffer {
+		device.create_buffer(&wgpu::BufferDescriptor {
+			label: Some("TexCoords Buffer"),
+			size,
+			usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+			mapped_at_creation: false,
+		})
 	}
 }
 
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-struct MaterialUniform { 
+struct MaterialUniform {
     base_color: [f32; 4],
     metallic: f32,
     roughness: f32,
-    padding: [f32; 2],  // Align to 16 bytes
+    padding: [f32; 2], // Align to 16 bytes
 }
 
 #[repr(C)]
@@ -147,50 +176,51 @@ pub struct RawCamera {
 }
 
 impl BufferRecipe for RawCamera {
-	fn create_buffer(device: &wgpu::Device, size: u64) -> wgpu::Buffer {
-		device.create_buffer(&wgpu::BufferDescriptor {
-			label: Some("Camera Buffer"),
-			size: std::mem::size_of::<RawCamera>() as u64,
-			usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-			mapped_at_creation: false,
-		})
-	}
+    fn create_buffer(device: &wgpu::Device, size: u64) -> wgpu::Buffer {
+        device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Camera Buffer"),
+            size: std::mem::size_of::<RawCamera>() as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        })
+    }
+}
 
-	fn create_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
-		device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-			label: Some("Camera Bind Group Layout"),
-			entries: &[
-				wgpu::BindGroupLayoutEntry {
-					binding: 0,
-					visibility: wgpu::ShaderStages::VERTEX,
-					ty: wgpu::BindingType::Buffer {
-						ty: wgpu::BufferBindingType::Uniform,
-						has_dynamic_offset: false,
-						min_binding_size: None,
-					},
-					count: None,
-				},
-			],
-		})
-	}
+impl BindableBufferRecipe for RawCamera {
+    fn create_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
+        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("Camera Bind Group Layout"),
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+        })
+    }
 
-	fn create_bind_group(device: &wgpu::Device, buffer: &wgpu::Buffer, layout: &wgpu::BindGroupLayout) -> wgpu::BindGroup {
-		device.create_bind_group(&wgpu::BindGroupDescriptor {
-			layout,
-			entries: &[
-				wgpu::BindGroupEntry {
-					binding: 0,
-					resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-						buffer,
-						offset: 0,
-						size: None,
-					}),
-				},
-			],
-			label: Some("Camera Bind Group"),
-		})
-	}
-
+    fn create_bind_group(
+        device: &wgpu::Device,
+        buffer: &wgpu::Buffer,
+        layout: &wgpu::BindGroupLayout,
+    ) -> wgpu::BindGroup {
+        device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                    buffer,
+                    offset: 0,
+                    size: None,
+                }),
+            }],
+            label: Some("Camera Bind Group"),
+        })
+    }
 }
 
 #[repr(C)]
@@ -200,34 +230,51 @@ pub struct RawInstance {
 }
 
 impl RawInstance {
-	pub fn desc() -> wgpu::VertexBufferLayout<'static> {
+    pub fn desc() -> wgpu::VertexBufferLayout<'static> {
         use std::mem;
         wgpu::VertexBufferLayout {
             array_stride: mem::size_of::<RawInstance>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Instance,
-            attributes: &[
+			attributes: &[
+                // A mat4 takes up 4 vertex slots as it is technically 4 vec4s. We need to define a slot
+                // for each vec4. We'll have to reassemble the mat4 in the shader.
                 wgpu::VertexAttribute {
                     offset: 0,
+                    // While our vertex shader only uses locations 0, and 1 now, in later tutorials, we'll
+                    // be using 2, 3, and 4, for Vertex. We'll start at slot 5, not conflict with them later
                     shader_location: 5,
-                    format: wgpu::VertexFormat::Sint32,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+                wgpu::VertexAttribute {
+                    offset: mem::size_of::<[f32; 4]>() as wgpu::BufferAddress,
+                    shader_location: 6,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+                wgpu::VertexAttribute {
+                    offset: mem::size_of::<[f32; 8]>() as wgpu::BufferAddress,
+                    shader_location: 7,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+                wgpu::VertexAttribute {
+                    offset: mem::size_of::<[f32; 12]>() as wgpu::BufferAddress,
+                    shader_location: 8,
+                    format: wgpu::VertexFormat::Float32x4,
                 },
             ],
         }
     }
 }
 
-impl WgpuBuffer for RawInstance {
-	fn create_buffer(device: &wgpu::Device, size: usize) -> wgpu::Buffer {
+impl BufferRecipe for RawInstance {
+	fn create_buffer(device: &wgpu::Device, size: u64) -> wgpu::Buffer {
 		device.create_buffer(&wgpu::BufferDescriptor {
 			label: Some("Instance Buffer"),
-			size: (std::mem::size_of::<RawInstance>() * size) as u64,
+			size,
 			usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
 			mapped_at_creation: false,
 		})
 	}
 }
-
-// impl BufferRecipe for RawInstance
 
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
@@ -235,7 +282,7 @@ struct DirectionalLight {
     direction: [f32; 3],
     intensity: f32,
     color: [f32; 3],
-    padding: f32,  // Align to 16 bytes
+    padding: f32, // Align to 16 bytes
 }
 
 #[repr(C)]
@@ -248,7 +295,7 @@ struct SpotLight {
     range: f32,
     inner_cone_angle: f32,
     outer_cone_angle: f32,
-    padding: [f32; 2],  // Align to 16 bytes
+    padding: [f32; 2], // Align to 16 bytes
 }
 
 #[repr(C)]
@@ -287,271 +334,81 @@ struct LightUniform {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable, Debug)]
-pub struct RawNode {
-	pub model: [[f32; 4]; 4],
-	pub parent_index: i32,
-	pub _padding: [u32; 3],
-}
-
-impl BufferRecipe for RawNode {
-	fn create_buffer(device: &wgpu::Device, size: u64) -> wgpu::Buffer {
-		device.create_buffer(&wgpu::BufferDescriptor {
-			label: Some("Node Buffer"),
-			size,
-			usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-			mapped_at_creation: false,
-		})
-	}
-
-	fn create_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
-		device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-			label: Some("Node Bind Group Layout"),
-			entries: &[
-				wgpu::BindGroupLayoutEntry {
-					binding: 0,
-					visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::COMPUTE | wgpu::ShaderStages::FRAGMENT,
-					ty: wgpu::BindingType::Buffer {
-						ty: wgpu::BufferBindingType::Storage { read_only: false },
-						has_dynamic_offset: false,
-						min_binding_size: None,
-					},
-					count: None,
-				},
-			],
-		})
-	}
-
-	fn create_bind_group(device: &wgpu::Device, buffer: &wgpu::Buffer, layout: &wgpu::BindGroupLayout) -> wgpu::BindGroup {
-		device.create_bind_group(&wgpu::BindGroupDescriptor {
-			layout,
-			entries: &[
-				wgpu::BindGroupEntry {
-					binding: 0,
-					resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-						buffer,
-						offset: 0,
-						size: None,
-					}),
-				},
-			],
-			label: Some("Node Bind Group"),
-		})
-	}
-}
-
-// impl RawNode {
-// 	pub fn create_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
-// 		device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-// 			label: Some("Node Bind Group Layout"),
-// 			entries: &[
-// 				wgpu::BindGroupLayoutEntry {
-// 					binding: 0,
-// 					visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::COMPUTE,
-// 					ty: wgpu::BindingType::Buffer {
-// 						ty: wgpu::BufferBindingType::Storage { read_only: false },
-// 						has_dynamic_offset: false,
-// 						min_binding_size: None,
-// 					},
-// 					count: None,
-// 				},
-// 			],
-// 		})
-// 	}
-
-// 	pub fn create_buffer(device: &wgpu::Device) -> wgpu::Buffer {
-// 		device.create_buffer(&wgpu::BufferDescriptor {
-// 			label: Some("Node Buffer"),
-// 			size: 1024,
-// 			usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-// 			mapped_at_creation: false,
-// 		})
-// 	}
-
-// 	pub fn create_bind_group(device: &wgpu::Device, buffer: &wgpu::Buffer, layout: &wgpu::BindGroupLayout) -> wgpu::BindGroup {
-// 		device.create_bind_group(&wgpu::BindGroupDescriptor {
-// 			layout,
-// 			entries: &[
-// 				wgpu::BindGroupEntry {
-// 					binding: 0,
-// 					resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-// 						buffer,
-// 						offset: 0,
-// 						size: None,
-// 					}),
-// 				},
-// 			],
-// 			label: Some("Node Bind Group"),
-// 		})
-// 	}
-// }
-
-#[repr(C)]
-#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct NodeTransformation {
-	pub model: [[f32; 4]; 4],
-	pub waiting: u32,
-	pub _padding: [u32; 3],
-}
-
-impl BufferRecipe for NodeTransformation {
-	fn create_buffer(device: &wgpu::Device, size: u64) -> wgpu::Buffer {
-		device.create_buffer(&wgpu::BufferDescriptor {
-			label: Some("Node Transformation Buffer"),
-			size,
-			usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-			mapped_at_creation: false,
-		})
-	}
-
-	fn create_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
-		device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-			label: Some("Node Transformation Bind Group Layout"),
-			entries: &[
-				wgpu::BindGroupLayoutEntry {
-					binding: 0,
-					visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::COMPUTE,
-					ty: wgpu::BindingType::Buffer {
-						ty: wgpu::BufferBindingType::Storage { read_only: false },
-						has_dynamic_offset: false,
-						min_binding_size: None,
-					},
-					count: None,
-				},
-			],
-		})
-	}
-
-	fn create_bind_group(device: &wgpu::Device, buffer: &wgpu::Buffer, layout: &wgpu::BindGroupLayout) -> wgpu::BindGroup {
-		device.create_bind_group(&wgpu::BindGroupDescriptor {
-			layout,
-			entries: &[
-				wgpu::BindGroupEntry {
-					binding: 0,
-					resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-						buffer,
-						offset: 0,
-						size: None,
-					}),
-				},
-			],
-			label: Some("Node Transformation Bind Group"),
-		})
-	}
-}
-
-#[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Keyframe {
-	pub value: [[f32; 4]; 4],
-	pub is_running: u32,
-	pub node_inx: u32
+    pub value: [[f32; 4]; 4],
+    pub is_running: u32,
+    pub node_inx: u32,
 }
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct RawPointLight {
-	pub color: [f32; 3],
-	pub intensity: f32,
-	pub position: [f32; 3],
+    pub color: [f32; 3], // 12 bytes
+    _padding1: f32,      // 4 bytes to align `intensity` to 16 bytes
+    pub intensity: f32,  // 4 bytes
+    _padding2: [f32; 3], // 12 bytes to align `position` to 16 bytes
+    pub position: [f32; 3], // 12 bytes
+    _padding3: f32,      // 4 bytes to align the total size to 16 bytes
+}
+
+impl RawPointLight {
+	pub fn new(color: [f32; 3], intensity: f32, position: [f32; 3]) -> Self {
+		Self {
+			color,
+			_padding1: 0.0,
+			intensity,
+			_padding2: [0.0; 3],
+			position,
+			_padding3: 0.0,
+		}
+	}
 }
 
 impl BufferRecipe for RawPointLight {
-	fn create_buffer(device: &wgpu::Device, size: u64) -> wgpu::Buffer {
-		device.create_buffer(&wgpu::BufferDescriptor {
-			label: Some("Point Light Buffer"),
-			size,
-			usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-			mapped_at_creation: false,
-		})
-	}
+    fn create_buffer(device: &wgpu::Device, size: u64) -> wgpu::Buffer {
+        device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Point Light Buffer"),
+            size,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        })
+    }
+}
 
+impl BindableBufferRecipe for RawPointLight {
 	fn create_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
 		device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
 			label: Some("Point Light Bind Group Layout"),
-			entries: &[
-				wgpu::BindGroupLayoutEntry {
-					binding: 0,
-					visibility: wgpu::ShaderStages::FRAGMENT,
-					ty: wgpu::BindingType::Buffer {
-						ty: wgpu::BufferBindingType::Storage { read_only: true },
-						has_dynamic_offset: false,
-						min_binding_size: None,
-					},
-					count: None,
+			entries: &[wgpu::BindGroupLayoutEntry {
+				binding: 0,
+				visibility: wgpu::ShaderStages::FRAGMENT,
+				ty: wgpu::BindingType::Buffer {
+					ty: wgpu::BufferBindingType::Storage { read_only: true },
+					has_dynamic_offset: false,
+					min_binding_size: None,
 				},
-			],
+				count: None,
+			}],
 		})
 	}
 
-	fn create_bind_group(device: &wgpu::Device, buffer: &wgpu::Buffer, layout: &wgpu::BindGroupLayout) -> wgpu::BindGroup {
+	fn create_bind_group(
+		device: &wgpu::Device,
+		buffer: &wgpu::Buffer,
+		layout: &wgpu::BindGroupLayout,
+	) -> wgpu::BindGroup {
 		device.create_bind_group(&wgpu::BindGroupDescriptor {
 			layout,
-			entries: &[
-				wgpu::BindGroupEntry {
-					binding: 0,
-					resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-						buffer,
-						offset: 0,
-						size: None,
-					}),
-				},
-			],
+			entries: &[wgpu::BindGroupEntry {
+				binding: 0,
+				resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+					buffer,
+					offset: 0,
+					size: None,
+				}),
+			}],
 			label: Some("Point Light Bind Group"),
 		})
 	}
-}
-
-#[repr(C)]
-#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct RawAnimation {
-	pub first_keyframe: u32,
-	pub last_keyframe: u32,
-}
-
-impl BufferRecipe for RawAnimation {
-	fn create_buffer(device: &wgpu::Device, size_: u64) -> wgpu::Buffer {
-		device.create_buffer(&wgpu::BufferDescriptor {
-			label: Some("Animation Buffer"),
-			size: std::mem::size_of::<RawAnimation>() as u64,
-			usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-			mapped_at_creation: false,
-		})
-	}
-
-	fn create_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
-		device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-			label: Some("Animation Bind Group Layout"),
-			entries: &[
-				wgpu::BindGroupLayoutEntry {
-					binding: 0,
-					visibility: wgpu::ShaderStages::COMPUTE,
-					ty: wgpu::BindingType::Buffer {
-						ty: wgpu::BufferBindingType::Storage { read_only: true },
-						has_dynamic_offset: false,
-						min_binding_size: None,
-					},
-					count: None,
-				},
-			],
-		})
-	}
-
-	fn create_bind_group(device: &wgpu::Device, buffer: &wgpu::Buffer, layout: &wgpu::BindGroupLayout) -> wgpu::BindGroup {
-		device.create_bind_group(&wgpu::BindGroupDescriptor {
-			layout,
-			entries: &[
-				wgpu::BindGroupEntry {
-					binding: 0,
-					resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-						buffer,
-						offset: 0,
-						size: None,
-					}),
-				},
-			],
-			label: Some("Animation Bind Group"),
-		})
-	}
-
 }

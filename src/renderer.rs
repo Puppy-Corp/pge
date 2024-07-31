@@ -6,7 +6,6 @@ use wgpu::TextureUsages;
 use winit::dpi::PhysicalSize;
 
 use crate::buffer::*;
-use crate::buffers::*;
 use crate::wgpu_types::*;
 
 struct Create3DPipelineArgs<'a> {
@@ -17,17 +16,17 @@ struct Create3DPipelineArgs<'a> {
 }
 
 fn create_3d_pipeline(args: Create3DPipelineArgs) -> wgpu::RenderPipeline {
+	log::info!("creating 3d pipeline");
 	let shader = args.device.create_shader_module(wgpu::ShaderModuleDescriptor {
 		label: Some("Shader"),
 		source: wgpu::ShaderSource::Wgsl(include_str!("./shaders/3d_shader.wgsl").into()),
 	});
 
 	let camera_bind_group_layout = RawCamera::create_bind_group_layout(&args.device);
-	let node_bind_group_layout = RawNode::create_bind_group_layout(&args.device);
 	let point_light_bind_group_layout = RawPointLight::create_bind_group_layout(&args.device);
 	let texture_layout = TextureBuffer::create_bind_group_layout(&args.device);
 	let tex_coords_layout = wgpu::VertexBufferLayout {
-		array_stride: std::mem::size_of::<RawTexCoords>() as wgpu::BufferAddress,
+		array_stride: std::mem::size_of::<TexCoords>() as wgpu::BufferAddress,
 		step_mode: wgpu::VertexStepMode::Vertex,
 		attributes: &[
 			wgpu::VertexAttribute {
@@ -38,11 +37,11 @@ fn create_3d_pipeline(args: Create3DPipelineArgs) -> wgpu::RenderPipeline {
 		]
 	};
 
+	log::info!("creating render_pipeline_layout");
 	let render_pipeline_layout = args.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
 		label: Some("Render Pipeline Layout"),
 		bind_group_layouts: &[
 			&camera_bind_group_layout, 
-			&node_bind_group_layout, 
 			&point_light_bind_group_layout,
 			&texture_layout
 		],
@@ -57,14 +56,14 @@ fn create_3d_pipeline(args: Create3DPipelineArgs) -> wgpu::RenderPipeline {
 		bias: wgpu::DepthBiasState::default(),
 	};
 
-	log::info!("creating render pipeline");
+	log::info!("creating render_pipeline");
 	let render_pipeline = args.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
 		label: Some("Render Pipeline"),
 		layout: Some(&render_pipeline_layout),
 		vertex: wgpu::VertexState {
 			module: &shader,
 			entry_point: "vs_main",
-			buffers: &[RawPositions::desc(), RawInstance::desc(), RawNormal::desc(), tex_coords_layout],
+			buffers: &[Vertices::desc(), RawInstance::desc(), Normals::desc(), tex_coords_layout],
 			compilation_options: Default::default()
 		},
 		fragment: Some(wgpu::FragmentState {
@@ -116,14 +115,11 @@ struct CreateGUIPipelineArgs<'a> {
 }
 
 fn create_gui_pipeline(args: CreateGUIPipelineArgs) -> wgpu::RenderPipeline {
+	log::info!("creating gui pipeline");
 	let shader = args.device.create_shader_module(wgpu::ShaderModuleDescriptor {
 		label: Some("Shader"),
 		source: wgpu::ShaderSource::Wgsl(include_str!("./shaders/gui_shader.wgsl").into()),
 	});
-
-	let camera_bind_group_layout = RawCamera::create_bind_group_layout(&args.device);
-	let node_bind_group_layout = RawNode::create_bind_group_layout(&args.device);
-	let point_light_bind_group_layout = RawPointLight::create_bind_group_layout(&args.device);
 
 	let render_pipeline_layout = args.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
 		label: Some("Render Pipeline Layout"),
@@ -140,7 +136,7 @@ fn create_gui_pipeline(args: CreateGUIPipelineArgs) -> wgpu::RenderPipeline {
 	};
 
 	let color_layout = wgpu::VertexBufferLayout {
-		array_stride: std::mem::size_of::<RawPositions>() as wgpu::BufferAddress,
+		array_stride: std::mem::size_of::<Vertices>() as wgpu::BufferAddress,
 		step_mode: wgpu::VertexStepMode::Vertex,
 		attributes: &[
 			wgpu::VertexAttribute {
@@ -151,14 +147,13 @@ fn create_gui_pipeline(args: CreateGUIPipelineArgs) -> wgpu::RenderPipeline {
 		]
 	};
 
-	log::info!("creating render pipeline");
 	let render_pipeline = args.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
 		label: Some("Render Pipeline"),
 		layout: Some(&render_pipeline_layout),
 		vertex: wgpu::VertexState {
 			module: &shader,
 			entry_point: "vs_main",
-			buffers: &[RawPositions::desc(), color_layout],
+			buffers: &[Vertices::desc(), color_layout],
 			compilation_options: Default::default()
 		},
 		fragment: Some(wgpu::FragmentState {
@@ -264,18 +259,15 @@ pub struct Renderer<'a> {
 
 impl Renderer<'_> {
 	pub fn new(args: NewRendererArgs) -> anyhow::Result<Self> {
-		log::info!("creating pipeline");
 		let size = args.window.inner_size();
 		let surface =  args.instance.create_surface(args.window.clone())?;
 		let surface_caps = surface.get_capabilities(&args.adapter);
-		log::info!("surface caps: {:?}", surface_caps);
 		let surface_format = surface_caps
 			.formats
 			.iter()
 			.copied()
 			.find(|f| f.is_srgb())
 			.unwrap_or_else(|| surface_caps.formats[0]);
-		log::info!("surface format: {:?}", surface_format);
 		let config = wgpu::SurfaceConfiguration {
 			usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
 			format: surface_format,
@@ -286,11 +278,7 @@ impl Renderer<'_> {
 			view_formats: vec![],
 			desired_maximum_frame_latency: 1
 		};
-
-		log::info!("config {:?}", config);
 		surface.configure(&args.device, &config);
-		log::info!("configured surface");
-
 		let depth_texture = args.device.create_texture(&wgpu::TextureDescriptor {
 			label: None,
 			size: wgpu::Extent3d {
@@ -374,11 +362,10 @@ impl Renderer<'_> {
 				render_pass.set_viewport(vx, vy, vw, vh, 0.0, 1.0);
 				render_pass.set_pipeline(&self.pipeline_3d);
 				render_pass.set_bind_group(0, &view.camera_bind_group, &[]);
-				// render_pass.set_bind_group(1, &view.node_bind_group, &[]);
 				render_pass.set_bind_group(1, &view.point_light_bind_group, &[]);
 
 				for call in &view.calls {
-					render_pass.set_bind_group(3, &call.texture_bind_group, &[]);
+					render_pass.set_bind_group(2, &call.texture_bind_group, &[]);
 					render_pass.set_vertex_buffer(0, view.positions_buffer.slice(call.vertices.clone()));
 					render_pass.set_vertex_buffer(1, view.instance_buffer.slice(..));
 					render_pass.set_vertex_buffer(2, view.normal_buffer.slice(call.normal_range.clone()));

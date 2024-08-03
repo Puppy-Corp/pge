@@ -4,6 +4,7 @@ use std::ops::Range;
 use std::time::Instant;
 
 use bytemuck::bytes_of;
+use glam::Mat4;
 use glam::Vec2;
 use glam::Vec3;
 use thunderdome::Arena;
@@ -11,6 +12,7 @@ use thunderdome::Index;
 
 use crate::buffer::DirtyBuffer;
 use crate::compositor::UICompositor;
+use crate::cube;
 use crate::debug::ChangePrinter;
 use crate::gltf::load_gltf;
 use crate::internal_types::CamView;
@@ -327,20 +329,16 @@ impl EngineState {
                         continue;
                     }
 
+					let mesh: Mesh = cube(0.5);
+
                     let vertices_start = self.triangles.vertices.len() as u64;
-                    self.triangles
-                        .vertices
-                        .extend_from_slice(bytemuck::cast_slice(&primitive.vertices));
+                    self.triangles.vertices.extend_from_slice(bytemuck::cast_slice(&primitive.vertices));
                     let vertices_end = self.triangles.vertices.len() as u64;
                     let normals_start = self.triangles.normals.len() as u64;
-                    self.triangles
-                        .normals
-                        .extend_from_slice(bytemuck::cast_slice(&primitive.normals));
+                    self.triangles.normals.extend_from_slice(bytemuck::cast_slice(&primitive.normals));
                     let normals_end = self.triangles.normals.len() as u64;
                     let indices_start = self.triangles.indices.len() as u64;
-                    self.triangles
-                        .indices
-                        .extend_from_slice(bytemuck::cast_slice(&primitive.indices));
+                    self.triangles.indices.extend_from_slice(bytemuck::cast_slice(&primitive.indices));
                     let indices_end = self.triangles.indices.len() as u64;
                     let tex_coords_start = self.triangles.tex_coords.len() as u64;
                     if primitive.tex_coords.len() > 0 {
@@ -370,6 +368,7 @@ impl EngineState {
                     };
 
                     let mut checkpoints: HashMap<Index, Range<u32>> = HashMap::new();
+					
 
                     for node_id in node_ids {
                         let node = match self.nodes.get(node_id) {
@@ -385,13 +384,14 @@ impl EngineState {
                             .scene_instance_buffers
                             .entry(node.scene_id)
                             .or_insert(DirtyBuffer::new("instances"));
-                        let instance_start = buffer.len() as u32;
-                        buffer.extend_from_slice(bytemuck::bytes_of(&instance));
-                        let instance_end = buffer.len() as u32;
 
-                        let checkpoint = checkpoints
-                            .entry(node.scene_id)
-                            .or_insert(instance_start..instance_end);
+                        let instance_start = buffer.len() as u32 / std::mem::size_of::<RawInstance>() as u32;
+                        buffer.extend_from_slice(bytemuck::bytes_of(&instance));
+                        let instance_end = buffer.len() as u32 / std::mem::size_of::<RawInstance>() as u32;
+
+						let checkpoint = checkpoints
+							.entry(node.scene_id)
+							.or_insert(instance_start..instance_end);
                         checkpoint.end = instance_end;
                     }
 
@@ -436,8 +436,15 @@ impl EngineState {
                 None => continue,
             };
 
-            let model = glam::Mat4::perspective_lh(cam.fovy, cam.aspect, cam.znear, cam.zfar)
-                * cam_node.model;
+            // let model = glam::Mat4::perspective_lh(cam.fovy, cam.aspect, cam.znear, cam.zfar)
+            //     * cam_node.model;
+
+			log::info!("cam_node: {:?}", cam_node);
+
+			let can_model = Mat4::from_translation(Vec3::new(0.0, 0.0, 2.0));
+
+			let model = glam::Mat4::perspective_lh(cam.fovy, cam.aspect, cam.znear, cam.zfar)
+				* can_model;
 
             let cam = RawCamera {
                 model: model.to_cols_array_2d(),
@@ -460,7 +467,10 @@ impl EngineState {
                 .entry(cam_id)
                 .or_insert(DirtyBuffer::new("cameras"));
 
+			let camdata = Mat4::IDENTITY;
+
             buffer.extend_from_slice(bytemuck::bytes_of(&cam));
+			//buffer.extend_from_slice(bytemuck::bytes_of(&camdata.to_cols_array_2d()));
         }
 
         self.printer

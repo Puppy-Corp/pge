@@ -3,8 +3,8 @@ use crate::wgpu_types::{BindableBufferRecipe, BufferRecipe};
 
 pub struct BindableBuffer<B> {
 	pub buffer: Buffer<B>,
-	pub bind_group: Option<wgpu::BindGroup>,
-	pub bind_group_layout: Option<wgpu::BindGroupLayout>,
+	pub bind_group: wgpu::BindGroup,
+	pub bind_group_layout: wgpu::BindGroupLayout,
 }
 
 impl<B> BindableBuffer<B>
@@ -13,10 +13,12 @@ where
 {
 	pub fn new(device: Arc<wgpu::Device>, queue: Arc<wgpu::Queue>) -> Self {
 		let buffer = Buffer::new(device, queue);
+		let bind_group_layout = B::create_bind_group_layout(&buffer.device);
+		let bind_group = B::create_bind_group(&buffer.device, buffer.buffer(), &bind_group_layout);
 		Self {
 			buffer: buffer,
-			bind_group_layout: None,
-			bind_group: None,
+			bind_group_layout,
+			bind_group,
 		}
 	}
 
@@ -25,35 +27,36 @@ where
 		
 		if reseized {
 			let layout = B::create_bind_group_layout(&self.buffer.device);
-			self.bind_group = Some(B::create_bind_group(&self.buffer.device, self.buffer.buffer(), &layout));
-			self.bind_group_layout = Some(layout);
+			self.bind_group = B::create_bind_group(&self.buffer.device, self.buffer.buffer(), &layout);
+			self.bind_group_layout = layout;
 		}
 	}
 
 	pub fn bind_group(&self) -> &wgpu::BindGroup {
-		self.bind_group.as_ref().unwrap()
+		&self.bind_group
 	}
 
 	pub fn bind_group_layout(&self) -> &wgpu::BindGroupLayout {
-		self.bind_group_layout.as_ref().unwrap()
+		&self.bind_group_layout
 	}
 }
 
 pub struct Buffer<B> {
 	device: Arc<wgpu::Device>,
 	queue: Arc<wgpu::Queue>,
-	buffer: Option<wgpu::Buffer>,
+	buffer: wgpu::Buffer,
 	size: u64,
 	_marker: std::marker::PhantomData<B>,
 }
 
 impl<B: BufferRecipe> Buffer<B> {
 	pub fn new(device: Arc<wgpu::Device>, queue: Arc<wgpu::Queue>) -> Self {
+		let buffer = B::create_buffer(&device, 1024);
 		Self {
 			device,
 			queue,
-			buffer: None,
-			size: 0,
+			buffer,
+			size: 1024,
 			_marker: std::marker::PhantomData,
 		}
 	}
@@ -66,32 +69,28 @@ impl<B: BufferRecipe> Buffer<B> {
 			resized = true;
 		}
 
-		if let Some(buffer) = &self.buffer {
-			self.queue.write_buffer(buffer, 0, data);
-		} else {
-			panic!("this should not happen");
-		}
+		self.queue.write_buffer(&self.buffer, 0, data);
 
 		resized
 	}
 
 	fn resize_and_copy(&mut self, new_size: u64) {
+		let new_size = new_size.max(1024);
+		log::info!("resizing buffer from {} to {}", self.size, new_size);
 		let new_buffer = B::create_buffer(&self.device, new_size);
 
-		if let Some(old_buffer) = &self.buffer {
-			let mut encoder = self
-				.device
-				.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-					label: Some("resize_and_copy_encoder"),
-				});
+		let mut encoder = self
+			.device
+			.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+				label: Some("resize_and_copy_encoder"),
+			});
 
-			encoder.copy_buffer_to_buffer(old_buffer, 0, &new_buffer, 0, self.size);
+		encoder.copy_buffer_to_buffer(&self.buffer, 0, &new_buffer, 0, self.size);
 
-			let command_buffer = encoder.finish();
-			self.queue.submit(Some(command_buffer));
-		}
+		let command_buffer = encoder.finish();
+		self.queue.submit(Some(command_buffer));
 
-		self.buffer = Some(new_buffer);
+		self.buffer = new_buffer;
 		self.size = new_size;
 	}
 
@@ -100,66 +99,73 @@ impl<B: BufferRecipe> Buffer<B> {
 	}
 
 	pub fn buffer(&self) -> &wgpu::Buffer {
-		self.buffer.as_ref().unwrap()
+		&self.buffer
 	}
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct DirtyBuffer {
-	pub name: String,
-	data: Vec<u8>,
-	pub dirty: bool,
-	offset: usize,
+    pub name: String,
+    data: Vec<u8>,
+    pub dirty: bool,
+    offset: usize,
 }
 
 impl DirtyBuffer {
-	pub fn new(name: &str) -> Self {
-		Self {
-			name: name.to_string(),
-			data: Vec::new(),
-			dirty: false,
-			offset: 0,
-		}
-	}
+    /// Creates a new DirtyBuffer with the given name.
+    pub fn new(name: &str) -> Self {
+        Self {
+            name: name.to_string(),
+            data: Vec::new(),
+            dirty: false,
+            offset: 0,
+        }
+    }
 
-	pub fn len(&self) -> usize {
-		self.offset
-	}
+    /// Returns the current length of valid data in the buffer.
+    pub fn len(&self) -> usize {
+        self.offset
+    }
 
-	pub fn extend_from_slice(&mut self, slice: &[u8]) {
-		if self.offset + slice.len() > self.data.len() {
-			log::info!(
-				"[{}] data is bigger offset: {} slice.len: {} data.len: {}",
-				self.name,
-				self.offset,
-				slice.len(),
-				self.data.len()
-			);
-			self.data.resize(self.offset + slice.len(), 0);
-			self.dirty = true;
-		}
+    /// Extends the buffer with data from the given slice.
+    /// Marks the buffer as dirty if any changes are made.
+    pub fn extend_from_slice(&mut self, slice: &[u8]) {
+        if self.offset + slice.len() > self.data.len() {
+            log::info!(
+                "[{}] data is bigger offset: {} slice.len: {} data.len: {}",
+                self.name,
+                self.offset,
+                slice.len(),
+                self.data.len()
+            );
+            self.data.resize(self.offset + slice.len(), 0);
+            self.dirty = true;
+        }
 
-		let data_changed = &self.data[self.offset..self.offset + slice.len()] != slice;
-		if data_changed {
-			self.data[self.offset..self.offset + slice.len()].copy_from_slice(slice);
-			self.dirty = true;
-		}
-		self.offset += slice.len();
-	}
+        let current_slice = &self.data[self.offset..self.offset + slice.len()];
+        if current_slice != slice {
+            self.data[self.offset..].copy_from_slice(slice);
+            self.dirty = true;
+        }
+        self.offset += slice.len();
+    }
 
-	pub fn reset_offset(&mut self) {
-		self.offset = 0;
-	}
+    /// Resets the offset to zero without modifying the underlying data.
+    pub fn reset_offset(&mut self) {
+        self.offset = 0;
+    }
 
-	pub fn clear(&mut self) {
-		self.data.clear();
-		self.dirty = true;
-		self.offset = 0;
-	}
+    /// Clears the buffer, removing all data and marking it as dirty.
+    pub fn clear(&mut self) {
+        self.data.clear();
+        self.dirty = true;
+        self.offset = 0;
+    }
 
-	pub fn data(&self) -> &[u8] {
-		&self.data[..self.offset]
-	}
+    /// Returns a slice of the valid data in the buffer.
+    pub fn data(&self) -> &[u8] {
+        &self.data[..self.offset]
+    }
 }
 
 #[cfg(test)]

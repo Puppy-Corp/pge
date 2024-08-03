@@ -1,6 +1,9 @@
 use crate::buffer::*;
+use crate::cube;
 use crate::engine_state::EngineState;
+use crate::gui;
 use crate::internal_types::EngineEvent;
+use crate::plane;
 use crate::renderer::*;
 use crate::texture::create_texture_with_uniform_color;
 use crate::texture::load_image;
@@ -11,7 +14,10 @@ use std::ops::Range;
 use std::sync::Arc;
 use std::time::Duration;
 use std::time::Instant;
+use glam::Mat4;
+use gltf::mesh::util::indices;
 use thunderdome::Index;
+use wgpu::core::device::queue;
 use wgpu::Backends;
 use wgpu::Features;
 use wgpu::Origin3d;
@@ -35,9 +41,9 @@ where
 }
 
 struct GuiBuffers {
-    positions_buffer: wgpu::Buffer,
-    index_buffer: wgpu::Buffer,
-    color_buffer: wgpu::Buffer,
+    vertices_buffer: Buffer<Vertices>,
+    index_buffer: Buffer<Indexes>,
+    color_buffer: Buffer<Colors>,
     position_range: Range<u64>,
     index_range: Range<u64>,
     colors_range: Range<u64>,
@@ -45,28 +51,13 @@ struct GuiBuffers {
 }
 
 impl GuiBuffers {
-    pub fn new(device: Arc<wgpu::Device>) -> Self {
-        let vertices = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Gui Vertex Buffer"),
-            size: 10_000,
-            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::VERTEX,
-            mapped_at_creation: false,
-        });
-        let indices = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Gui Index Buffer"),
-            size: 10_000,
-            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::INDEX,
-            mapped_at_creation: false,
-        });
-        let color_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Gui Color Buffer"),
-            size: 10_000,
-            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::VERTEX,
-            mapped_at_creation: false,
-        });
+    pub fn new(device: Arc<wgpu::Device>, queue: Arc<wgpu::Queue>) -> Self {
+        let vertices_buffer = Buffer::new(device.clone(), queue.clone());
+		let index_buffer = Buffer::new(device.clone(), queue.clone());
+		let color_buffer = Buffer::new(device.clone(), queue.clone());
         Self {
-            positions_buffer: vertices,
-            index_buffer: indices,
+            vertices_buffer,
+            index_buffer,
             color_buffer,
             position_range: 0..0,
             index_range: 0..0,
@@ -94,6 +85,8 @@ struct Engine<'a, T> {
     tex_coords_buffer: Buffer<TexCoords>,
     normal_buffer: Buffer<Normals>,
     index_buffer: Buffer<Indexes>,
+	vertices_buffer2: wgpu::Buffer,
+	index_buffer2: wgpu::Buffer,
     windows: HashMap<WindowId, WindowContext<'a>>,
     point_light_buffers: HashMap<Index, BindableBuffer<RawPointLight>>,
     last_on_process_time: Instant,
@@ -143,6 +136,9 @@ where
         let normal_buffer = Buffer::new(device.clone(), queue.clone());
         let index_buffer = Buffer::new(device.clone(), queue.clone());
 
+		let vertices_buffer2 = Vertices::create_buffer(&device, 1024);
+		let index_buffer2 = Indexes::create_buffer(&device, 1024);
+
         Self {
             app,
             state: EngineState::new(),
@@ -164,6 +160,8 @@ where
             default_texture,
             proxy,
             scene_instance_buffers: HashMap::new(),
+			vertices_buffer2,
+			index_buffer2,
         }
     }
 
@@ -179,35 +177,52 @@ where
             self.state.textures.insert(t.0, t.1);
         }
 
+		// let vertices: [[f32; 3]; 4] = [[0.0, 0.5, 0.0], [-0.5, -0.5, 0.0], [0.5, -0.5, 0.0], [0.0, 0.0, 0.0]];
+		// let indices: [u16; 4] = [0, 1, 2, 0];
+
+
+		// let mesh = cube(0.5);
+		// println!("indices len: {}", mesh.primitives[0].indices.len());
+		// let vertices_data = bytemuck::cast_slice(&mesh.primitives[0].vertices);
+		// println!("vertices_data len: {}", vertices_data.len());
+		// println!("vertices_data: {:?}", vertices_data);
+		// let indices_data = bytemuck::cast_slice(&mesh.primitives[0].indices);
+		// println!("indices_data len: {}", indices_data.len());
+		// println!("indices_data: {:?}", indices_data);
+		// // self.queue.write_buffer(&self.vertices_buffer2, 0, vertices_data);
+		// // self.queue.write_buffer(&self.index_buffer2, 0, indices_data);
+		// self.vertices_buffer.write(vertices_data);
+		// self.index_buffer.write(indices_data);
+
         if self.state.triangles.vertices.len() > 0 && self.state.triangles.vertices.dirty {
-            log::info!("writing triangle vertices len: {}", self.state.triangles.vertices.len());
-            self.vertices_buffer
-                .write(&self.state.triangles.vertices.data());
+            log::info!("writing triangle vertices len: {} data: {:?}", self.state.triangles.vertices.len(), self.state.triangles.vertices.data());
+    		self.vertices_buffer.write(&self.state.triangles.vertices.data());
             self.state.triangles.vertices.dirty = false;
         }
         if self.state.triangles.indices.len() > 0 && self.state.triangles.indices.dirty {
-            log::info!("writing triangle indices len: {}", self.state.triangles.indices.len());
-            self.index_buffer.write(&self.state.triangles.indices.data());
+            log::info!("writing triangle indices len: {} data: {:?}", self.state.triangles.indices.len(), self.state.triangles.indices.data());
+			self.index_buffer.write(&self.state.triangles.indices.data());
             self.state.triangles.indices.dirty = false;
         }
         if self.state.triangles.tex_coords.len() > 0 && self.state.triangles.tex_coords.dirty {
-            log::info!("writing triangle tex coords len: {}", self.state.triangles.tex_coords.len());
+            log::info!("writing triangle tex coords len: {} data: {:?}", self.state.triangles.tex_coords.len(), self.state.triangles.tex_coords.data());
             self.tex_coords_buffer
                 .write(&self.state.triangles.tex_coords.data());
             self.state.triangles.tex_coords.dirty = false;
         }
         if self.state.triangles.normals.len() > 0 && self.state.triangles.normals.dirty {
-            log::info!("writing triangle normals len: {}", self.state.triangles.normals.len());
+            log::info!("writing triangle normals len: {} data: {:?}", self.state.triangles.normals.len(), self.state.triangles.normals.data());
             self.normal_buffer.write(&self.state.triangles.normals.data());
             self.state.triangles.normals.dirty = false;
         }
 
-        for (index, b) in &self.state.scene_instance_buffers {
+        for (index, b) in &mut self.state.scene_instance_buffers {
             if !b.dirty {
                 continue;
             }
+			b.dirty = false;
 
-			log::info!("[{:?}] writing instance buffer len: {}", index, b.len());
+			log::info!("[{:?}] writing instance buffer len: {} data: {:?}", index, b.len(), b.data());
 
             let buff = self.scene_instance_buffers.entry(*index).or_insert(
                 Buffer::new(self.device.clone(), self.queue.clone()),
@@ -215,10 +230,11 @@ where
 
             buff.write(&b.data());
         }
-        for (index, b) in &self.state.scene_point_lights {
+        for (index, b) in &mut self.state.scene_point_lights {
             if !b.dirty {
                 continue;
             }
+			b.dirty = false;
 
 			log::info!("[{:?}] writing point light buffer len: {}", index, b.len());
 
@@ -230,12 +246,15 @@ where
             buff.write(&b.data());
         }
 
-        for (index, b) in &self.state.camera_buffers {
+        for (index, b) in &mut self.state.camera_buffers {
             if !b.dirty {
                 continue;
             }
+			b.dirty = false;
 
-            log::info!("[{:?}] writing camera buffer len: {}", index, b.len());
+            log::info!("[{:?}] writing camera buffer len: {} data: {:?}", index, b.len(), b.data());
+
+			let data = Mat4::IDENTITY.to_cols_array();
 
             let buff = self
                 .camera_buffers
@@ -243,6 +262,7 @@ where
                 .or_insert(BindableBuffer::new(self.device.clone(), self.queue.clone()));
 
             buff.write(&b.data());
+			//buff.write(bytemuck::cast_slice(&data));
         }
     }
 
@@ -366,6 +386,8 @@ where
                             panic!("Tex coords range is empty");
                         }
 
+						// log::info!("call {:?}", d);
+
                         DrawCall {
                             index_range: d.indices.clone(),
                             indices_range: d.indices_range.clone(),
@@ -404,103 +426,16 @@ where
                     instance_buffer: &instance_buffer.buffer(),
                     normal_buffer: &self.normal_buffer.buffer(),
                     tex_coords_buffer: &self.tex_coords_buffer.buffer(),
-                    positions_buffer: &self.vertices_buffer.buffer(),
+                    vertices_buffer: &self.vertices_buffer.buffer(),
                 };
                 views.push(a);
             }
 
-            // let window = match self.state.state.windows.get(window_ctx.window_id) {
-            // 	Some(w) => w,
-            // 	None => continue,
-            // };
-
-            // let gui_id = match window.ui {
-            // 	Some(id) => id,
-            // 	None => continue,
-            // };
-
-            // let gui_buffers = match self.gui_buffers.get(&gui_id) {
-            // 	Some(b) => b,
-            // 	None => continue,
-            // };
-
-            // let compositor = match self.state.ui_compositors.get(&gui_id) {
-            // 	Some(c) => c,
-            // 	None => continue,
-            // };
-
-            // let mut views_3d = Vec::new();
-
-            // for v in &compositor.views_3d {
-            // 	let camera_buffer = match self.camera_buffers.get(&v.camera_id) {
-            // 		Some(b) => b,
-            // 		None => continue,
-            // 	};
-
-            // 	let calls: Vec<_> = self.state.draw_calls.iter().map(|d| {
-            // 		let texture_bind_group = match d.texture {
-            // 			Some(t) => self.texture_bind_groups.get(&t).unwrap_or(&self.default_texture),
-            // 			None => &self.default_texture,
-            // 		};
-
-            // 		if d.indices.start == d.indices.end {
-            // 			panic!("Index range is empty");
-            // 		}
-
-            // 		if d.indices_range.start == d.indices_range.end {
-            // 			panic!("Indices range is empty");
-            // 		}
-
-            // 		if d.normals.start == d.normals.end {
-            // 			panic!("Normal range is empty");
-            // 		}
-
-            // 		if d.instances_range.start == d.instances_range.end {
-            // 			panic!("Instances range is empty");
-            // 		}
-
-            // 		if d.vertices.start == d.vertices.end {
-            // 			panic!("Position range is empty");
-            // 		}
-
-            // 		if d.tex_coords.start == d.tex_coords.end {
-            // 			panic!("Tex coords range is empty");
-            // 		}
-
-            // 		DrawCall {
-            // 			index_range: d.indices.clone(),
-            // 			indices_range: d.indices_range.clone(),
-            // 			normal_range: d.normals.clone(),
-            // 			instances_range: d.instances_range.clone(),
-            // 			vertices: d.vertices.clone(),
-            // 			tex_coords_range: d.tex_coords.clone(),
-            // 			texture_bind_group,
-            // 		}
-            // 	}).collect();
-
-            // 	let a = Render3DView {
-            // 		x: v.x,
-            // 		y: v.y,
-            // 		w: v.w,
-            // 		h: v.h,
-            // 		calls,
-            // 		camera_bind_group: &camera_buffer.bind_group,
-            // 		node_bind_group: &self.node_buffer.bind_group,
-            // 		point_light_bind_group: &self.point_light_buffer.bind_group,
-            // 		index_buffer: &self.index_buffer,
-            // 		instance_buffer: &self.instance_buffer,
-            // 		normal_buffer: &self.normal_buffer,
-            // 		tex_coords_buffer: &self.tex_coords_buffer,
-            // 		positions_buffer: &self.position_buffer,
-            // 	};
-            // 	views_3d.push(a);
-            // }
-
             let args = RenderArgs {
                 encoder: &mut encoder,
-                positions_buffer: &gui_buffers.positions_buffer,
-                index_buffer: &gui_buffers.index_buffer,
-                color_buffer: &gui_buffers.color_buffer,
+                positions_buffer: &gui_buffers.vertices_buffer.buffer(),
+                index_buffer: &gui_buffers.index_buffer.buffer(),
+                color_buffer: &gui_buffers.color_buffer.buffer(),
                 views: &views,
                 index_range: gui_buffers.index_range.clone(),
                 indices_range: gui_buffers.indices_range.clone(),
@@ -518,21 +453,23 @@ where
             let buffers = self
                 .gui_buffers
                 .entry(*i)
-                .or_insert(GuiBuffers::new(self.device.clone()));
+                .or_insert(GuiBuffers::new(self.device.clone(), self.queue.clone()));
 
             if c.positions.len() > 0 {
                 let positions_data = bytemuck::cast_slice(&c.positions);
                 let positions_data_len = positions_data.len() as u64;
-                self.queue
-                    .write_buffer(&buffers.positions_buffer, 0, positions_data);
+				buffers.vertices_buffer.write(positions_data);
+                // self.queue
+                //     .write_buffer(&buffers.vertices_buffer, 0, positions_data);
                 buffers.position_range = 0..positions_data_len;
             }
 
             if c.indices.len() > 0 {
                 let indices_data = bytemuck::cast_slice(&c.indices);
                 let indices_data_len = indices_data.len() as u64;
-                self.queue
-                    .write_buffer(&buffers.index_buffer, 0, indices_data);
+                // self.queue
+                //     .write_buffer(&buffers.index_buffer, 0, indices_data);
+				buffers.index_buffer.write(indices_data);
                 buffers.index_range = 0..indices_data_len;
                 buffers.indices_range = 0..c.indices.len() as u32;
             }
@@ -540,8 +477,9 @@ where
             if c.colors.len() > 0 {
                 let colors_data = bytemuck::cast_slice(&c.colors);
                 let colors_data_len = colors_data.len() as u64;
-                self.queue
-                    .write_buffer(&buffers.color_buffer, 0, colors_data);
+                // self.queue
+                //     .write_buffer(&buffers.color_buffer, 0, colors_data);
+				buffers.color_buffer.write(colors_data);
                 buffers.colors_range = 0..colors_data_len;
             }
         }

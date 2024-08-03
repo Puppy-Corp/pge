@@ -1,3 +1,5 @@
+use wgpu::Color;
+
 pub trait BufferRecipe {
     fn create_buffer(device: &wgpu::Device, size: u64) -> wgpu::Buffer;
 }
@@ -409,6 +411,35 @@ impl BindableBufferRecipe for RawPointLight {
 				}),
 			}],
 			label: Some("Point Light Bind Group"),
+		})
+	}
+}
+
+pub struct Colors {}
+
+impl Colors {
+	pub fn desc() -> wgpu::VertexBufferLayout<'static> {
+		wgpu::VertexBufferLayout {
+			array_stride: std::mem::size_of::<Vertices>() as wgpu::BufferAddress,
+			step_mode: wgpu::VertexStepMode::Vertex,
+			attributes: &[
+				wgpu::VertexAttribute {
+					offset: 0,
+					format: wgpu::VertexFormat::Float32x4,
+					shader_location: 1,
+				}
+			]
+		}
+	}
+}
+
+impl BufferRecipe for Colors {
+	fn create_buffer(device: &wgpu::Device, size: u64) -> wgpu::Buffer {
+		device.create_buffer(&wgpu::BufferDescriptor {
+			label: Some("Color Buffer"),
+			size,
+			usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+			mapped_at_creation: false,
 		})
 	}
 }

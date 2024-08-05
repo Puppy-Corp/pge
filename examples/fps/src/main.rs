@@ -66,7 +66,7 @@ impl Orc {
 
 		let mut orc_node = Node::new();
 		orc_node.translation = self.initial_pos;
-		orc_node.mesh = Some(asset_id);
+		// orc_node.mesh = Some(asset_id);
 		orc_node.physics.typ = PhycisObjectType::Dynamic;
 		orc_node.physics.mass = 10.0;
 		orc_node.collision_shape = Some(CollisionShape::Box { size: glam::Vec3::new(1.0, 2.0, 1.0) });
@@ -76,8 +76,8 @@ impl Orc {
 
 pub struct FpsShooter {
 	sensitivity: f32,
-	player_inx: Option<Index>,
-	light_inx: Option<Index>,
+	player_inx: Option<ArenaId<Node>>,
+	light_inx: Option<ArenaId<Node>>,
 	light_circle_i: f32,
 	pressed_keys: PressedKeys,
 	yaw: f32,
@@ -85,9 +85,9 @@ pub struct FpsShooter {
 	speed: f32,
 	dashing: bool,
 	movement_force: f32,
-	player_ray: Option<Index>,
+	player_ray: Option<ArenaId<RayCast>>,
     gripping: bool,
-	gripping_node: Option<Index>,
+	gripping_node: Option<ArenaId<Node>>,
 	rng: rand::rngs::ThreadRng,
 	orcs: Vec<Orc>,
 }
@@ -234,7 +234,7 @@ impl pge::App for FpsShooter {
 							Some(index) => index,
 							None => return,
 						};
-						let player = state.nodes.get_mut(player_inx).unwrap();
+						let player = state.nodes.get_mut(&player_inx).unwrap();
 						player.physics.velocity.y = 10.0;
 					},
 					KeyboardKey::ShiftLeft => {
@@ -260,7 +260,7 @@ impl pge::App for FpsShooter {
 		};
 
 		let player = match self.player_inx {
-			Some(index) => match state.nodes.get_mut(index) {
+			Some(index) => match state.nodes.get_mut(&index) {
 				Some(node) => node,
 				None => return,
 			},
@@ -279,7 +279,7 @@ impl pge::App for FpsShooter {
 					None => return,
 				};
 				self.rotate_player(dx, dy);
-				let player = state.nodes.get_mut(player_inx).unwrap();
+				let player = state.nodes.get_mut(&player_inx).unwrap();
 				player.rotation = glam::Quat::from_euler(glam::EulerRot::YXZ, self.yaw, self.pitch, 0.0);
 			},
 			MouseEvent::Pressed { button } => {
@@ -294,7 +294,7 @@ impl pge::App for FpsShooter {
 									None => return,
 								};
 
-								let player = match state.nodes.get_mut(player_inx) {
+								let player = match state.nodes.get_mut(&player_inx) {
 									Some(node) => node,
 									None => return,
 								};
@@ -303,7 +303,7 @@ impl pge::App for FpsShooter {
 								dir * 100.0
 							};
 
-							if let Some(node) = state.nodes.get_mut(gripping_node) {
+							if let Some(node) = state.nodes.get_mut(&gripping_node) {
 								node.physics.velocity = push_vel;
 							}
 						}
@@ -327,7 +327,7 @@ impl pge::App for FpsShooter {
 		// }
 
 		if let Some(player_inx) = self.player_inx {
-			if let Some(player) = state.nodes.get_mut(player_inx) {
+			if let Some(player) = state.nodes.get_mut(&player_inx) {
 				let current_speed = player.physics.velocity.length();
 				if self.pressed_keys.any_pressed() {
 					let dir = self.pressed_keys.to_vec3();
@@ -367,7 +367,7 @@ impl pge::App for FpsShooter {
 				Some(index) => index,
 				None => return,
 			};
-			let player = match state.nodes.get_mut(player_inx) {
+			let player = match state.nodes.get_mut(&player_inx) {
 				Some(node) => node,
 				None => return,
 			};
@@ -376,7 +376,7 @@ impl pge::App for FpsShooter {
 		}
 
 		if let Some(player_ray_inx) = self.player_ray {
-			if let Some(player_ray) = state.raycasts.get_mut(player_ray_inx) {
+			if let Some(player_ray) = state.raycasts.get_mut(&player_ray_inx) {
 				if player_ray.intersects.len() > 0 {
 					if !self.gripping {
 						return;
@@ -390,7 +390,7 @@ impl pge::App for FpsShooter {
 							None => return,
 						};
 
-						let player = match state.nodes.get_mut(player_inx) {
+						let player = match state.nodes.get_mut(&player_inx) {
 							Some(node) => node,
 							None => return,
 						};
@@ -402,7 +402,7 @@ impl pge::App for FpsShooter {
 					let first_node = match player_ray.intersects.first() {
 						Some(inx) => {
 							self.gripping_node = Some(*inx);
-							match state.nodes.get_mut(*inx) {
+							match state.nodes.get_mut(inx) {
 								Some(node) => node,
 								None => return,
 							}

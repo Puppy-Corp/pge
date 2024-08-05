@@ -1,10 +1,10 @@
 use std::time::Instant;
 
 use glam::Vec3;
-use thunderdome::Index;
 
 use crate::debug::ChangePrinter;
 use crate::spatial_grid::SpatialGrid;
+use crate::ArenaId;
 use crate::Node;
 use crate::PhycisObjectType;
 use crate::State;
@@ -19,8 +19,8 @@ pub struct PhycisTiming {
 }
 
 pub struct Collision {
-	pub node1: Index,
-	pub node2: Index,
+	pub node1: ArenaId<Node>,
+	pub node2: ArenaId<Node>,
 	pub normal: glam::Vec3,
 	pub point: glam::Vec3,
 	pub correction: glam::Vec3,
@@ -189,8 +189,8 @@ impl PhysicsSystem {
 		if collisions.len() > 0 {
 			self.printer.print(9999, format!("collisions: {:?}", collisions.len()));
 			for collision in collisions {
-				let node1 = state.nodes.get(collision.node1).unwrap();
-				let node2 = state.nodes.get(collision.node2).unwrap();
+				let node1 = state.nodes.get(&collision.node1).unwrap();
+				let node2 = state.nodes.get(&collision.node2).unwrap();
 
 				if node1.physics.typ == PhycisObjectType::Static && node2.physics.typ == PhycisObjectType::Static {
 					continue;
@@ -198,13 +198,13 @@ impl PhysicsSystem {
 
 				let (normal_impulse, friction_impulse) = calculate_impulse(node1, node2, &collision, 0.3, 0.2);
 
-				if let Some(node1) = state.nodes.get_mut(collision.node1) {
+				if let Some(node1) = state.nodes.get_mut(&collision.node1) {
 					if node1.physics.typ == PhycisObjectType::Dynamic {
 						node1.physics.velocity -= (normal_impulse + friction_impulse) / node1.physics.mass;
 						node1.translation += collision.correction;
 					}
 				}
-				if let Some(node2) = state.nodes.get_mut(collision.node2) {
+				if let Some(node2) = state.nodes.get_mut(&collision.node2) {
 					if node2.physics.typ == PhycisObjectType::Dynamic {
 						node2.physics.velocity += (normal_impulse + friction_impulse) / node2.physics.mass;
 						node2.translation -= collision.correction;

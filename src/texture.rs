@@ -1,15 +1,13 @@
 use std::path::Path;
-use std::thread::sleep;
-use std::time::Duration;
-
-use thunderdome::Index;
 use wgpu::Origin3d;
 use winit::event_loop::EventLoopProxy;
 
 use crate::internal_types::EngineEvent;
 use crate::wgpu_types::TextureBuffer;
+use crate::ArenaId;
+use crate::Texture;
 
-pub fn load_image<P: AsRef<Path>>(proxy: EventLoopProxy<EngineEvent>, path: P, texture_id: Index) {
+pub fn load_image<P: AsRef<Path>>(proxy: EventLoopProxy<EngineEvent>, path: P, texture_id: ArenaId<Texture>) {
     let path = path.as_ref().to_owned();
     log::info!("load_image: {:?}", path);
 

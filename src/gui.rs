@@ -1,6 +1,6 @@
-use thunderdome::Index;
-
 use crate::idgen::gen_id;
+use crate::ArenaId;
+use crate::Camera;
 use crate::FontHandle;
 
 pub struct Color {}
@@ -36,13 +36,13 @@ pub fn mouse_area() -> MouseArea {
 	MouseArea {}
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Window {
 	pub id: usize,
 	pub title: String,
 	pub width: u32,
 	pub height: u32,
-	pub ui: Option<Index>,
+	pub ui: Option<ArenaId<GUIElement>>,
 	pub lock_cursor: bool,
 }
 
@@ -63,7 +63,7 @@ impl Window {
 		self
 	}
 
-	pub fn ui(mut self, ui: Index) -> Self {
+	pub fn ui(mut self, ui: ArenaId<GUIElement>) -> Self {
 		self.ui = Some(ui);
 		self
 	}
@@ -108,7 +108,7 @@ pub struct GUIElement {
 	pub background_color: Option<[f32; 3]>,
 	pub font_size: u32,
 	pub font_color: [f32; 4],
-	pub camera_id: Option<Index>,
+	pub camera_id: Option<ArenaId<Camera>>,
 	pub font: Option<FontHandle>,
 	pub height: Option<f32>,
 	pub width: Option<f32>,
@@ -145,7 +145,7 @@ impl GUIElement {
 		self
 	}
 
-	pub fn camera(mut self, camera_id: Index) -> Self {
+	pub fn camera(mut self, camera_id: ArenaId<Camera>) -> Self {
 		self.camera_id = Some(camera_id);
 		self
 	}
@@ -236,7 +236,7 @@ pub fn list() -> GUIElement {
 	}
 }
 
-pub fn camera_view(camera_id: Index) -> GUIElement {
+pub fn camera_view(camera_id: ArenaId<Camera>) -> GUIElement {
 	GUIElement {
 		camera_id: Some(camera_id),
 		..Default::default()

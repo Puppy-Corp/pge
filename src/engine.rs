@@ -1,26 +1,21 @@
 use crate::buffer::*;
-use crate::cube;
 use crate::engine_state::EngineState;
-use crate::gui;
 use crate::internal_types::EngineEvent;
-use crate::plane;
 use crate::renderer::*;
 use crate::texture::create_texture_with_uniform_color;
-use crate::texture::load_image;
 use crate::types::*;
 use crate::wgpu_types::*;
+use crate::ArenaId;
+use crate::GUIElement;
+use crate::Window;
 use std::collections::HashMap;
 use std::ops::Range;
 use std::sync::Arc;
 use std::time::Duration;
 use std::time::Instant;
 use glam::Mat4;
-use gltf::mesh::util::indices;
-use thunderdome::Index;
-use wgpu::core::device::queue;
 use wgpu::Backends;
 use wgpu::Features;
-use wgpu::Origin3d;
 use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalPosition;
 use winit::event::WindowEvent;
@@ -69,7 +64,7 @@ impl GuiBuffers {
 
 #[derive(Debug)]
 struct WindowContext<'a> {
-    window_id: Index,
+    window_id: ArenaId<Window>,
     renderer: Renderer<'a>,
     wininit_window: Arc<winit::window::Window>,
 }
@@ -88,15 +83,15 @@ struct Engine<'a, T> {
 	vertices_buffer2: wgpu::Buffer,
 	index_buffer2: wgpu::Buffer,
     windows: HashMap<WindowId, WindowContext<'a>>,
-    point_light_buffers: HashMap<Index, BindableBuffer<RawPointLight>>,
+    point_light_buffers: HashMap<ArenaId<Scene>, BindableBuffer<RawPointLight>>,
     last_on_process_time: Instant,
     last_physics_update_time: Instant,
-    gui_buffers: HashMap<Index, GuiBuffers>,
-    texture_bind_groups: HashMap<Index, wgpu::BindGroup>,
-    camera_buffers: HashMap<Index, BindableBuffer<RawCamera>>,
+    gui_buffers: HashMap<ArenaId<GUIElement>, GuiBuffers>,
+    texture_bind_groups: HashMap<ArenaId<Texture>, wgpu::BindGroup>,
+    camera_buffers: HashMap<ArenaId<Camera>, BindableBuffer<RawCamera>>,
     default_texture: wgpu::BindGroup,
     proxy: EventLoopProxy<EngineEvent>,
-    scene_instance_buffers: HashMap<Index, Buffer<RawInstance>>,
+    scene_instance_buffers: HashMap<ArenaId<Scene>, Buffer<RawInstance>>,
 }
 
 impl<'a, T> Engine<'a, T>
@@ -166,16 +161,16 @@ where
     }
 
     pub fn update_buffers(&mut self) {
-        let mut new_textures = Vec::new();
-        for (texture_id, texture) in &self.state.state.textures {
-            if let None = self.state.textures.get(&texture_id) {
-                new_textures.push((texture_id, texture.clone()));
-                load_image(self.proxy.clone(), texture.source.clone(), texture_id)
-            }
-        }
-        for t in new_textures {
-            self.state.textures.insert(t.0, t.1);
-        }
+        // let mut new_textures = Vec::new();
+        // for (texture_id, texture) in &self.state.state.textures {
+        //     if let None = self.state.textures.get(&texture_id) {
+        //         new_textures.push((texture_id, texture.clone()));
+        //         load_image(self.proxy.clone(), texture.source.clone(), texture_id)
+        //     }
+        // }
+        // for t in new_textures {
+        //     self.state.textures.insert(t.0, t.1);
+        // }
 
 		// let vertices: [[f32; 3]; 4] = [[0.0, 0.5, 0.0], [-0.5, -0.5, 0.0], [0.5, -0.5, 0.0], [0.0, 0.0, 0.0]];
 		// let indices: [u16; 4] = [0, 1, 2, 0];
@@ -304,7 +299,7 @@ where
         }
 
         self.windows
-            .retain(|_, w| self.state.state.windows.contains(w.window_id));
+            .retain(|_, w| self.state.state.windows.contains(&w.window_id));
     }
 
     fn render_windows(&mut self) {
@@ -657,7 +652,7 @@ where
                     self.app
                         .on_mouse_input(MouseEvent::Moved { dx, dy }, &mut self.state.state);
 
-                    if let Some(window) = self.state.state.windows.get(window_ctx.window_id) {
+                    if let Some(window) = self.state.state.windows.get(&window_ctx.window_id) {
                         if window.lock_cursor {
                             window_ctx
                                 .wininit_window

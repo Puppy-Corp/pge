@@ -1,14 +1,11 @@
-use std::collections::HashMap;
 use std::path::Path;
 use std::time::Duration;
 use glam::Vec3;
-use thunderdome::Arena;
-use thunderdome::Index;
 use winit::keyboard::KeyCode;
-use winit::keyboard::PhysicalKey;
 
+use crate::arena::Arena;
+use crate::arena::ArenaId;
 use crate::idgen::gen_id;
-use crate::physics::PhysicsSystem;
 use crate::GUIElement;
 use crate::Window;
 
@@ -127,29 +124,17 @@ pub struct PhysicsProps {
 	pub force: Vec3
 }
 
-#[derive(Debug)]
-pub enum UserEvent {
-	CreateWindow
-}
-
-#[derive(Debug, Clone)]
-pub enum Flex {
-	Horizontal,
-	Vertical,
-	None
-}
-
 #[derive(Debug, Clone)]
 pub struct RayCast {
-	pub node_inx: Index,
+	pub node_id: ArenaId<Node>,
 	pub len: f32,
-	pub intersects: Vec<Index>,
+	pub intersects: Vec<ArenaId<Node>>,
 }
 
 impl RayCast {
-	pub fn new(node_inx: Index, len: f32) -> Self {
+	pub fn new(node_inx: ArenaId<Node>, len: f32) -> Self {
 		Self {
-			node_inx,
+			node_id: node_inx,
 			len,
 			intersects: vec![]
 		}
@@ -322,8 +307,8 @@ impl CollisionShape {
 
 #[derive(Debug, Clone, Copy)]
 pub enum NodeParent {
-	Node(Index),
-	Scene(Index),
+	Node(ArenaId<Node>),
+	Scene(ArenaId<Scene>),
 	Orphan
 }
 
@@ -333,16 +318,16 @@ impl Default for NodeParent {
 	}
 }
 
+pub struct NodeId;
+
 #[derive(Debug, Clone, Default)]
 pub struct Node {
 	pub name: Option<String>,
 	pub parent: NodeParent,
-	pub mesh: Option<Index>,
+	pub mesh: Option<ArenaId<Mesh>>,
 	pub translation: glam::Vec3,
 	pub rotation: glam::Quat,
 	pub scale: glam::Vec3,
-	pub point_light: Option<PointLight>,
-	pub texture: Option<Texture>,
 	pub physics: PhysicsProps,
 	pub collision_shape: Option<CollisionShape>,
 }
@@ -352,7 +337,7 @@ impl Node {
 		Default::default()
 	}
 
-	pub fn set_mesh(mut self, mesh_id: Index) -> Node {
+	pub fn set_mesh(mut self, mesh_id: ArenaId<Mesh>) -> Node {
 		self.mesh = Some(mesh_id);
 		self
 	}
@@ -427,6 +412,9 @@ impl Primitive {
 }
 
 #[derive(Debug, Clone)]
+pub struct MeshId;
+
+#[derive(Debug, Clone, Default)]
 pub struct Mesh {
 	// pub id: usize,
 	pub name: Option<String>,
@@ -436,7 +424,7 @@ pub struct Mesh {
 	// pub tex_coords: Vec<[f32; 2]>,
 	// pub colors: Vec<[f32; 4]>,
 	// pub indices: Vec<u16>,
-	pub texture: Option<Index>,
+	pub texture: Option<ArenaId<Texture>>,
 	pub primitives: Vec<Primitive>,
 }
 
@@ -461,7 +449,7 @@ impl Mesh {
 		self
 	}
 
-	pub fn set_texture(mut self, texture: Index) -> Self {
+	pub fn set_texture(mut self, texture: ArenaId<Texture>) -> Self {
 		self.texture = Some(texture);
 		self
 	}
@@ -484,14 +472,14 @@ impl Scene {
 	}
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Camera {
 	pub id: usize,
     pub aspect: f32,
     pub fovy: f32,
     pub znear: f32,
     pub zfar: f32,
-	pub node_id: Option<Index>
+	pub node_id: Option<ArenaId<Node>>
 }
 
 impl Camera {
@@ -622,12 +610,12 @@ impl Material {
 	}
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct PointLight {
 	pub id: usize,
 	pub color: [f32; 3],
 	pub intensity: f32,
-	pub node_id: Option<Index>
+	pub node_id: Option<ArenaId<Node>>
 }
 
 impl PointLight {
@@ -657,11 +645,11 @@ impl FontHandle {
 #[derive(Debug, Clone)]
 pub struct Asset3D {
 	pub path: String,
-	pub meshes: Vec<Index>,
-	pub textures: Vec<Index>,
-	pub nodes: Vec<Index>,
-	pub animations: Vec<Index>,
-	pub node_id: Option<Index>,
+	pub meshes: Vec<ArenaId<Mesh>>,
+	pub textures: Vec<ArenaId<Texture>>,
+	pub nodes: Vec<ArenaId<Node>>,
+	pub animations: Vec<ArenaId<Animation>>,
+	pub node_id: Option<ArenaId<Node>>
 
 }
 

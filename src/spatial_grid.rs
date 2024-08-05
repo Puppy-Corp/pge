@@ -1,10 +1,8 @@
-use core::panic;
 use std::collections::HashMap;
 use std::collections::HashSet;
-
-use thunderdome::Index;
-
 use crate::debug::ChangePrinter;
+use crate::ArenaId;
+use crate::Node;
 use crate::AABB;
 
 #[derive(Debug, Clone)]
@@ -23,8 +21,8 @@ pub struct CellCoord {
 #[derive(Debug, Clone)]
 pub struct SpatialGrid {
 	cell_size: f32,
-	pub cells: HashMap<CellCoord, Vec<Index>>,
-	nodes: HashMap<Index, NodeMetadata>,
+	pub cells: HashMap<CellCoord, Vec<ArenaId<Node>>>,
+	nodes: HashMap<ArenaId<Node>, NodeMetadata>,
 	printer: ChangePrinter
 }
 
@@ -44,14 +42,14 @@ impl SpatialGrid {
 		}
 	}
 
-	pub fn get_node_rect(&self, node: Index) -> Option<&AABB> {
+	pub fn get_node_rect(&self, node: ArenaId<Node>) -> Option<&AABB> {
 		match self.nodes.get(&node) {
 			Some(n) => Some(&n.rect),
 			None => None,
 		}
 	}
 
-	pub fn add_node(&mut self, node: Index, rect: AABB) {
+	pub fn add_node(&mut self, node: ArenaId<Node>, rect: AABB) {
 		let min_x = (rect.min.x / self.cell_size).floor() as i32;
 		let max_x = (rect.max.x / self.cell_size).ceil() as i32;
 		let min_y = (rect.min.y / self.cell_size).floor() as i32;
@@ -77,13 +75,13 @@ impl SpatialGrid {
 		});
 	}
 
-	pub fn get_cell(&self, x: i32, y: i32, z: i32) -> &[Index] {
+	pub fn get_cell(&self, x: i32, y: i32, z: i32) -> &[ArenaId<Node>] {
 		let coord = CellCoord { x, y, z };
 		self.cells.get(&coord).map(|v| v.as_slice()).unwrap_or(&[])
 	}
 
-	pub fn rem_node(&mut self, node_inx: Index) {
-		let node = match self.nodes.remove(&node_inx) {
+	pub fn rem_node(&mut self, node_id: ArenaId<Node>) {
+		let node = match self.nodes.remove(&node_id) {
 			Some(n) => n,
 			None => return,
 		};
@@ -93,11 +91,11 @@ impl SpatialGrid {
 				Some(c) => c,
 				None => continue,
 			};
-			cell.retain(|&inx| inx != node_inx);
+			cell.retain(|&inx| inx != node_id);
 		}
 	}
 
-	pub fn rem_nodes(&mut self, nodes: &HashSet<Index>) {
+	pub fn rem_nodes(&mut self, nodes: &HashSet<ArenaId<Node>>) {
 		for node_inx in nodes {
 			let node = match self.nodes.get(node_inx) {
 				Some(n) => n,
@@ -118,12 +116,7 @@ impl SpatialGrid {
 		// }
 	}
 
-	pub fn move_node(&mut self, node: Index, rect: AABB) {
-        self.rem_node(node);
-        self.add_node(node, rect);
-	}
-
-	pub fn get_line_ray_nodes(&self, start: glam::Vec3, end: glam::Vec3) -> HashSet<Index> {
+	pub fn get_line_ray_nodes(&self, start: glam::Vec3, end: glam::Vec3) -> HashSet<ArenaId<Node>> {
 		let mut nodes = HashSet::new();
 		let mut current = start;
 		let direction = (end - start).normalize();

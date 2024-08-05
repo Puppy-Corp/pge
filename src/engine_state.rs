@@ -4,12 +4,9 @@ use std::ops::Range;
 use std::time::Instant;
 
 use bytemuck::bytes_of;
-use glam::Mat4;
-use glam::Vec2;
-use glam::Vec3;
-use thunderdome::Arena;
-use thunderdome::Index;
+use glam::*;
 
+use crate::arena::ArenaId;
 use crate::buffer::DirtyBuffer;
 use crate::compositor::UICompositor;
 use crate::cube;
@@ -19,11 +16,17 @@ use crate::internal_types::CamView;
 use crate::physics::PhysicsSystem;
 use crate::spatial_grid::SpatialGrid;
 use crate::wgpu_types::*;
+use crate::Camera;
+use crate::GUIElement;
 use crate::Mesh;
+use crate::Node;
 use crate::NodeParent;
+use crate::PointLight;
 use crate::PrimitiveTopology;
+use crate::Scene;
 use crate::State;
 use crate::Texture;
+use crate::Window;
 use crate::AABB;
 
 const REM_NODE_SLOT: u32 = 0;
@@ -61,7 +64,7 @@ impl Gemometry {
 
 #[derive(Debug, Clone)]
 pub struct DrawCall {
-    pub texture: Option<Index>,
+    pub texture: Option<ArenaId<Texture>>,
     pub vertices: Range<u64>,
     pub indices: Range<u64>,
     pub normals: Range<u64>,
@@ -99,19 +102,15 @@ struct GuiBuffers {
     colors: DirtyBuffer,
 }
 
-struct SceneData {
-    nodes: Vec<Index>,
-}
-
 #[derive(Debug, Clone)]
 struct NodeMetadata {
     model: glam::Mat4,
-    scene_id: Index,
+    scene_id: ArenaId<Scene>,
 }
 
 #[derive(Debug, Clone)]
 struct CollisionNode {
-    node_id: Index,
+    node_id: ArenaId<Node>,
     aabb: AABB,
 }
 
@@ -131,12 +130,12 @@ struct SceneDrawInstruction {
 #[derive(Debug, Clone)]
 pub struct View {
     pub camview: CamView,
-    pub scene_id: Index,
+    pub scene_id: ArenaId<Scene>,
 }
 
 #[derive(Debug, Clone)]
 pub struct UIRenderArgs {
-    pub ui: Index,
+    pub ui: ArenaId<GUIElement>,
     pub views: Vec<View>,
 }
 
@@ -157,36 +156,25 @@ pub struct Buffer {
 #[derive(Debug, Clone, Default)]
 pub struct EngineState {
     pub state: State,
-    grids: HashMap<Index, SpatialGrid>,
-    nodes: HashMap<Index, NodeMetadata>,
-    instances: HashMap<Index, RawInstance>,
-    meshes: HashMap<Index, Mesh>,
-    cameras: HashMap<Index, RawCamera>,
+    grids: HashMap<ArenaId<Scene>, SpatialGrid>,
+    nodes: HashMap<ArenaId<Node>, NodeMetadata>,
+    cameras: HashMap<ArenaId<Camera>, RawCamera>,
     printer: ChangePrinter,
     pub all_instances_data: Vec<u8>,
-    pub camera_buffers: HashMap<Index, DirtyBuffer>,
-    // camera_draw_calls: HashMap<Index, Vec<DrawCall>>,
+    pub camera_buffers: HashMap<ArenaId<Camera>, DirtyBuffer>,
     pub all_point_lights_data: Vec<u8>,
     pub triangles: Gemometry,
-    pub move_nodes: Vec<(Index, AABB)>,
-    // rem_nodes: HashSet<Index>,
-    // add_nodes: Vec<(Index, AABB)>,
     assets: HashSet<String>,
-    pub ui_compositors: HashMap<Index, UICompositor>,
-    ui_render_args: HashMap<Index, UIRenderArgs>,
-    pub textures: HashMap<Index, Texture>,
-    // pub physics_system: PhysicsSystem,
-    // pub window_draw_data: HashMap<Index, WindowDrawData>,
-    mesh_pointers: HashMap<Index, MeshPointer>,
-    mesh_nodes: HashMap<Index, Vec<Index>>,
-    scene_collision_nodes: HashMap<Index, Vec<CollisionNode>>,
-    scene_draw_calls: HashMap<Index, Vec<DrawCall>>,
-    pub scene_point_lights: HashMap<Index, DirtyBuffer>,
-    // scene_meshes: HashMap<Index, Vec<Index>>,
-    pub scene_instance_buffers: HashMap<Index, DirtyBuffer>,
-    scene_collections: HashMap<Index, SceneCollection>,
-    pub buffers: Arena<Buffer>,
-    point_lights: HashMap<Index, RawPointLight>,
+    pub ui_compositors: HashMap<ArenaId<GUIElement>, UICompositor>,
+    ui_render_args: HashMap<ArenaId<GUIElement>, UIRenderArgs>,
+    mesh_pointers: HashMap<ArenaId<Mesh>, MeshPointer>,
+    mesh_nodes: HashMap<ArenaId<Mesh>, Vec<ArenaId<Node>>>,
+    scene_collision_nodes: HashMap<ArenaId<Scene>, Vec<CollisionNode>>,
+    scene_draw_calls: HashMap<ArenaId<Scene>, Vec<DrawCall>>,
+    pub scene_point_lights: HashMap<ArenaId<Scene>, DirtyBuffer>,
+    pub scene_instance_buffers: HashMap<ArenaId<Scene>, DirtyBuffer>,
+    scene_collections: HashMap<ArenaId<Scene>, SceneCollection>,
+    point_lights: HashMap<ArenaId<PointLight>, RawPointLight>,
 }
 
 impl EngineState {
@@ -199,7 +187,7 @@ impl EngineState {
             NODES_COUNT_SLOT,
             format!("nodes count: {}", self.state.nodes.len()),
         );
-        let mut processed_nodes: HashSet<Index> = HashSet::new();
+        let mut processed_nodes: HashSet<ArenaId<Node>> = HashSet::new();
         for (_, nodes) in &mut self.mesh_nodes {
             nodes.clear();
         }
@@ -214,7 +202,7 @@ impl EngineState {
             while let Some(node_id) = stack.last() {
                 let node_id = *node_id;
 
-                let node = match self.state.nodes.get(node_id) {
+                let node = match self.state.nodes.get(&node_id) {
                     Some(node) => node,
                     None => continue,
                 };
@@ -367,7 +355,7 @@ impl EngineState {
                         None => continue,
                     };
 
-                    let mut checkpoints: HashMap<Index, Range<u32>> = HashMap::new();
+                    let mut checkpoints: HashMap<ArenaId<Scene>, Range<u32>> = HashMap::new();
 					
 
                     for node_id in node_ids {
@@ -544,13 +532,6 @@ impl EngineState {
         }
     }
 
-    // pub fn update_guis(&mut self) {
-    // 	for (gui_id, gui) in &self.state.guis {
-    // 		let compositor = self.ui_compositors.entry(gui_id).or_insert(UICompositor::new());draw_calls
-    // 		compositor.process(gui);
-    // 	}
-    // }
-
     fn process_ui(&mut self) {
         for (ui_id, gui) in &self.state.guis {
             let compositor = self
@@ -567,7 +548,7 @@ impl EngineState {
             render_args.views.clear();
 
             for view in &compositor.views {
-                let camera = match self.state.cameras.get(view.camera_id) {
+                let camera = match self.state.cameras.get(&view.camera_id) {
                     Some(camera) => camera,
                     None => continue,
                 };
@@ -626,7 +607,7 @@ impl EngineState {
             for (_, ray_cast) in &mut self.state.raycasts {
                 ray_cast.intersects.clear();
 
-                let node = match self.state.nodes.get(ray_cast.node_inx) {
+                let node = match self.state.nodes.get(&ray_cast.node_id) {
                     Some(node) => node,
                     None => continue,
                 };
@@ -638,7 +619,7 @@ impl EngineState {
                 let mut intersections = Vec::new();
 
                 for node_inx in nodes {
-                    if node_inx == ray_cast.node_inx {
+                    if node_inx == ray_cast.node_id {
                         continue;
                     }
 
@@ -682,19 +663,22 @@ impl EngineState {
         self.process_phycis(dt);
     }
 
-    pub fn get_window_render_args(&self, window_id: Index) -> Option<&UIRenderArgs> {
-        let window = match self.ui_render_args.get(&window_id) {
+    pub fn get_window_render_args(&self, window_id: ArenaId<Window>) -> Option<&UIRenderArgs> {
+        let window = match self.state.windows.get(&window_id) {
             Some(window) => window,
             None => return None,
         };
 
-        let ui_id = window.ui;
+		let ui_id = match window.ui {
+			Some(ui_id) => ui_id,
+			None => return None,
+		};
 
         self.ui_render_args.get(&ui_id)
     }
 
-    pub fn get_camera_draw_calls(&self, camera_id: Index) -> Option<&Vec<DrawCall>> {
-        let camera = self.state.cameras.get(camera_id)?;
+    pub fn get_camera_draw_calls(&self, camera_id: ArenaId<Camera>) -> Option<&Vec<DrawCall>> {
+        let camera = self.state.cameras.get(&camera_id)?;
         let scene_id = match camera.node_id {
             Some(node_id) => {
                 let node = self.nodes.get(&node_id)?;
@@ -704,4 +688,25 @@ impl EngineState {
         };
         self.scene_draw_calls.get(&scene_id)
     }
+}
+
+
+#[cfg(test)]
+mod tests {
+	use crate::Node;
+
+use super::*;
+
+	#[test]
+	fn transform_nodes() {
+		let mut state = EngineState::new(); 
+
+		let node = Node::new();
+
+		state.state.nodes.insert(node);
+
+		state.process_nodes();
+
+		println!("{:#?}", state);
+	}
 }

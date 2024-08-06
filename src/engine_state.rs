@@ -206,7 +206,7 @@ impl EngineState {
                     Some(node) => node,
                     None => continue,
                 };
-
+	
                 match node.parent {
                     NodeParent::Node(parent_node_id) => {
                         match processed_nodes.contains(&parent_node_id) {
@@ -222,6 +222,8 @@ impl EngineState {
                                     * glam::Mat4::from_translation(node.translation)
                                     * glam::Mat4::from_quat(node.rotation)
                                     * glam::Mat4::from_scale(node.scale);
+
+								log::info!("node_id: {:?} model: {:?}", node_id, model);
 
                                 let node_metadata = NodeMetadata {
                                     model,
@@ -269,10 +271,13 @@ impl EngineState {
                         let model = glam::Mat4::from_translation(node.translation)
                             * glam::Mat4::from_quat(node.rotation)
                             * glam::Mat4::from_scale(node.scale);
+
                         let node = NodeMetadata { scene_id, model };
                         self.nodes.insert(node_id, node);
                     }
-                    NodeParent::Orphan => {}
+                    NodeParent::Orphan => {
+						log::error!("node {:?} is orphan", node_id);
+					}
                 }
 
                 if let Some(mesh_id) = node.mesh {
@@ -427,12 +432,13 @@ impl EngineState {
             // let model = glam::Mat4::perspective_lh(cam.fovy, cam.aspect, cam.znear, cam.zfar)
             //     * cam_node.model;
 
-			log::info!("cam_node: {:?}", cam_node);
+			//log::info!("cam_node: {:?}", cam_node);
 
-			let can_model = Mat4::from_translation(Vec3::new(0.0, 0.0, 2.0));
+			//let can_model = Mat4::from_translation(Vec3::new(0.0, 0.0, 2.0));
+			let can_model = cam_node.model;
 
 			let model = glam::Mat4::perspective_lh(cam.fovy, cam.aspect, cam.znear, cam.zfar)
-				* can_model;
+				* can_model.inverse();
 
             let cam = RawCamera {
                 model: model.to_cols_array_2d(),
@@ -700,10 +706,12 @@ use super::*;
 	#[test]
 	fn transform_nodes() {
 		let mut state = EngineState::new(); 
+		let scene_id = state.state.scenes.insert(Scene::new());
+		let mut node = Node::new();
+		node.translation = Vec3::new(0.0, 1.0, 0.0);
+		node.parent = NodeParent::Scene(scene_id);
 
-		let node = Node::new();
-
-		state.state.nodes.insert(node);
+		let node_id = state.state.nodes.insert(node);
 
 		state.process_nodes();
 

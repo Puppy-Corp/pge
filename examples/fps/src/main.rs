@@ -178,7 +178,7 @@ impl pge::App for FpsShooter {
 
 		let mut player = Node::new();
 		player.name = Some("Player".to_string());
-		player.set_translation(0.0, 0.0, -5.0);
+		player.set_translation(0.0, 0.0, 2.0);
 		player.physics.typ = PhycisObjectType::Dynamic;
 		player.physics.mass = 70.0;
 		player.looking_at(0.0, 0.0, 0.0);
@@ -276,11 +276,16 @@ impl pge::App for FpsShooter {
 			MouseEvent::Moved { dx, dy } => {
 				let player_inx = match self.player_inx {
 					Some(index) => index,
-					None => return,
+					None => {
+						log::error!("Player not found");
+						return;
+					},
 				};
 				self.rotate_player(dx, dy);
 				let player = state.nodes.get_mut(&player_inx).unwrap();
 				player.rotation = glam::Quat::from_euler(glam::EulerRot::YXZ, self.yaw, self.pitch, 0.0);
+
+				log::info!("Player rotation: {:?}", player.rotation);
 			},
 			MouseEvent::Pressed { button } => {
 				match button {

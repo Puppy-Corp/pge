@@ -14,6 +14,10 @@ impl<T> ArenaId<T> {
             _phantom: PhantomData,
         }
     }
+
+	pub fn index(&self) -> usize {
+		self.index
+	}
 }
 
 impl<T: Clone> Copy for ArenaId<T> {}

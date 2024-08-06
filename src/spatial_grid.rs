@@ -150,15 +150,13 @@ impl SpatialGrid {
 
 #[cfg(test)]
 mod tests {
-	use thunderdome::Arena;
-	use crate::CollisionShape;
-
-use super::*;
+	use crate::Arena;
+	use super::*;
 
 	#[test]
 	fn test_add_node() {
 		let mut arena = Arena::new();
-		let id = arena.insert(0);
+		let id = arena.insert(Node::new());
 		let mut grid = SpatialGrid::new(1.0);
 		let rect = AABB::new(glam::Vec3::new(-1.0, -1.0, -1.0), glam::Vec3::new(1.0, 1.0, 1.0));
 		grid.add_node(id, rect);
@@ -184,7 +182,7 @@ use super::*;
 	#[test]
 	fn test_considers_grid_cell_size() {
 		let mut arena = Arena::new();
-		let id = arena.insert(0);
+		let id = arena.insert(Node::new());
 		let mut grid = SpatialGrid::new(2.0);
 		let rect = AABB::new(glam::Vec3::new(-1.0, -1.0, -2.0), glam::Vec3::new(0.0, 0.0, -1.0));
 		grid.add_node(id, rect);

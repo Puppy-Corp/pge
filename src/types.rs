@@ -1,6 +1,7 @@
 use std::path::Path;
 use std::time::Duration;
 use glam::Vec3;
+use lyon::geom::euclid::default;
 use winit::keyboard::KeyCode;
 
 use crate::arena::Arena;
@@ -320,7 +321,7 @@ impl Default for NodeParent {
 
 pub struct NodeId;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct Node {
 	pub name: Option<String>,
 	pub parent: NodeParent,
@@ -330,6 +331,21 @@ pub struct Node {
 	pub scale: glam::Vec3,
 	pub physics: PhysicsProps,
 	pub collision_shape: Option<CollisionShape>,
+}
+
+impl Default for Node {
+	fn default() -> Self {
+		Self {
+			name: None,
+			parent: NodeParent::Orphan,
+			mesh: None,
+			translation: glam::Vec3::ZERO,
+			rotation: glam::Quat::IDENTITY,
+			scale: glam::Vec3::splat(1.0),
+			physics: PhysicsProps::default(),
+			collision_shape: None,
+		}
+	}
 }
 
 impl Node {
@@ -474,7 +490,6 @@ impl Scene {
 
 #[derive(Debug, Clone, Default)]
 pub struct Camera {
-	pub id: usize,
     pub aspect: f32,
     pub fovy: f32,
     pub znear: f32,
@@ -485,7 +500,6 @@ pub struct Camera {
 impl Camera {
 	pub fn new() -> Self {
 		Self {
-			id: 0,
 			aspect: 16.0 / 9.0,
 			fovy: 45.0,
 			znear: 0.1,

@@ -152,7 +152,7 @@ impl pge::App for FpsShooter {
 		let scene_id = state.scenes.insert(scene);
 
 		let cube_mesh = state.meshes.insert(cube(0.5).set_texture(texture_id));
-		//let plane_mesh = state.meshes.insert(plane(1.0, 1.0).set_texture(texture_id));
+		let plane_mesh = state.meshes.insert(plane(1.0, 1.0).set_texture(texture_id));
 
 		let plane_size = 1000.0;
 
@@ -169,7 +169,7 @@ impl pge::App for FpsShooter {
 		let mut plane_node = Node::new();
 		plane_node.name = Some("Floor".to_string());
 		plane_node.set_translation(0.0, 0.0, 0.0);
-		plane_node.mesh = Some(cube_mesh);
+		plane_node.mesh = Some(plane_mesh);
 		plane_node.physics.typ = PhycisObjectType::Static;
 		plane_node.scale = glam::Vec3::new(plane_size, 1.0, plane_size);
 		plane_node.collision_shape = Some(CollisionShape::Box { size: glam::Vec3::new(plane_size, 0.1, plane_size) });
@@ -178,10 +178,10 @@ impl pge::App for FpsShooter {
 
 		let mut player = Node::new();
 		player.name = Some("Player".to_string());
-		player.set_translation(0.0, 0.0, 2.0);
+		player.set_translation(0.0, 10.0, 10.0);
 		player.physics.typ = PhycisObjectType::Dynamic;
 		player.physics.mass = 70.0;
-		player.looking_at(0.0, 0.0, 0.0);
+		//player.looking_at(0.0, 0.0, 0.0);
 		player.collision_shape = Some(CollisionShape::Box { size: glam::Vec3::new(1.0, 2.0, 1.0) });
 		player.parent = NodeParent::Scene(scene_id);
 		let player_id = state.nodes.insert(player);
@@ -190,21 +190,21 @@ impl pge::App for FpsShooter {
 		let player_ray_inx = state.raycasts.insert(raycast);
 		self.player_ray = Some(player_ray_inx);
 
-		// //Spawn random cubes
-		// let mut rng = rand::thread_rng();
-		// for i in 0..10 {
-		// 	let x = rng.gen_range(-20.0..20.0);
-		// 	let z = rng.gen_range(-20.0..20.0);
-		// 	let mut cube_node = Node::new();
-		// 	cube_node.name = Some(format!("Cube{}", i));
-		// 	cube_node.set_translation(x, 10.0, z);
-		// 	cube_node.mesh = Some(cube_mesh);
-		// 	cube_node.physics.typ = PhycisObjectType::Dynamic;
-		// 	cube_node.physics.mass = 10.0;
-		// 	cube_node.collision_shape = Some(CollisionShape::Box { size: glam::Vec3::new(1.0, 1.0, 1.0) });
-		// 	cube_node.parent = NodeParent::Scene(scene_id);
-		// 	let node_id = state.nodes.insert(cube_node);
-		// }
+		//Spawn random cubes
+		let mut rng = rand::thread_rng();
+		for i in 0..10 {
+			let x = rng.gen_range(-20.0..20.0);
+			let z = rng.gen_range(-20.0..20.0);
+			let mut cube_node = Node::new();
+			cube_node.name = Some(format!("Cube{}", i));
+			cube_node.set_translation(x, 10.0, z);
+			cube_node.mesh = Some(cube_mesh);
+			cube_node.physics.typ = PhycisObjectType::Dynamic;
+			cube_node.physics.mass = 10.0;
+			cube_node.collision_shape = Some(CollisionShape::Box { size: glam::Vec3::new(1.0, 1.0, 1.0) });
+			cube_node.parent = NodeParent::Scene(scene_id);
+			let node_id = state.nodes.insert(cube_node);
+		}
 
 		let mut camera = Camera::new();
 		camera.zfar = 1000.0;
@@ -284,8 +284,6 @@ impl pge::App for FpsShooter {
 				self.rotate_player(dx, dy);
 				let player = state.nodes.get_mut(&player_inx).unwrap();
 				player.rotation = glam::Quat::from_euler(glam::EulerRot::YXZ, self.yaw, self.pitch, 0.0);
-
-				log::info!("Player rotation: {:?}", player.rotation);
 			},
 			MouseEvent::Pressed { button } => {
 				match button {
@@ -323,13 +321,13 @@ impl pge::App for FpsShooter {
 	}
 
 	fn on_process(&mut self, state: &mut State, delta: f32) {
-		// if let Some(index) = self.light_inx {
-		// 	let light = state.nodes.get_mut(index).unwrap();
-		// 	self.light_circle_i += delta;
-		// 	let x = 10.0 * self.light_circle_i.cos();
-		// 	let z = 10.0 * self.light_circle_i.sin();
-		// 	light.set_translation(x, 10.0, z);
-		// }
+		if let Some(index) = self.light_inx {
+			let light = state.nodes.get_mut(&index).unwrap();
+			self.light_circle_i += delta;
+			let x = 10.0 * self.light_circle_i.cos();
+			let z = 10.0 * self.light_circle_i.sin();
+			light.set_translation(x, 10.0, z);
+		}
 
 		if let Some(player_inx) = self.player_inx {
 			if let Some(player) = state.nodes.get_mut(&player_inx) {
@@ -344,7 +342,7 @@ impl pge::App for FpsShooter {
 						force.x += -player.physics.velocity.x * self.movement_force;
 					} else if current_speed < 25.0 {
 						force.x *= self.movement_force;
-					}
+					} 
 
 					if force.z > 0.0 && player.physics.velocity.z < 0.0 {
 						force.z += -player.physics.velocity.z * self.movement_force;

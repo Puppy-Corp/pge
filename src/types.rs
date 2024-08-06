@@ -382,6 +382,14 @@ impl Node {
     pub fn scale(&mut self, x: f32, y: f32, z: f32) {
         self.scale = glam::Vec3::new(x, y, z);
     }
+
+	pub fn model_matrix(&self) -> glam::Mat4 {
+		let translation = glam::Mat4::from_translation(self.translation);
+		let rotation = glam::Mat4::from_quat(self.rotation);
+		let scale = glam::Mat4::from_scale(self.scale);
+
+		translation * rotation * scale
+	}
 }
 
 #[derive(Debug, Clone, PartialEq)]

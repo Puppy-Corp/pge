@@ -142,7 +142,6 @@ pub struct UIRenderArgs {
 #[derive(Debug, Clone)]
 pub struct SceneCollection {
     collision_nodes: Vec<CollisionNode>,
-    draw_calls: Vec<DrawCall>,
     grid: SpatialGrid,
     physics_system: PhysicsSystem,
 }
@@ -218,13 +217,8 @@ impl EngineState {
                                         continue;
                                     }
                                 };
-                                let model = parent.model
-                                    * glam::Mat4::from_translation(node.translation)
-                                    * glam::Mat4::from_quat(node.rotation)
-                                    * glam::Mat4::from_scale(node.scale);
 
-								log::info!("node_id: {:?} model: {:?}", node_id, model);
-
+                                let model = node.model_matrix();
                                 let node_metadata = NodeMetadata {
                                     model,
                                     scene_id: parent.scene_id,
@@ -268,10 +262,7 @@ impl EngineState {
                         }
                     }
                     NodeParent::Scene(scene_id) => {
-                        let model = glam::Mat4::from_translation(node.translation)
-                            * glam::Mat4::from_quat(node.rotation)
-                            * glam::Mat4::from_scale(node.scale);
-
+                        let model = node.model_matrix();
                         let node = NodeMetadata { scene_id, model };
                         self.nodes.insert(node_id, node);
                     }
@@ -581,6 +572,14 @@ impl EngineState {
     }
 
     fn process_phycis(&mut self, dt: f32) {
+		for (scene_id, scene) in &self.state.scenes {
+			self.scene_collections.entry(scene_id).or_insert(SceneCollection {
+				collision_nodes: Vec::new(),
+				grid: SpatialGrid::new(5.0),
+				physics_system: PhysicsSystem::new(),
+			});
+		}
+
         for (_, c) in &mut self.scene_collections {
             let timings = c
                 .physics_system

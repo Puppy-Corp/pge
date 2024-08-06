@@ -144,7 +144,7 @@ impl DirtyBuffer {
 
         let current_slice = &self.data[self.offset..self.offset + slice.len()];
         if current_slice != slice {
-            self.data[self.offset..].copy_from_slice(slice);
+            self.data[self.offset..self.offset + slice.len()].copy_from_slice(slice);
             self.dirty = true;
         }
         self.offset += slice.len();

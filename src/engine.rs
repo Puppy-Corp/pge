@@ -231,11 +231,9 @@ where
             }
 			b.dirty = false;
 
-			log::info!("[{:?}] writing point light buffer len: {}", index, b.len());
+			log::info!("[{:?}] writing point light buffer len: {} data: {:?}", index, b.len(), b.data());
 
-            let buff = self
-                .point_light_buffers
-                .entry(*index)
+            let buff = self.point_light_buffers.entry(*index)
                 .or_insert(BindableBuffer::new(self.device.clone(), self.queue.clone()));
 
             buff.write(&b.data());
@@ -658,6 +656,7 @@ where
                                 .wininit_window
                                 .set_cursor_position(PhysicalPosition::new(middle_x, middle_y))
                                 .unwrap();
+							window_ctx.wininit_window.set_cursor_visible(false);
                         }
                     }
                 }

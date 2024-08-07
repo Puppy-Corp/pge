@@ -141,15 +141,8 @@ pub struct UIRenderArgs {
 
 #[derive(Debug, Clone)]
 pub struct SceneCollection {
-    collision_nodes: Vec<CollisionNode>,
     grid: SpatialGrid,
     physics_system: PhysicsSystem,
-}
-
-#[derive(Debug, Clone)]
-pub struct Buffer {
-    pub data: Vec<u8>,
-    pub dirty: bool,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -168,7 +161,6 @@ pub struct EngineState {
     ui_render_args: HashMap<ArenaId<GUIElement>, UIRenderArgs>,
     mesh_pointers: HashMap<ArenaId<Mesh>, MeshPointer>,
     mesh_nodes: HashMap<ArenaId<Mesh>, Vec<ArenaId<Node>>>,
-    scene_collision_nodes: HashMap<ArenaId<Scene>, Vec<CollisionNode>>,
     scene_draw_calls: HashMap<ArenaId<Scene>, Vec<DrawCall>>,
     pub scene_point_lights: HashMap<ArenaId<Scene>, DirtyBuffer>,
     pub scene_instance_buffers: HashMap<ArenaId<Scene>, DirtyBuffer>,
@@ -206,7 +198,7 @@ impl EngineState {
                     None => continue,
                 };
 	
-                match node.parent {
+                let node_metadata = match node.parent {
                     NodeParent::Node(parent_node_id) => {
                         match processed_nodes.contains(&parent_node_id) {
                             true => {
@@ -219,41 +211,12 @@ impl EngineState {
                                 };
 
                                 let model = node.model_matrix();
-                                let node_metadata = NodeMetadata {
+								let model = parent.model * model;
+
+                                NodeMetadata {
                                     model,
                                     scene_id: parent.scene_id,
-                                };
-
-                                if let Some(collision_shape) = &node.collision_shape {
-                                    match self.nodes.get(&node_id) {
-                                        Some(old) => {
-                                            if old.model != model {
-                                                let collision_node = CollisionNode {
-                                                    node_id,
-                                                    aabb: collision_shape.aabb(node.translation),
-                                                };
-
-                                                self.scene_collision_nodes
-                                                    .entry(parent.scene_id)
-                                                    .or_insert(Vec::new())
-                                                    .push(collision_node);
-                                            }
-                                        }
-                                        None => {
-                                            let collision_node = CollisionNode {
-                                                node_id,
-                                                aabb: collision_shape.aabb(node.translation),
-                                            };
-
-                                            self.scene_collision_nodes
-                                                .entry(parent.scene_id)
-                                                .or_insert(Vec::new())
-                                                .push(collision_node);
-                                        }
-                                    }
                                 }
-
-                                self.nodes.insert(node_id, node_metadata);
                             }
                             false => {
                                 stack.push(parent_node_id);
@@ -263,13 +226,42 @@ impl EngineState {
                     }
                     NodeParent::Scene(scene_id) => {
                         let model = node.model_matrix();
-                        let node = NodeMetadata { scene_id, model };
-                        self.nodes.insert(node_id, node);
+                        NodeMetadata { scene_id, model }
                     }
                     NodeParent::Orphan => {
-						log::error!("node {:?} is orphan", node_id);
+						log::error!("node {:?} is orphan", node_id.index());
+						stack.pop();
+						continue;
 					}
-                }
+                };
+
+				if let Some(collision_shape) = &node.collision_shape {
+					let modify = match self.nodes.get(&node_id) {
+						Some(old) => {
+							if old.model != node_metadata.model {
+								true
+							} else {
+								false
+							}
+						}
+						None => {
+							true
+						}
+					};
+
+					if modify {
+						let aabb = collision_shape.aabb(node.translation);
+
+						let collection = self.scene_collections.entry(node_metadata.scene_id).or_insert(SceneCollection {
+							grid: SpatialGrid::new(5.0),
+							physics_system: PhysicsSystem::new(),
+						});
+
+						collection.grid.set_node(node_id, aabb);
+					}
+				}
+
+				self.nodes.insert(node_id, node_metadata);
 
                 if let Some(mesh_id) = node.mesh {
                     self.mesh_nodes
@@ -572,13 +564,13 @@ impl EngineState {
     }
 
     fn process_phycis(&mut self, dt: f32) {
-		for (scene_id, scene) in &self.state.scenes {
-			self.scene_collections.entry(scene_id).or_insert(SceneCollection {
-				collision_nodes: Vec::new(),
-				grid: SpatialGrid::new(5.0),
-				physics_system: PhysicsSystem::new(),
-			});
-		}
+		// for (scene_id, scene) in &self.state.scenes {
+		// 	self.scene_collections.entry(scene_id).or_insert(SceneCollection {
+		// 		moved_nodes: Vec::new(),
+		// 		grid: SpatialGrid::new(5.0),
+		// 		physics_system: PhysicsSystem::new(),
+		// 	});
+		// }
 
         for (_, c) in &mut self.scene_collections {
             let timings = c

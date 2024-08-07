@@ -49,6 +49,58 @@ impl SpatialGrid {
 		}
 	}
 
+	pub fn set_node(&mut self, node_id: ArenaId<Node>, rect: AABB) {
+		match self.nodes.contains_key(&node_id) {
+			true => {
+				self.rem_node(node_id);
+				self.add_node(node_id, rect)
+			},
+			false => {
+				self.add_node(node_id, rect)
+			},
+		}
+
+		// if let None = self.nodes.get(&node_id) {
+		// 	self.add_node(node_id, rect);
+		// 	return;
+		// }
+
+		// let node = match self.nodes.get_mut(&node_id) {
+		// 	Some(n) => n,
+		// 	None => return,
+		// };
+
+		// for cell in &node.cells {
+		// 	let cell = match self.cells.get_mut(cell) {
+		// 		Some(c) => c,
+		// 		None => continue,
+		// 	};
+		// 	cell.retain(|&inx| inx != node_id);
+		// }
+
+		// let min_x = (rect.min.x / self.cell_size).floor() as i32;
+		// let max_x = (rect.max.x / self.cell_size).ceil() as i32;
+		// let min_y = (rect.min.y / self.cell_size).floor() as i32;
+		// let max_y = (rect.max.y / self.cell_size).ceil() as i32;
+		// let min_z = (rect.min.z / self.cell_size).floor() as i32;
+		// let max_z = (rect.max.z / self.cell_size).ceil() as i32;
+		// let mut node_cells = Vec::new();
+
+		// for x in min_x..max_x {
+		// 	for y in min_y..max_y {
+		// 		for z in min_z..max_z {
+		// 			let coord = CellCoord { x, y, z };
+		// 			node_cells.push(coord);
+		// 			let cell = self.cells.entry(coord).or_insert(Vec::new());
+		// 			cell.push(node_id);
+		// 		}
+		// 	}
+		// }
+
+		// node.rect = rect;
+		// node.cells = node_cells;
+	}
+
 	pub fn add_node(&mut self, node: ArenaId<Node>, rect: AABB) {
 		let min_x = (rect.min.x / self.cell_size).floor() as i32;
 		let max_x = (rect.max.x / self.cell_size).ceil() as i32;

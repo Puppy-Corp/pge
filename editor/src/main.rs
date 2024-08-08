@@ -53,8 +53,8 @@ impl pge::App for PgeEditor {
 					light.node_id = Some(light_node_id);
 
 					let mut camera_node = Node::new();
-					camera_node.translation = Vec3::new(0.0, 2.0, 5.0);
-					camera_node.looking_at(0.0, 0.0, 0.0);
+					camera_node.translation = Vec3::new(0.0, 2.5, -3.0);
+					camera_node.looking_at(0.0, 1.0, 0.0);
 					camera_node.parent = NodeParent::Scene(scene_id);
 					let camera_node_id = state.nodes.insert(camera_node);
 

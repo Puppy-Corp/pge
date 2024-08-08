@@ -1,5 +1,5 @@
 [package]
-name = "editor"
+name = "pge_editor"
 version = "0.1.0"
 edition = "2021"
 
@@ -10,3 +10,5 @@ tokio = { version = "1", features = ["full"] }
 pge = { path = "../" }
 anyhow = "1"
 glam = "0.27.0"
+log = "0.4"
+clap = { version = "4", features = ["derive"] }

@@ -19,6 +19,7 @@ use crate::wgpu_types::*;
 use crate::Camera;
 use crate::GUIElement;
 use crate::Mesh;
+use crate::Model3D;
 use crate::Node;
 use crate::NodeParent;
 use crate::PointLight;
@@ -156,7 +157,7 @@ pub struct EngineState {
     pub camera_buffers: HashMap<ArenaId<Camera>, DirtyBuffer>,
     pub all_point_lights_data: Vec<u8>,
     pub triangles: Gemometry,
-    assets: HashSet<String>,
+    _3d_models: HashMap<String, Model3D>,
     pub ui_compositors: HashMap<ArenaId<GUIElement>, UICompositor>,
     ui_render_args: HashMap<ArenaId<GUIElement>, UIRenderArgs>,
     mesh_pointers: HashMap<ArenaId<Mesh>, MeshPointer>,
@@ -229,7 +230,7 @@ impl EngineState {
                         NodeMetadata { scene_id, model }
                     }
                     NodeParent::Orphan => {
-						log::error!("node {:?} is orphan", node_id.index());
+						//log::error!("node {:?} is orphan", node_id.index());
 						stack.pop();
 						continue;
 					}
@@ -503,22 +504,22 @@ impl EngineState {
     }
 
     fn process_assets(&mut self) {
-        let paths = self
-            .state
-            .assets_3d
-            .iter()
-            .map(|p| p.1.path.clone())
-            .collect::<Vec<String>>();
+        // let paths = self
+        //     .state
+        //     .assets_3d
+        //     .iter()
+        //     .map(|p| p.1.path.clone())
+        //     .collect::<Vec<String>>();
 
-        for path in paths {
-            if self.assets.contains(&path) {
-                continue;
-            }
+        // for path in paths {
+        //     if self._3d_models.contains(&path) {
+        //         continue;
+        //     }
 
-            self.assets.insert(path.clone());
+        //     self.assets_3d.insert(path.clone());
 
-            load_gltf(&path, &mut self.state);
-        }
+        //     load_gltf(&path, &mut self.state);
+        // }
     }
 
     fn process_ui(&mut self) {

@@ -38,7 +38,6 @@ pub fn mouse_area() -> MouseArea {
 
 #[derive(Clone, Debug, Default)]
 pub struct Window {
-	pub id: usize,
 	pub title: String,
 	pub width: u32,
 	pub height: u32,
@@ -49,7 +48,6 @@ pub struct Window {
 impl Window {
 	pub fn new() -> Self {
 		Self {
-			id: gen_id(),
 			title: "".to_string(),
 			width: 800,
 			height: 600,

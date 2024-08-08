@@ -80,8 +80,6 @@ struct Engine<'a, T> {
     tex_coords_buffer: Buffer<TexCoords>,
     normal_buffer: Buffer<Normals>,
     index_buffer: Buffer<Indexes>,
-	vertices_buffer2: wgpu::Buffer,
-	index_buffer2: wgpu::Buffer,
     windows: HashMap<WindowId, WindowContext<'a>>,
     point_light_buffers: HashMap<ArenaId<Scene>, BindableBuffer<RawPointLight>>,
     last_on_process_time: Instant,
@@ -90,6 +88,7 @@ struct Engine<'a, T> {
     texture_bind_groups: HashMap<ArenaId<Texture>, wgpu::BindGroup>,
     camera_buffers: HashMap<ArenaId<Camera>, BindableBuffer<RawCamera>>,
     default_texture: wgpu::BindGroup,
+	default_point_lights: BindableBuffer<RawPointLight>,
     proxy: EventLoopProxy<EngineEvent>,
     scene_instance_buffers: HashMap<ArenaId<Scene>, Buffer<RawInstance>>,
 }
@@ -131,8 +130,7 @@ where
         let normal_buffer = Buffer::new(device.clone(), queue.clone());
         let index_buffer = Buffer::new(device.clone(), queue.clone());
 
-		let vertices_buffer2 = Vertices::create_buffer(&device, 1024);
-		let index_buffer2 = Indexes::create_buffer(&device, 1024);
+		let default_point_lights = BindableBuffer::new(device.clone(), queue.clone());
 
         Self {
             app,
@@ -155,8 +153,7 @@ where
             default_texture,
             proxy,
             scene_instance_buffers: HashMap::new(),
-			vertices_buffer2,
-			index_buffer2,
+			default_point_lights
         }
     }
 
@@ -190,23 +187,23 @@ where
 		// self.index_buffer.write(indices_data);
 
         if self.state.triangles.vertices.len() > 0 && self.state.triangles.vertices.dirty {
-            log::info!("writing triangle vertices len: {} data: {:?}", self.state.triangles.vertices.len(), self.state.triangles.vertices.data());
+            log::info!("writing triangle vertices len: {}", self.state.triangles.vertices.len());
     		self.vertices_buffer.write(&self.state.triangles.vertices.data());
             self.state.triangles.vertices.dirty = false;
         }
         if self.state.triangles.indices.len() > 0 && self.state.triangles.indices.dirty {
-            log::info!("writing triangle indices len: {} data: {:?}", self.state.triangles.indices.len(), self.state.triangles.indices.data());
+            log::info!("writing triangle indices len: {}", self.state.triangles.indices.len());
 			self.index_buffer.write(&self.state.triangles.indices.data());
             self.state.triangles.indices.dirty = false;
         }
         if self.state.triangles.tex_coords.len() > 0 && self.state.triangles.tex_coords.dirty {
-            log::info!("writing triangle tex coords len: {} data: {:?}", self.state.triangles.tex_coords.len(), self.state.triangles.tex_coords.data());
+            log::info!("writing triangle tex coords len: {}", self.state.triangles.tex_coords.len());
             self.tex_coords_buffer
                 .write(&self.state.triangles.tex_coords.data());
             self.state.triangles.tex_coords.dirty = false;
         }
         if self.state.triangles.normals.len() > 0 && self.state.triangles.normals.dirty {
-            log::info!("writing triangle normals len: {} data: {:?}", self.state.triangles.normals.len(), self.state.triangles.normals.data());
+            log::info!("writing triangle normals len: {}", self.state.triangles.normals.len());
             self.normal_buffer.write(&self.state.triangles.normals.data());
             self.state.triangles.normals.dirty = false;
         }
@@ -256,6 +253,41 @@ where
 
             buff.write(&b.data());
 			//buff.write(bytemuck::cast_slice(&data));
+        }
+
+		for (i, c) in &self.state.ui_compositors {
+            let buffers = self
+                .gui_buffers
+                .entry(*i)
+                .or_insert(GuiBuffers::new(self.device.clone(), self.queue.clone()));
+
+            if c.positions.len() > 0 {
+                let positions_data = bytemuck::cast_slice(&c.positions);
+                let positions_data_len = positions_data.len() as u64;
+				buffers.vertices_buffer.write(positions_data);
+                // self.queue
+                //     .write_buffer(&buffers.vertices_buffer, 0, positions_data);
+                buffers.position_range = 0..positions_data_len;
+            }
+
+            if c.indices.len() > 0 {
+                let indices_data = bytemuck::cast_slice(&c.indices);
+                let indices_data_len = indices_data.len() as u64;
+                // self.queue
+                //     .write_buffer(&buffers.index_buffer, 0, indices_data);
+				buffers.index_buffer.write(indices_data);
+                buffers.index_range = 0..indices_data_len;
+                buffers.indices_range = 0..c.indices.len() as u32;
+            }
+
+            if c.colors.len() > 0 {
+                let colors_data = bytemuck::cast_slice(&c.colors);
+                let colors_data_len = colors_data.len() as u64;
+                // self.queue
+                //     .write_buffer(&buffers.color_buffer, 0, colors_data);
+				buffers.color_buffer.write(colors_data);
+                buffers.colors_range = 0..colors_data_len;
+            }
         }
     }
 
@@ -311,14 +343,16 @@ where
             let args = match self.state.get_window_render_args(window_ctx.window_id) {
                 Some(a) => a,
                 None => {
-                    panic!("Window render args not found");
+                    //log::error!("Window render args not found");
+					continue;
                 }
             };
 
             let gui_buffers = match self.gui_buffers.get(&args.ui) {
                 Some(b) => b,
                 None => {
-                    panic!("Gui buffers not found");
+                    //panic!("Gui buffers not found");
+					continue;
                 }
             };
 
@@ -334,7 +368,8 @@ where
                 let calls = match self.state.get_camera_draw_calls(v.camview.camera_id) {
                     Some(c) => c,
                     None => {
-                        panic!("Draw calls not found");
+                        //panic!("Draw calls not found");
+						continue;
                     }
                 };
 
@@ -402,9 +437,7 @@ where
 
                 let point_light_buffer = match self.point_light_buffers.get(&v.scene_id) {
                     Some(b) => b,
-                    None => {
-                        panic!("Point light buffer not found");
-                    }
+                    None => &self.default_point_lights
                 };
 
                 let a = Render3DView {
@@ -440,43 +473,6 @@ where
         }
         self.queue.submit(std::iter::once(encoder.finish()));
     }
-
-    fn update_ui_buffers(&mut self) {
-        for (i, c) in &self.state.ui_compositors {
-            let buffers = self
-                .gui_buffers
-                .entry(*i)
-                .or_insert(GuiBuffers::new(self.device.clone(), self.queue.clone()));
-
-            if c.positions.len() > 0 {
-                let positions_data = bytemuck::cast_slice(&c.positions);
-                let positions_data_len = positions_data.len() as u64;
-				buffers.vertices_buffer.write(positions_data);
-                // self.queue
-                //     .write_buffer(&buffers.vertices_buffer, 0, positions_data);
-                buffers.position_range = 0..positions_data_len;
-            }
-
-            if c.indices.len() > 0 {
-                let indices_data = bytemuck::cast_slice(&c.indices);
-                let indices_data_len = indices_data.len() as u64;
-                // self.queue
-                //     .write_buffer(&buffers.index_buffer, 0, indices_data);
-				buffers.index_buffer.write(indices_data);
-                buffers.index_range = 0..indices_data_len;
-                buffers.indices_range = 0..c.indices.len() as u32;
-            }
-
-            if c.colors.len() > 0 {
-                let colors_data = bytemuck::cast_slice(&c.colors);
-                let colors_data_len = colors_data.len() as u64;
-                // self.queue
-                //     .write_buffer(&buffers.color_buffer, 0, colors_data);
-				buffers.color_buffer.write(colors_data);
-                buffers.colors_range = 0..colors_data_len;
-            }
-        }
-    }
 }
 
 impl<'a, T> ApplicationHandler<EngineEvent> for Engine<'a, T>
@@ -486,7 +482,6 @@ where
     fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
         self.app.on_create(&mut self.state.state);
         self.state.process(0.0);
-        self.update_ui_buffers();
         self.update_windows(event_loop);
     }
 
@@ -585,6 +580,7 @@ where
             Instant::now() + Duration::from_millis(16),
         ));
 
+		self.update_windows(event_loop);
         let dt = self.last_on_process_time.elapsed().as_secs_f32();
         self.last_on_process_time = Instant::now();
         self.app.on_process(&mut self.state.state, dt);

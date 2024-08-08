@@ -51,18 +51,21 @@ impl PressedKeys {
 
 struct Orc {
 	initial_pos: Vec3,
+	node_id: Option<ArenaId<Node>>,
 }
 
 impl Orc {
 	pub fn new(pos: Vec3) -> Self {
 		Self {
 			initial_pos: pos,
+			node_id: None,
 		}
 	}
 
 	pub fn on_create(&mut self, state: &mut State) {
-		let asset = Asset3D::from_path("./assets/orkki.glb");
-		let asset_id = state.assets_3d.insert(asset);
+		Model3D::from_path("./assets/orkki.glb");
+
+		let (asset_id, _) = state.load_3d_model("./assets/orkki.glb");
 
 		let mut orc_node = Node::new();
 		orc_node.translation = self.initial_pos;
@@ -70,7 +73,16 @@ impl Orc {
 		orc_node.physics.typ = PhycisObjectType::Dynamic;
 		orc_node.physics.mass = 10.0;
 		orc_node.collision_shape = Some(CollisionShape::Box { size: glam::Vec3::new(1.0, 2.0, 1.0) });
-		state.nodes.insert(orc_node);
+		let node_id = state.nodes.insert(orc_node);
+		self.node_id = Some(node_id);
+	}
+
+	pub fn on_process(&mut self, state: &mut State) {
+		if let Some(node_id) = self.node_id {
+			if let Some(node) = state.nodes.get_mut(&node_id) {
+				// Do something with the node
+			}
+		}
 	}
 }
 
@@ -141,12 +153,20 @@ impl FpsShooter {
 
 impl pge::App for FpsShooter {
 	fn on_create(&mut self, state: &mut State) {
+		let (id, model) = state.load_3d_model("./assets/orkki.glb");
+		let scene_id = model.scenes[0];
+		let first_scene_id = state.nodes.iter()
+			.find(|(_, node)| node.parent == NodeParent::Scene(scene_id)).unwrap().0;
+		let node_id = state.clone_node(first_scene_id);
+
+		
+
 		let texture = Texture::new("./assets/gandalf.jpg");
 	 	let texture_id = state.textures.insert(texture);
 
-		// for orc in self.orcs.iter_mut() {
-		// 	orc.on_create(state);
-		// }
+		for orc in self.orcs.iter_mut() {
+			orc.on_create(state, node_id);
+		}
 
 		let scene = Scene::new();
 		let scene_id = state.scenes.insert(scene);

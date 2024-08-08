@@ -6,6 +6,7 @@ use winit::keyboard::KeyCode;
 
 use crate::arena::Arena;
 use crate::arena::ArenaId;
+use crate::gltf::load_gltf;
 use crate::idgen::gen_id;
 use crate::GUIElement;
 use crate::Window;
@@ -486,12 +487,14 @@ pub struct Asset {
 #[derive(Debug, Clone, Default)]
 pub struct Scene {
 	pub name: Option<String>,
+	pub _3d_model: Option<ArenaId<Model3D>>,
 }
 
 impl Scene {
 	pub fn new() -> Self {
 		Self {
 			name: None,
+			_3d_model: None,
 		}
 	}
 }
@@ -665,27 +668,20 @@ impl FontHandle {
 }
 
 #[derive(Debug, Clone)]
-pub struct Asset3D {
+pub struct Model3D {
 	pub path: String,
-	pub meshes: Vec<ArenaId<Mesh>>,
-	pub textures: Vec<ArenaId<Texture>>,
-	pub nodes: Vec<ArenaId<Node>>,
-	pub animations: Vec<ArenaId<Animation>>,
-	pub node_id: Option<ArenaId<Node>>
-
+	pub scenes: Vec<ArenaId<Model3D>>,
+	pub animations: Vec<Animation>,
 }
 
-impl Asset3D {
+impl Model3D {
 	pub fn from_path<P: AsRef<Path>>(p: P) -> Self {
 		let path = p.as_ref().to_str().unwrap().to_string();
 		
 		Self {
 			path,
-			meshes: vec![],
-			textures: vec![],
-			nodes: vec![],
+			scenes: vec![],
 			animations: vec![],
-			node_id: None,
 		}
 	}
 }
@@ -701,7 +697,23 @@ pub struct State {
 	pub point_lights: Arena<PointLight>,
 	pub textures: Arena<Texture>,
 	pub raycasts: Arena<RayCast>,
-	pub assets_3d: Arena<Asset3D>,
+	pub _3d_models: Arena<Model3D>,
+}
+
+impl State {
+	pub fn load_3d_model<P: AsRef<Path> + Clone>(&mut self, path: P) {
+		let model = Model3D::from_path(path.clone());
+		// let model_id = self._3d_models.insert(model);
+		load_gltf(path, self);
+		// model_id
+	}
+
+	// pub fn clone_node(&mut self, node_id: ArenaId<Node>) -> ArenaId<Node> {
+	// 	let node = self.nodes.get(node_id).unwrap();
+	// 	let mut new_node = node.clone();
+	// 	new_node.parent = NodeParent::Orphan;
+	// 	self.nodes.insert(new_node)
+	// }
 }
 
 pub trait App {

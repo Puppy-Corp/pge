@@ -80,7 +80,7 @@ impl BufferRecipe for Vertices {
 		device.create_buffer(&wgpu::BufferDescriptor {
 			label: Some("Position Buffer"),
 			size,
-			usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+			usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC,
 			mapped_at_creation: false,
 		})
 	}
@@ -94,7 +94,7 @@ impl BufferRecipe for Indexes {
 		device.create_buffer(&wgpu::BufferDescriptor {
 			label: Some("Index Buffer"),
 			size,
-			usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
+			usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC,
 			mapped_at_creation: false,
 		})
 	}
@@ -125,7 +125,7 @@ impl BufferRecipe for Normals {
 		device.create_buffer(&wgpu::BufferDescriptor {
 			label: Some("Normal Buffer"),
 			size,
-			usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+			usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC,
 			mapped_at_creation: false,
 		})
 	}
@@ -156,7 +156,7 @@ impl BufferRecipe for TexCoords {
 		device.create_buffer(&wgpu::BufferDescriptor {
 			label: Some("TexCoords Buffer"),
 			size,
-			usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+			usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC,
 			mapped_at_creation: false,
 		})
 	}

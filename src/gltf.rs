@@ -14,6 +14,7 @@ use crate::State;
 pub fn load_node(n: &gltf::Node, buffers: &[Data], state: &mut State, parent: NodeParent) {
 	let mut node = Node {
 		name: Some(n.name().unwrap_or_default().to_string()),
+		parent,
 		..Default::default()
 	};
 
@@ -100,6 +101,7 @@ pub fn load_gltf<P: AsRef<Path>>(p: P, state: &mut State) {
 	};
 
 	for s in document.scenes() {
+		log::info!("Scene: {}", s.name().unwrap_or("Unnamed"));
 		load_scene(&s, &buffers, state)
 	}
 }

@@ -487,7 +487,6 @@ impl EngineState {
 			// };
 
 			let pos = node.model.w_axis.truncate().into();
-			log::info!("pos: {:?}", pos);
 			let light = RawPointLight::new(light.color, light.intensity, pos);
 
 			match self.point_lights.get(&light_id) {

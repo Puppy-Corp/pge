@@ -1,7 +1,14 @@
+use std::any::Any;
+use std::collections::HashMap;
 use std::path::Path;
-
+use glam::Quat;
+use glam::Vec3;
+use gltf::animation::util::MorphTargetWeights;
+use gltf::animation::util::ReadOutputs;
+use gltf::animation::util::Rotations;
 use gltf::buffer::Data;
-
+use crate::AnimationOutput;
+use crate::ArenaId;
 use crate::Mesh;
 use crate::Node;
 use crate::NodeParent;
@@ -9,14 +16,39 @@ use crate::Primitive;
 use crate::PrimitiveTopology;
 use crate::Scene;
 use crate::State;
+use crate::Animation;
+use crate::AnimationChannel;
+use crate::AnimationSampler;
+use crate::AnimationTarget;
+use crate::AnimationTargetPath;
+use crate::Interpolation;
 
+struct ParserState {
+	node_map: HashMap<usize, ArenaId<Node>>,
+}
 
-pub fn load_node(n: &gltf::Node, buffers: &[Data], state: &mut State, parent: NodeParent) {
+impl ParserState {
+	fn new() -> Self {
+		ParserState {
+			node_map: HashMap::new(),
+		}
+	}
+}
+
+pub fn load_node(n: &gltf::Node, buffers: &[Data], state: &mut State, parser_state: &mut ParserState, parent: NodeParent) {
+	log::info!("Loading node: {}", n.name().unwrap_or("Unnamed"));
+
 	let mut node = Node {
 		name: Some(n.name().unwrap_or_default().to_string()),
 		parent,
 		..Default::default()
 	};
+
+	// Set the node's transform
+	let (translation, rotation, scale) = n.transform().decomposed();
+	node.translation = translation.into();
+	node.rotation = Quat::from_array(rotation);
+	node.scale = scale.into();
 
 	match n.mesh() {
 		Some(gltf_mesh) => {
@@ -27,10 +59,6 @@ pub fn load_node(n: &gltf::Node, buffers: &[Data], state: &mut State, parent: No
 
 				log::info!("- Primitive #{}", p.index());
 
-				// for (semantic, acc) in p.attributes() {
-				// 	println!("Semantic: {:?}", semantic);
-				// }
-
 				let reader = p.reader(|buffer| {
 					let buffer_data = &buffers[buffer.index()];
 					Some(&buffer_data.0[..])
@@ -39,23 +67,41 @@ pub fn load_node(n: &gltf::Node, buffers: &[Data], state: &mut State, parent: No
 					for vertex_position in iter {
 						primitive.vertices.push([vertex_position[0], vertex_position[1], vertex_position[2]]);
 					}
+				} else {
+					log::warn!("Primitive #{} is missing position data", p.index());
 				}
 
-				reader.read_indices().map(|iter| {
+				if let Some(iter) = reader.read_indices() {
 					for index in iter.into_u32() {
-						// println!("{:?}", index);
 						primitive.indices.push(index as u16);
 					}
-				});
+				} else {
+					log::warn!("Primitive #{} is missing index data", p.index());
+				}
 
-				reader.read_normals().map(|iter| {
+				if let Some(iter) = reader.read_normals() {
 					for normal in iter {
-						// println!("{:?}", normal);
 						primitive.normals.push([normal[0], normal[1], normal[2]]);
 					}
-				});
+				} else {
+					log::warn!("Primitive #{} is missing normal data", p.index());
+				}
 
-				// reader.read_tex_coords()
+				if let Some(iter) = reader.read_tex_coords(0) {
+					for tex_coord in iter.into_f32() {
+						primitive.tex_coords.push([tex_coord[0], tex_coord[1]]);
+					}
+				} else {
+					log::warn!("Primitive #{} is missing texture coordinate data", p.index());
+				}
+
+				if reader.read_colors(0).is_none() {
+					log::warn!("Primitive #{} is missing color data", p.index());
+				}
+
+				if reader.read_tangents().is_none() {
+					log::warn!("Primitive #{} is missing tangent data", p.index());
+				}
 
 				mesh.primitives.push(primitive);
 			}
@@ -63,17 +109,20 @@ pub fn load_node(n: &gltf::Node, buffers: &[Data], state: &mut State, parent: No
 			let mesh_id = state.meshes.insert(mesh);
 			node.mesh = Some(mesh_id);
 		},
-		None => {}
+		None => {
+			log::info!("Node does not contain a mesh");
+		}
 	}
 	
 	let node_id = state.nodes.insert(node);
+	parser_state.node_map.insert(n.index(), node_id); // Store the mapping
 
 	for child in n.children() {
-		load_node(&child, buffers, state, NodeParent::Node(node_id));
+		load_node(&child, buffers, state, parser_state, NodeParent::Node(node_id));
 	}
 }
 
-pub fn load_scene(s: &gltf::Scene, buffers: &[Data], state: &mut State) {
+pub fn load_scene(s: &gltf::Scene, buffers: &[Data], state: &mut State, parser_state: &mut ParserState) {
 	let scene = Scene {
 		name: Some(s.name().unwrap_or_default().to_string()),
 		..Default::default()
@@ -84,24 +133,159 @@ pub fn load_scene(s: &gltf::Scene, buffers: &[Data], state: &mut State) {
 	let parent = NodeParent::Scene(scene_id);
 
 	for node in s.nodes() {
-		load_node(&node, buffers, state, parent);
+		load_node(&node, buffers, state, parser_state, parent);
 	}	
 }
 
+pub fn load_animation(anim: &gltf::Animation, buffers: &[Data], state: &mut State, parser_state: &mut ParserState) {
+	log::info!("Loading animation: {}", anim.name().unwrap_or("Unnamed"));
+
+	let mut animation = Animation::new();
+
+	for channel in anim.channels() {
+		let target_node = channel.target().node();
+
+
+		let target_node_id = match parser_state.node_map.get(&target_node.index()) { // Use parser_state
+			Some(id) => id,
+			None => {
+				log::warn!("Animation target node not found: {}", target_node.name().unwrap_or_default().to_string());
+				continue;
+			}
+		};
+
+		let target_path = match channel.target().property() {
+			gltf::animation::Property::Translation => AnimationTargetPath::Translation,
+			gltf::animation::Property::Rotation => AnimationTargetPath::Rotation,
+			gltf::animation::Property::Scale => AnimationTargetPath::Scale,
+			gltf::animation::Property::MorphTargetWeights => AnimationTargetPath::Weights,
+		};
+
+		let target = AnimationTarget {
+			node_id: target_node_id.clone(),
+			path: target_path,
+		};
+
+		let sampler = channel.sampler();
+		let sampler_index = animation.samplers.len();
+
+		let interpolation = match sampler.interpolation() {
+			gltf::animation::Interpolation::Linear => Interpolation::Linear,
+			gltf::animation::Interpolation::Step => Interpolation::Stepm,
+			gltf::animation::Interpolation::CubicSpline => Interpolation::Cubicspline,
+		};
+
+		let reader = channel.reader(|buffer| Some(&buffers[buffer.index()]));
+
+		let input: Vec<f32> = reader.read_inputs().unwrap().collect();
+		let output = match reader.read_outputs().unwrap() {
+			ReadOutputs::Translations(output) => {
+				//let m = output.map(|o| Vec3::from(o));
+				//let m = m.collect::<Vec<Vec3>>();
+				AnimationOutput::Translation(output.map(|p| Vec3::from(p)).collect())
+			},
+			ReadOutputs::Rotations(output) => {
+				AnimationOutput::Rotation(match output {
+					Rotations::I8(d) => d.map(|o| Quat::from_array([
+						o[0] as f32 / 127.0,
+						o[1] as f32 / 127.0,
+						o[2] as f32 / 127.0,
+						o[3] as f32 / 127.0
+					])).collect(),
+					Rotations::U8(d) => d.map(|o| Quat::from_array([
+						o[0] as f32 / 255.0,
+						o[1] as f32 / 255.0,
+						o[2] as f32 / 255.0,
+						o[3] as f32 / 255.0
+					])).collect(),
+					Rotations::I16(d) => d.map(|o| Quat::from_array([
+						o[0] as f32 / 32767.0,
+						o[1] as f32 / 32767.0,
+						o[2] as f32 / 32767.0,
+						o[3] as f32 / 32767.0
+					])).collect(),
+					Rotations::U16(d) => d.map(|o| Quat::from_array([
+						o[0] as f32 / 65535.0,
+						o[1] as f32 / 65535.0,
+						o[2] as f32 / 65535.0,
+						o[3] as f32 / 65535.0
+					])).collect(),
+					Rotations::F32(d) => d.map(|o| Quat::from_array(o)).collect(),
+				})
+			},
+			ReadOutputs::Scales(output) => {
+				AnimationOutput::Scale(output.map(|p| Vec3::from(p)).collect())
+			},
+			ReadOutputs::MorphTargetWeights(output) => {
+				AnimationOutput::MorphWeights(match output {
+					MorphTargetWeights::I8(d) => crate::types::WorphTargetWeight::I8(d.collect()),
+					MorphTargetWeights::U8(d) => crate::types::WorphTargetWeight::U8(d.collect()),
+					MorphTargetWeights::I16(d) => crate::types::WorphTargetWeight::I16(d.collect()),
+					MorphTargetWeights::U16(d) => crate::types::WorphTargetWeight::U16(d.collect()),
+					MorphTargetWeights::F32(d) => crate::types::WorphTargetWeight::F32(d.collect()),
+				})
+			}
+		};
+
+		animation.samplers.push(AnimationSampler {
+			input,
+			output,
+			interpolation,
+		});
+
+		animation.channels.push(AnimationChannel {
+			sampler: sampler_index,
+			target,
+		});
+	}
+
+	state.animations.insert(animation);
+}
+
 pub fn load_gltf<P: AsRef<Path>>(p: P, state: &mut State) {
+	let mut parser_state = ParserState::new();
+
 	let p = p.as_ref();
 	log::info!("loading {:?}", p.to_string_lossy());
 
-	let (document, buffers, _images) = match gltf::import(p) {
+	let (document, buffers, images) = match gltf::import(p) {
 		Ok(r) => r,
-		Err(_) => {
-			log::error!("Failed to load gltf file");
+		Err(e) => {
+			log::error!("Failed to load gltf file: {:?}", e);
 			return;
 		},
 	};
 
 	for s in document.scenes() {
 		log::info!("Scene: {}", s.name().unwrap_or("Unnamed"));
-		load_scene(&s, &buffers, state)
+		load_scene(&s, &buffers, state, &mut parser_state)
+	}
+
+	for image in images {
+		log::info!("Image: {}x{}", image.width, image.height);
+	}
+
+	for animation in document.animations() {
+		load_animation(&animation, &buffers, state, &mut parser_state);
+	}
+
+	for skin in document.skins() {
+		log::info!("Skin: {}", skin.name().unwrap_or("Unnamed"));
+	}
+}
+
+
+#[cfg(test)]
+mod tests {
+	use crate::init_logging;
+	use super::*;
+
+	#[test]
+	fn test_load_gltf() {
+		init_logging();
+
+		let mut state = State::default();
+		load_gltf("./assets/orkki.glb", &mut state);
+		state.print_state();
 	}
 }

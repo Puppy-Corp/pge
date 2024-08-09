@@ -1,5 +1,6 @@
 use std::path::Path;
 use std::time::Duration;
+use glam::Quat;
 use glam::Vec3;
 use lyon::geom::euclid::default;
 use winit::keyboard::KeyCode;
@@ -520,8 +521,24 @@ impl Camera {
 	}
 }
 
-pub struct Channel {
-	pub sampler: usize
+#[derive(Debug, Clone)]
+pub enum AnimationTargetPath {
+	Translation,
+	Rotation,
+	Scale,
+	Weights,
+}
+
+#[derive(Debug, Clone)]
+pub struct AnimationTarget {
+	pub node_id: ArenaId<Node>,
+	pub path: AnimationTargetPath,
+}
+
+#[derive(Debug, Clone)]
+pub struct AnimationChannel {
+	pub sampler: usize,
+	pub target: AnimationTarget,
 }
 
 #[derive(Debug, Clone)]
@@ -531,54 +548,46 @@ pub enum Interpolation {
 	Cubicspline
 }
 
-pub struct Sampler {
-	pub input: usize,
-	pub output: usize,
-	pub interpolation: Interpolation,
+#[derive(Debug, Clone)]
+pub enum WorphTargetWeight {
+	I8(Vec<i8>),
+	U8(Vec<u8>),
+	I16(Vec<i16>),
+	U16(Vec<u16>),
+	I32(Vec<i32>),
+	U32(Vec<u32>),
+	F32(Vec<f32>),
 }
 
 #[derive(Debug, Clone)]
-pub struct Step {
-	pub duration: Duration,
-	pub transform: glam::Mat4,
+pub enum AnimationOutput {
+	Translation(Vec<Vec3>),
+	Rotation(Vec<Quat>),
+	Scale(Vec<Vec3>),
+	MorphWeights(WorphTargetWeight),
+}
+
+#[derive(Debug, Clone)]
+pub struct AnimationSampler {
+	pub input: Vec<f32>,
+	pub output: AnimationOutput,
 	pub interpolation: Interpolation,
 }
 
 #[derive(Debug, Clone)]
 pub struct Animation {
 	pub id: usize,
-	pub steps: Vec<Step>,
-	pub transform: glam::Mat4,
-	// pub channels: Vec<Channel>,
-	// pub samplers: Vec<Sampler>,
+	pub channels: Vec<AnimationChannel>,
+	pub samplers: Vec<AnimationSampler>,
 }
 
 impl Animation {
 	pub fn new() -> Self {
 		Self {
 			id: gen_id(),
-			steps: vec![],
-			transform: glam::Mat4::IDENTITY,
-			// channels: vec![],
-			// samplers: vec![],
+			channels: vec![],
+			samplers: vec![],
 		}
-	}
-
-	pub fn play() {
-		println!("Playing animation");
-	}
-
-	pub fn every(mut self, duration: Duration) -> Self {
-		self
-	}
-
-	pub fn with(mut self, interpolation: Interpolation) -> Self {
-		self
-	}
-
-	pub fn transform(mut self, mat: glam::Mat4) -> Self {
-		self.transform = mat;
-		self
 	}
 }
 
@@ -698,6 +707,7 @@ pub struct State {
 	pub textures: Arena<Texture>,
 	pub raycasts: Arena<RayCast>,
 	pub _3d_models: Arena<Model3D>,
+	pub animations: Arena<Animation>,
 }
 
 impl State {
@@ -705,7 +715,20 @@ impl State {
 		let model = Model3D::from_path(path.clone());
 		// let model_id = self._3d_models.insert(model);
 		load_gltf(path, self);
+		self.print_state();
 		// model_id
+	}
+
+	pub fn print_state(&self) {
+		log::info!("scene count: {:?}", self.scenes.len());
+		log::info!("mesh count: {:?}", self.meshes.len());
+		log::info!("node count: {:?}", self.nodes.len());
+		log::info!("camera count: {:?}", self.cameras.len());
+		log::info!("window count: {:?}", self.windows.len());
+		log::info!("gui count: {:?}", self.guis.len());
+		log::info!("point light count: {:?}", self.point_lights.len());
+		log::info!("texture count: {:?}", self.textures.len());
+		log::info!("raycast count: {:?}", self.raycasts.len());
 	}
 
 	// pub fn clone_node(&mut self, node_id: ArenaId<Node>) -> ArenaId<Node> {

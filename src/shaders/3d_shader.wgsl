@@ -27,8 +27,12 @@ var<uniform> camera: Camera;
 
 struct PointLight {
 	color: vec3<f32>,
+	// Padding to align to 16 bytes
+	_padding: f32, 
 	intensity: f32,
 	position: vec3<f32>,
+	// Padding to align to 16 bytes
+	_padding2: f32,
 };
 
 @group(1) @binding(0)

@@ -222,33 +222,33 @@ where
 
             buff.write(&b.data());
         }
-        for (index, b) in &mut self.state.scene_point_lights {
+        for (id, b) in &mut self.state.scene_point_lights {
             if !b.dirty {
                 continue;
             }
 			b.dirty = false;
 
-			log::info!("[{:?}] writing point light buffer len: {} data: {:?}", index, b.len(), b.data());
+			log::info!("[{:?}] writing point light buffer len: {} data: {:?}", id.index(), b.len(), b.data());
 
-            let buff = self.point_light_buffers.entry(*index)
+            let buff = self.point_light_buffers.entry(*id)
                 .or_insert(BindableBuffer::new(self.device.clone(), self.queue.clone()));
 
             buff.write(&b.data());
         }
 
-        for (index, b) in &mut self.state.camera_buffers {
+        for (id, b) in &mut self.state.camera_buffers {
             if !b.dirty {
                 continue;
             }
 			b.dirty = false;
 
-            log::info!("[{:?}] writing camera buffer len: {} data: {:?}", index, b.len(), b.data());
+            log::info!("[{:?}] writing camera buffer len: {} data: {:?}", id.index(), b.len(), b.data());
 
 			let data = Mat4::IDENTITY.to_cols_array();
 
             let buff = self
                 .camera_buffers
-                .entry(*index)
+                .entry(*id)
                 .or_insert(BindableBuffer::new(self.device.clone(), self.queue.clone()));
 
             buff.write(&b.data());
@@ -437,7 +437,10 @@ where
 
                 let point_light_buffer = match self.point_light_buffers.get(&v.scene_id) {
                     Some(b) => b,
-                    None => &self.default_point_lights
+                    None => {
+						log::info!("point light buffer not found");
+						&self.default_point_lights
+					}
                 };
 
                 let a = Render3DView {

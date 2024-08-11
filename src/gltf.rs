@@ -9,6 +9,7 @@ use gltf::animation::util::Rotations;
 use gltf::buffer::Data;
 use crate::AnimationOutput;
 use crate::ArenaId;
+use crate::Material;
 use crate::Mesh;
 use crate::Node;
 use crate::NodeParent;
@@ -22,15 +23,18 @@ use crate::AnimationSampler;
 use crate::AnimationTarget;
 use crate::AnimationTargetPath;
 use crate::Interpolation;
+use crate::Texture;
 
 struct ParserState {
 	node_map: HashMap<usize, ArenaId<Node>>,
+	texture_map: HashMap<usize, ArenaId<Texture>>,
 }
 
 impl ParserState {
 	fn new() -> Self {
 		ParserState {
 			node_map: HashMap::new(),
+			texture_map: HashMap::new(),
 		}
 	}
 }
@@ -267,6 +271,76 @@ pub fn load_gltf<P: AsRef<Path>>(p: P, state: &mut State) {
 
 	for animation in document.animations() {
 		load_animation(&animation, &buffers, state, &mut parser_state);
+	}
+
+	for texture in document.textures() {
+		let texture_id = state.textures.insert(Texture {
+			name: texture.name().unwrap_or_default().to_string(),
+			..Default::default()
+		});
+		parser_state.texture_map.insert(texture.index(), texture_id);
+	}
+
+	for m in document.materials() {
+		log::info!("Material: {}", m.name().unwrap_or("Unnamed"));
+		let pmr = m.pbr_metallic_roughness();
+		let normal = m.normal_texture();
+		let occlusion = m.occlusion_texture();
+		let emissive = m.emissive_texture();
+
+		let mut mat = Material {
+			name: m.name().map(|p| p.to_string()),
+			..Default::default()
+		};
+
+
+		if let Some(normal_texture) = normal {
+			// normal_texture.tex_coord() TODO how to handle ?
+			let texture_id = match parser_state.texture_map.get(&normal_texture.texture().index()) {
+				Some(id) => id,
+				None => {
+					continue;
+				}
+			};
+			mat.normal_texture = Some(*texture_id);
+		}
+
+		if let Some(occlusion_texture) = occlusion {
+			let texture_id = match parser_state.texture_map.get(&occlusion_texture.texture().index()) {
+				Some(id) => id,
+				None => {
+					continue;
+				}
+			};
+			mat.occlusion_texture = Some(*texture_id);
+		}
+
+		if let Some(emissive_texture) = emissive {
+			let texture_id = match parser_state.texture_map.get(&emissive_texture.texture().index()) {
+				Some(id) => id,
+				None => {
+					continue;
+				}
+			};
+			mat.emissive_texture = Some(*texture_id);
+		}
+
+		if let Some(base_color_texture) = pmr.base_color_texture() {
+			let pbr_texture_id = match parser_state.texture_map.get(&base_color_texture.texture().index()) {
+				Some(id) => id,
+				None => {
+					continue;
+				}
+			};
+
+			mat.pbr_metallic_roughness.base_color_texture = Some(*pbr_texture_id);
+		}
+
+		mat.pbr_metallic_roughness.base_color_factor = pmr.base_color_factor();
+		mat.pbr_metallic_roughness.metallic_factor = pmr.metallic_factor();
+		mat.pbr_metallic_roughness.roughness_factor = pmr.roughness_factor();
+
+		state.materials.insert(mat);
 	}
 
 	for skin in document.skins() {

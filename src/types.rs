@@ -591,7 +591,7 @@ impl Animation {
 	}
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Texture {
     pub name: String,
     pub source: String, // URI to the texture image
@@ -608,22 +608,22 @@ impl Texture {
 	}
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct PbrMetallicRoughness {
-    base_color_factor: [f32; 4],
-    metallic_factor: f32,
-    roughness_factor: f32,
-    base_color_texture: Option<Texture>, // Optional base color texture
+    pub base_color_factor: [f32; 4],
+    pub metallic_factor: f32,
+    pub roughness_factor: f32,
+    pub base_color_texture: Option<ArenaId<Texture>>, // Optional base color texture
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Material {
-    name: Option<String>,
-    pbr_metallic_roughness: PbrMetallicRoughness,
-    normal_texture: Option<Texture>, // Optional normal texture
-    occlusion_texture: Option<Texture>, // Optional occlusion texture
-    emissive_texture: Option<Texture>, // Optional emissive texture
-    emissive_factor: [f32; 3],
+    pub name: Option<String>,
+    pub pbr_metallic_roughness: PbrMetallicRoughness,
+    pub normal_texture: Option<ArenaId<Texture>>, // Optional normal texture
+    pub occlusion_texture: Option<ArenaId<Texture>>, // Optional occlusion texture
+    pub emissive_texture: Option<ArenaId<Texture>>, // Optional emissive texture
+    pub emissive_factor: [f32; 3],
 }
 
 impl Material {
@@ -708,6 +708,7 @@ pub struct State {
 	pub raycasts: Arena<RayCast>,
 	pub _3d_models: Arena<Model3D>,
 	pub animations: Arena<Animation>,
+	pub materials: Arena<Material>,
 }
 
 impl State {

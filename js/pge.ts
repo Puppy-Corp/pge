@@ -1,7 +1,50 @@
+import { dlopen, FFIType, JSCallback, suffix } from "bun:ffi"
+
+const path = "../target/debug/libpge.dylib"
+
+const {
+	symbols: {
+		pge_window_create
+	}
+} = dlopen(
+	path,
+	{
+		pge_window_create: {
+			args: [],
+			returns: FFIType.u32
+		}
+	}
+)
+
+const eventCallback = new JSCallback(
+	(event) => {},
+	{
+		returns: FFIType.void,
+		args: ["usize"]
+	}
+)
+
+const res = pge_window_create()
+
 export class Vec3 {
 	public x: number
 	public y: number
 	public z: number
+}
+
+enum EulerRot {
+    XYZ,
+    YXZ,
+    ZXY,
+    ZYX,
+    YZX,
+    XZY
+}
+
+export class Quat {
+	public rotateEuler(rot: EulerRot, a: number, b: number, c: number) {
+		
+	}
 }
 
 class List<T> {
@@ -9,7 +52,10 @@ class List<T> {
 }
 
 export class Node {
-	translation = [0, 0, 0];
+	private id: number
+	public rotation: Quat
+	public translation: Vec3
+	public scale: Vec3
 
 	children: List<Node | Camera | PointLight | Texture> = [];
 }
@@ -89,41 +135,51 @@ export enum KeyCode {
 	D = 68
 }
 
-export class KeyboardEvent {
-	public keyCode
+export type KeyboardEvent = {
+	keyCode: KeyCode
+	pressed: boolean
 }
 
-export class MouseMoved {
-	public dx: number
-	public dy: number
+export type MouseMovedEvent = {
+	dx: number
+	dy: number
 }
 
 export class Window {
 	public title?: string
 	public ui: UI
+	public show: boolean = false
 
-	public constructor(props: {
+	public constructor(id: number) {
+		/*this.title = props.title
+		this.ui = props.ui
+		if (props.show) {
+			this.show = props.show
+		}*/
+	}
+
+	static async create(props: {
 		title?: string
 		ui?: UI
+		show?: boolean
 		onKeyboardEvent?: (event: KeyboardEvent) => void
-		onMouseMoved?: (event: MouseMoved) => void
-	}) {
-		this.title = props.title
-		this.ui = props.ui
+		onMouseMoved?: (event: MouseMovedEvent) => void
+	}): Promise<Window> {
+		return new Window(1)
 	}
 }
 
 export class Material {
-	public name: string
-	public normalTexture: Texture
-	public occlusionTexture: Texture
-	public emissiveTexture: Texture
-	public emissiveFactor: Vec3
+	public name?: string
+	public normalTexture?: Texture
+	public occlusionTexture?: Texture
+	public emissiveTexture?: Texture
+	public emissiveFactor?: Vec3
 }
 
 export class PointLight {
-	public color: Vec3
-	public intensity: number
+	public color?: Vec3
+	public intensity?: number
 }
 
 export class Texture {
@@ -131,8 +187,8 @@ export class Texture {
 }
 
 export class Raycast {
-	public len: number
-	public intersects: List<Node>
+	public len?: number
+	public intersects?: List<Node>
 }
 
 export const Row = () => {

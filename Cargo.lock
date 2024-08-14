@@ -1904,6 +1904,8 @@ dependencies = [
  "image",
  "log",
  "lyon",
+ "serde",
+ "serde_json",
  "ttf-parser 0.21.1",
  "wgpu",
  "winit",

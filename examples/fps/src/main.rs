@@ -50,39 +50,37 @@ impl PressedKeys {
 }
 
 struct Orc {
-	initial_pos: Vec3,
-	node_id: Option<ArenaId<Node>>,
+	node: ArenaId<Node>
 }
 
 impl Orc {
-	pub fn new(pos: Vec3) -> Self {
+	pub fn new(node: ArenaId<Node>) -> Self {
 		Self {
-			initial_pos: pos,
-			node_id: None,
+			node,
 		}
 	}
 
-	pub fn on_create(&mut self, state: &mut State) {
-		Model3D::from_path("./assets/orkki.glb");
+	// pub fn on_create(&mut self, state: &mut State) {
+	// 	Model3D::from_path("./assets/orkki.glb");
 
-		let (asset_id, _) = state.load_3d_model("./assets/orkki.glb");
+		
 
-		let mut orc_node = Node::new();
-		orc_node.translation = self.initial_pos;
-		// orc_node.mesh = Some(asset_id);
-		orc_node.physics.typ = PhycisObjectType::Dynamic;
-		orc_node.physics.mass = 10.0;
-		orc_node.collision_shape = Some(CollisionShape::Box { size: glam::Vec3::new(1.0, 2.0, 1.0) });
-		let node_id = state.nodes.insert(orc_node);
-		self.node_id = Some(node_id);
-	}
+	// 	let mut orc_node = Node::new();
+	// 	orc_node.translation = self.initial_pos;
+	// 	// orc_node.mesh = Some(asset_id);
+	// 	orc_node.physics.typ = PhycisObjectType::Dynamic;
+	// 	orc_node.physics.mass = 10.0;
+	// 	orc_node.collision_shape = Some(CollisionShape::Box { size: glam::Vec3::new(1.0, 2.0, 1.0) });
+	// 	let node_id = state.nodes.insert(orc_node);
+	// 	self.node_id = Some(node_id);
+	// }
 
 	pub fn on_process(&mut self, state: &mut State) {
-		if let Some(node_id) = self.node_id {
-			if let Some(node) = state.nodes.get_mut(&node_id) {
-				// Do something with the node
-			}
-		}
+		// if let Some(node_id) = self.node_id {
+		// 	if let Some(node) = state.nodes.get_mut(&node_id) {
+		// 		// Do something with the node
+		// 	}
+		// }
 	}
 }
 
@@ -108,16 +106,6 @@ impl FpsShooter {
 	pub fn new() -> Self {
 		let mut rng = rand::thread_rng();
 
-		let mut orcs = Vec::new();
-
-		for _ in 0..10 {
-			let x = rng.gen_range(-20.0..20.0);
-			let z = rng.gen_range(-20.0..20.0);
-			let pos = Vec3::new(x, 10.0, z);
-			let orc = Orc::new(pos);
-			orcs.push(orc);
-		}
-
 		Self {
 			player_inx: None,
 			light_inx: None,
@@ -133,7 +121,7 @@ impl FpsShooter {
 			gripping: false,
 			gripping_node: None,
 			rng,
-			orcs,
+			orcs: Vec::new(),
 		}
 	}
 }
@@ -153,20 +141,41 @@ impl FpsShooter {
 
 impl pge::App for FpsShooter {
 	fn on_create(&mut self, state: &mut State) {
-		let (id, model) = state.load_3d_model("./assets/orkki.glb");
-		let scene_id = model.scenes[0];
-		let first_scene_id = state.nodes.iter()
-			.find(|(_, node)| node.parent == NodeParent::Scene(scene_id)).unwrap().0;
-		let node_id = state.clone_node(first_scene_id);
-
+		let model_id = state.load_3d_model("./assets/orkki.glb");
+		let scene_id = {
+			let model = state.models.get(&model_id).unwrap();
+			model.scenes[0]
+		};
+		let orc_base_node = Node::new();
+		let orc_base_node_id = state.nodes.insert(orc_base_node);
 		
+		for (node_id, node) in &mut state.nodes.iter_mut() {
+			if node.parent == NodeParent::Scene(scene_id) {
+				node.parent = NodeParent::Node(orc_base_node_id);
+			}
+		}
+
+		log::info!("continue");
+
+		let mut rng = rand::thread_rng();
+
+		for _ in 0..10 {
+			let node_id = state.clone_node(orc_base_node_id);
+			let node = state.nodes.get_mut(&node_id).unwrap();
+			node.parent = NodeParent::Scene(scene_id);
+			let x = rng.gen_range(-20.0..20.0);
+			let z = rng.gen_range(-20.0..20.0);
+			let pos = Vec3::new(x, 10.0, z);
+			node.translation = pos;
+
+			let orc = Orc::new(node_id);
+			self.orcs.push(orc);
+		}
+
+		log::info!("continue2");
 
 		let texture = Texture::new("./assets/gandalf.jpg");
 	 	let texture_id = state.textures.insert(texture);
-
-		for orc in self.orcs.iter_mut() {
-			orc.on_create(state, node_id);
-		}
 
 		let scene = Scene::new();
 		let scene_id = state.scenes.insert(scene);

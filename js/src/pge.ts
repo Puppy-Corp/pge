@@ -4,7 +4,8 @@ const path = "../target/debug/libpge.dylib"
 
 const {
 	symbols: {
-		pge_window_create
+		pge_window_create,
+		pge_set_node_translation
 	}
 } = dlopen(
 	path,
@@ -12,6 +13,10 @@ const {
 		pge_window_create: {
 			args: [],
 			returns: FFIType.u32
+		},
+		pge_set_node_translation: {
+			args: ["u32", "f32", "f32", "f32"],
+			returns: FFIType.void
 		}
 	}
 )
@@ -24,12 +29,37 @@ const eventCallback = new JSCallback(
 	}
 )
 
+
+const onProcess = new JSCallback(
+	() => {},
+	{
+		returns: FFIType.void,
+		args: []
+	}
+)
+
+const onKeyboardEvent = new JSCallback(
+	(keyCode, pressed) => {},
+	{
+		returns: FFIType.void,
+		args: ["u32", "bool"]
+	}
+)
+
+const onMouseMoved = new JSCallback(
+	(dx, dy) => {},
+	{
+		returns: FFIType.void,
+		args: ["f32", "f32"]
+	}
+)
+
 const res = pge_window_create()
 
 export class Vec3 {
-	public x: number
-	public y: number
-	public z: number
+	public x: number = 0
+	public y: number = 0
+	public z: number = 0
 }
 
 enum EulerRot {
@@ -53,9 +83,17 @@ class List<T> {
 
 export class Node {
 	private id: number
-	public rotation: Quat
-	public translation: Vec3
-	public scale: Vec3
+	// public rotation: Quat
+	// public translation: Vec3
+	// public scale: Vec3
+
+	public set rotation(rot: Quat) {
+		this.rotation = rot
+	}
+
+	public set translation(translation: Vec3) {
+		pge_set_node_translation(this.id, translation.x, translation.y, translation.z)
+	}
 
 	children: List<Node | Camera | PointLight | Texture> = [];
 }
@@ -145,6 +183,8 @@ export type MouseMovedEvent = {
 	dy: number
 }
 
+export const windows: Window[] = []
+
 export class Window {
 	public title?: string
 	public ui: UI
@@ -156,6 +196,7 @@ export class Window {
 		if (props.show) {
 			this.show = props.show
 		}*/
+		windows.push(this)
 	}
 
 	static async create(props: {

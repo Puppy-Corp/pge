@@ -1,5 +1,5 @@
 use crate::buffer::*;
-use crate::engine_state::EngineState;
+use crate::state_benches::EngineState;
 use crate::internal_types::EngineEvent;
 use crate::renderer::*;
 use crate::texture::create_texture_with_uniform_color;
@@ -47,9 +47,9 @@ struct GuiBuffers {
 
 impl GuiBuffers {
     pub fn new(device: Arc<wgpu::Device>, queue: Arc<wgpu::Queue>) -> Self {
-        let vertices_buffer = Buffer::new(device.clone(), queue.clone());
-		let index_buffer = Buffer::new(device.clone(), queue.clone());
-		let color_buffer = Buffer::new(device.clone(), queue.clone());
+        let vertices_buffer = Buffer::new("vertices".to_string(), device.clone(), queue.clone());
+		let index_buffer = Buffer::new("indices".to_string(), device.clone(), queue.clone());
+		let color_buffer = Buffer::new("colors".to_string(), device.clone(), queue.clone());
         Self {
             vertices_buffer,
             index_buffer,
@@ -125,12 +125,12 @@ where
 
         let default_texture = create_texture_with_uniform_color(&device, &queue);
 
-        let vertices_buffer = Buffer::new(device.clone(), queue.clone());
-        let tex_coords_buffer = Buffer::new(device.clone(), queue.clone());
-        let normal_buffer = Buffer::new(device.clone(), queue.clone());
-        let index_buffer = Buffer::new(device.clone(), queue.clone());
+        let vertices_buffer = Buffer::new("vertices".to_string(), device.clone(), queue.clone());
+        let tex_coords_buffer = Buffer::new("tex_coords".to_string(), device.clone(), queue.clone());
+        let normal_buffer = Buffer::new("normals".to_string(), device.clone(), queue.clone());
+        let index_buffer = Buffer::new("indices".to_string(), device.clone(), queue.clone());
 
-		let default_point_lights = BindableBuffer::new(device.clone(), queue.clone());
+		let default_point_lights = BindableBuffer::new("default_point_lights".to_string(), device.clone(), queue.clone());
 
         Self {
             app,
@@ -214,10 +214,10 @@ where
             }
 			b.dirty = false;
 
-			log::info!("[{:?}] writing instance buffer len: {} data: {:?}", index, b.len(), b.data());
+			log::info!("[{:?}] writing instance buffer len: {}", index, b.len());
 
             let buff = self.scene_instance_buffers.entry(*index).or_insert(
-                Buffer::new(self.device.clone(), self.queue.clone()),
+                Buffer::new("scene_instance_buffer".to_string(), self.device.clone(), self.queue.clone()),
             );
 
             buff.write(&b.data());
@@ -228,10 +228,10 @@ where
             }
 			b.dirty = false;
 
-			log::info!("[{:?}] writing point light buffer len: {} data: {:?}", id.index(), b.len(), b.data());
+			log::info!("[{:?}] writing point light buffer len: {}", id.index(), b.len());
 
             let buff = self.point_light_buffers.entry(*id)
-                .or_insert(BindableBuffer::new(self.device.clone(), self.queue.clone()));
+                .or_insert(BindableBuffer::new("point_light_buffer".to_string(), self.device.clone(), self.queue.clone()));
 
             buff.write(&b.data());
         }
@@ -242,14 +242,14 @@ where
             }
 			b.dirty = false;
 
-            log::info!("[{:?}] writing camera buffer len: {} data: {:?}", id.index(), b.len(), b.data());
+            log::info!("[{:?}] writing camera buffer len: {}", id.index(), b.len());
 
 			let data = Mat4::IDENTITY.to_cols_array();
 
             let buff = self
                 .camera_buffers
                 .entry(*id)
-                .or_insert(BindableBuffer::new(self.device.clone(), self.queue.clone()));
+                .or_insert(BindableBuffer::new("camera_buffer".to_string(), self.device.clone(), self.queue.clone()));
 
             buff.write(&b.data());
 			//buff.write(bytemuck::cast_slice(&data));

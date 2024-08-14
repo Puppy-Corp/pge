@@ -67,6 +67,14 @@ impl<T> Arena<T> {
         }
     }
 
+	pub fn reserve(&mut self, size: usize) {
+		self.items.reserve(size);
+	}
+
+	pub fn mem_size(&self) -> usize {
+		std::mem::size_of_val(&self) + self.items.capacity() * std::mem::size_of::<Option<T>>()
+	}
+
     pub fn get(&self, id: &ArenaId<T>) -> Option<&T> {
         self.items.get(id.index).and_then(|opt| opt.as_ref())
     }

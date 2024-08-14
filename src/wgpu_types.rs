@@ -272,7 +272,7 @@ impl BufferRecipe for RawInstance {
 		device.create_buffer(&wgpu::BufferDescriptor {
 			label: Some("Instance Buffer"),
 			size,
-			usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+			usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC,
 			mapped_at_creation: false,
 		})
 	}

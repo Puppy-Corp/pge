@@ -11,8 +11,8 @@ impl<B> BindableBuffer<B>
 where
 	B: BindableBufferRecipe + BufferRecipe,
 {
-	pub fn new(device: Arc<wgpu::Device>, queue: Arc<wgpu::Queue>) -> Self {
-		let buffer = Buffer::new(device, queue);
+	pub fn new(name: String, device: Arc<wgpu::Device>, queue: Arc<wgpu::Queue>) -> Self {
+		let buffer = Buffer::new(name, device, queue);
 		let bind_group_layout = B::create_bind_group_layout(&buffer.device);
 		let bind_group = B::create_bind_group(&buffer.device, buffer.buffer(), &bind_group_layout);
 		Self {
@@ -42,6 +42,7 @@ where
 }
 
 pub struct Buffer<B> {
+	name: String,
 	device: Arc<wgpu::Device>,
 	queue: Arc<wgpu::Queue>,
 	buffer: wgpu::Buffer,
@@ -50,9 +51,10 @@ pub struct Buffer<B> {
 }
 
 impl<B: BufferRecipe> Buffer<B> {
-	pub fn new(device: Arc<wgpu::Device>, queue: Arc<wgpu::Queue>) -> Self {
+	pub fn new(name: String, device: Arc<wgpu::Device>, queue: Arc<wgpu::Queue>) -> Self {
 		let buffer = B::create_buffer(&device, 1024);
 		Self {
+			name,
 			device,
 			queue,
 			buffer,
@@ -76,7 +78,7 @@ impl<B: BufferRecipe> Buffer<B> {
 
 	fn resize_and_copy(&mut self, new_size: u64) {
 		let new_size = new_size.max(1024);
-		log::info!("resizing buffer from {} to {}", self.size, new_size);
+		log::info!("[{}] resizing buffer from {} to {}", self.name, self.size, new_size);
 		let new_buffer = B::create_buffer(&self.device, new_size);
 
 		let mut encoder = self

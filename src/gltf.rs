@@ -11,6 +11,7 @@ use crate::AnimationOutput;
 use crate::ArenaId;
 use crate::Material;
 use crate::Mesh;
+use crate::Model3D;
 use crate::Node;
 use crate::NodeParent;
 use crate::Primitive;
@@ -126,19 +127,20 @@ pub fn load_node(n: &gltf::Node, buffers: &[Data], state: &mut State, parser_sta
 	}
 }
 
-pub fn load_scene(s: &gltf::Scene, buffers: &[Data], state: &mut State, parser_state: &mut ParserState) {
+pub fn load_scene(s: &gltf::Scene, buffers: &[Data], state: &mut State, parser_state: &mut ParserState) -> ArenaId<Scene> {
 	let scene = Scene {
 		name: Some(s.name().unwrap_or_default().to_string()),
 		..Default::default()
 	};
 
 	let scene_id = state.scenes.insert(scene);
-
 	let parent = NodeParent::Scene(scene_id);
 
 	for node in s.nodes() {
 		load_node(&node, buffers, state, parser_state, parent);
-	}	
+	}
+
+	scene_id
 }
 
 pub fn load_animation(anim: &gltf::Animation, buffers: &[Data], state: &mut State, parser_state: &mut ParserState) {
@@ -246,7 +248,9 @@ pub fn load_animation(anim: &gltf::Animation, buffers: &[Data], state: &mut Stat
 	state.animations.insert(animation);
 }
 
-pub fn load_gltf<P: AsRef<Path>>(p: P, state: &mut State) {
+pub fn load_gltf<P: AsRef<Path>>(p: P, state: &mut State) -> Model3D {
+	let mut model = Model3D::default();
+
 	let mut parser_state = ParserState::new();
 
 	let p = p.as_ref();
@@ -256,13 +260,20 @@ pub fn load_gltf<P: AsRef<Path>>(p: P, state: &mut State) {
 		Ok(r) => r,
 		Err(e) => {
 			log::error!("Failed to load gltf file: {:?}", e);
-			return;
+			return model;
 		},
 	};
 
+	if let Some(s) = document.default_scene() {
+		log::info!("Default scene: {}", s.name().unwrap_or("Unnamed"));
+		let scene_id = load_scene(&s, &buffers, state, &mut parser_state);
+		model.default_scene = Some(scene_id);
+	}
+
 	for s in document.scenes() {
 		log::info!("Scene: {}", s.name().unwrap_or("Unnamed"));
-		load_scene(&s, &buffers, state, &mut parser_state)
+		let scene_id = load_scene(&s, &buffers, state, &mut parser_state);
+		model.scenes.push(scene_id);
 	}
 
 	for image in images {
@@ -346,6 +357,8 @@ pub fn load_gltf<P: AsRef<Path>>(p: P, state: &mut State) {
 	for skin in document.skins() {
 		log::info!("Skin: {}", skin.name().unwrap_or("Unnamed"));
 	}
+
+	model
 }
 
 

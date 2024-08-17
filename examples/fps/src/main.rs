@@ -157,7 +157,7 @@ impl pge::App for FpsShooter {
 			if node.parent == NodeParent::Scene(ork_scene_id) {
 				node.parent = NodeParent::Node(orc_base_node_id);
 			}
-		}
+		} 
 
 		// log::info!("continue");
 
@@ -218,6 +218,24 @@ impl pge::App for FpsShooter {
 		player.collision_shape = Some(CollisionShape::Box { size: glam::Vec3::new(1.0, 2.0, 1.0) });
 		player.parent = NodeParent::Scene(scene_id);
 		let player_id = state.nodes.insert(player);
+
+		{
+			let mut node = Node::new();
+			node.parent = NodeParent::Node(player_id);
+			node.translation = glam::Vec3::new(0.3, -1.0, 1.0);
+			// rotate 180 degrees
+			node.rotation = glam::Quat::from_euler(glam::EulerRot::YXZ, PI, 0.0, 0.0);
+			let node_id = state.nodes.insert(node);
+			let ak47_model_id = state.load_3d_model("./assets/ak47.glb");
+			let model = state.models.get(&ak47_model_id).unwrap();
+			let ak47_scene_id = model.scenes[0];
+			for (_, node) in &mut state.nodes.iter_mut() {
+				if node.parent == NodeParent::Scene(ak47_scene_id) {
+					node.parent = NodeParent::Node(node_id);
+				}
+			}
+		}
+		
 
 		let raycast = RayCast::new(player_id, 10.0);
 		let player_ray_inx = state.raycasts.insert(raycast);

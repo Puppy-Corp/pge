@@ -11,6 +11,7 @@ struct PgeEditor {
 	asset_path: Option<String>,
 	windows: Vec<ArenaId<Window>>,
 	scenes: HashSet<ArenaId<Scene>>,
+	camera_nodes: HashSet<ArenaId<Node>>,
 }
 
 impl PgeEditor {
@@ -19,6 +20,7 @@ impl PgeEditor {
 			asset_path: None,
 			windows: Vec::new(),
 			scenes: HashSet::new(),
+			camera_nodes: HashSet::new(),
 		}
 	}
 
@@ -58,6 +60,7 @@ impl pge::App for PgeEditor {
 					camera_node.looking_at(0.0, 1.0, 0.0);
 					camera_node.parent = NodeParent::Scene(scene_id);
 					let camera_node_id = state.nodes.insert(camera_node);
+					self.camera_nodes.insert(camera_node_id);
 
 					let mut camera = Camera::new();
 					camera.node_id = Some(camera_node_id);
@@ -66,10 +69,28 @@ impl pge::App for PgeEditor {
 					let ui = camera_view(camera_id);
 					let ui_id = state.guis.insert(ui);
 
-					let window = Window::new().title(&name).ui(ui_id);
+					let window = Window::new().title(&name).ui(ui_id).lock_cursor(true);
 					state.windows.insert(window);
 				},
 			}
+		}
+	}
+
+	fn on_mouse_input(&mut self, event: MouseEvent, state: &mut State) {
+		match event {
+			MouseEvent::Moved { dx, dy } => {
+				let sensitivity = 0.005;
+				let rotation_x = Quat::from_axis_angle(Vec3::Y, -dx * sensitivity);
+				let rotation_y = Quat::from_axis_angle(Vec3::X, -dy * sensitivity);
+				let rotation = rotation_y * rotation_x;
+
+				for node_id in &self.camera_nodes {
+					if let Some(node) = state.nodes.get_mut(node_id) {
+						node.rotation = rotation * node.rotation;
+					}
+				}
+			},
+			_ => {}
 		}
 	}
 }

@@ -1,5 +1,5 @@
 use crate::buffer::*;
-use crate::state_benches::EngineState;
+use crate::engine_state::EngineState;
 use crate::internal_types::EngineEvent;
 use crate::renderer::*;
 use crate::texture::create_texture_with_uniform_color;
@@ -483,7 +483,9 @@ where
     T: App,
 {
     fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+		log::info!("calling on_create");
         self.app.on_create(&mut self.state.state);
+		log::info!("on_create done");
         self.state.process(0.0);
         self.update_windows(event_loop);
     }

@@ -196,7 +196,9 @@ impl EngineState {
 
 				let node = match self.state.nodes.get(&node_id) {
 					Some(node) => node,
-					None => continue,
+					None => {
+						panic!("Node with ID {:?} not found", node_id);
+					},
 				};
 	
 				let node_metadata = match node.parent {
@@ -230,9 +232,8 @@ impl EngineState {
 						NodeMetadata { scene_id, model }
 					}
 					NodeParent::Orphan => {
-						//log::error!("node {:?} is orphan", node_id.index());
-						stack.pop();
-						continue;
+						processed_nodes.insert(node_id);
+						break;
 					}
 				};
 
@@ -276,7 +277,6 @@ impl EngineState {
 			}
 		}
 
-		// log::info!("mesh_nodes: {:?}", self.mesh_nodes);
 		self.printer.print(
 			MESH_NODES_SLOT,
 			format!("mesh nodes: {:?}", self.mesh_nodes),

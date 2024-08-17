@@ -141,21 +141,25 @@ impl FpsShooter {
 
 impl pge::App for FpsShooter {
 	fn on_create(&mut self, state: &mut State) {
+		let scene = Scene::new();
+		let scene_id = state.scenes.insert(scene);
+
 		let model_id = state.load_3d_model("./assets/orkki.glb");
-		let scene_id = {
+		let ork_scene_id = {
 			let model = state.models.get(&model_id).unwrap();
 			model.scenes[0]
 		};
-		let orc_base_node = Node::new();
+		let mut orc_base_node = Node::new();
+		orc_base_node.parent = NodeParent::Orphan;
 		let orc_base_node_id = state.nodes.insert(orc_base_node);
 		
 		for (node_id, node) in &mut state.nodes.iter_mut() {
-			if node.parent == NodeParent::Scene(scene_id) {
+			if node.parent == NodeParent::Scene(ork_scene_id) {
 				node.parent = NodeParent::Node(orc_base_node_id);
 			}
 		}
 
-		log::info!("continue");
+		// log::info!("continue");
 
 		let mut rng = rand::thread_rng();
 
@@ -163,6 +167,9 @@ impl pge::App for FpsShooter {
 			let node_id = state.clone_node(orc_base_node_id);
 			let node = state.nodes.get_mut(&node_id).unwrap();
 			node.parent = NodeParent::Scene(scene_id);
+			node.physics.typ = PhycisObjectType::Dynamic;
+			node.physics.mass = 10.0;
+			node.collision_shape = Some(CollisionShape::Box { size: glam::Vec3::new(1.0, 3.0, 1.0) });
 			let x = rng.gen_range(-20.0..20.0);
 			let z = rng.gen_range(-20.0..20.0);
 			let pos = Vec3::new(x, 10.0, z);
@@ -176,9 +183,6 @@ impl pge::App for FpsShooter {
 
 		let texture = Texture::new("./assets/gandalf.jpg");
 	 	let texture_id = state.textures.insert(texture);
-
-		let scene = Scene::new();
-		let scene_id = state.scenes.insert(scene);
 
 		let cube_mesh = state.meshes.insert(cube(0.5).set_texture(texture_id));
 		let plane_mesh = state.meshes.insert(plane(1.0, 1.0).set_texture(texture_id));

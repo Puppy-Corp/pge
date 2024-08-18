@@ -306,8 +306,6 @@ impl EngineState {
 						continue;
 					}
 
-					let mesh: Mesh = cube(0.5);
-
 					let vertices_start = self.triangles.vertices.len() as u64;
 					self.triangles.vertices.extend_from_slice(bytemuck::cast_slice(&primitive.vertices));
 					let vertices_end = self.triangles.vertices.len() as u64;

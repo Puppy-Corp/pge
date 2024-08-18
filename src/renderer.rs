@@ -294,8 +294,8 @@ impl Renderer<'_> {
                     render_pass.set_bind_group(2, &call.texture_bind_group, &[]);
                     render_pass.set_vertex_buffer(0, view.vertices_buffer.slice(call.vertices.clone()));
                     render_pass.set_vertex_buffer(1, view.instance_buffer.slice(..));
-                    render_pass.set_vertex_buffer(2, view.normal_buffer.slice(..));
-                    render_pass.set_vertex_buffer(3, view.tex_coords_buffer.slice(..));
+                    render_pass.set_vertex_buffer(2, view.normal_buffer.slice(call.normal_range.clone()));
+                    render_pass.set_vertex_buffer(3, view.tex_coords_buffer.slice(call.tex_coords_range.clone()));
                     render_pass.set_index_buffer(view.index_buffer.slice(call.index_range.clone()), wgpu::IndexFormat::Uint16);
                     render_pass.draw_indexed(call.indices_range.clone(), 0, call.instances_range.clone());
                 }

@@ -3,12 +3,14 @@ use crate::engine_state::EngineState;
 use crate::internal_types::EngineEvent;
 use crate::renderer::*;
 use crate::texture::create_texture_with_uniform_color;
+use crate::texture::load_image;
 use crate::types::*;
 use crate::wgpu_types::*;
 use crate::ArenaId;
 use crate::GUIElement;
 use crate::Window;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::ops::Range;
 use std::sync::Arc;
 use std::time::Duration;
@@ -91,6 +93,7 @@ struct Engine<'a, T> {
 	default_point_lights: BindableBuffer<RawPointLight>,
     proxy: EventLoopProxy<EngineEvent>,
     scene_instance_buffers: HashMap<ArenaId<Scene>, Buffer<RawInstance>>,
+	textures: HashSet<ArenaId<Texture>>,
 }
 
 impl<'a, T> Engine<'a, T>
@@ -153,21 +156,22 @@ where
             default_texture,
             proxy,
             scene_instance_buffers: HashMap::new(),
-			default_point_lights
+			default_point_lights,
+			textures: HashSet::new(),
         }
     }
 
     pub fn update_buffers(&mut self) {
-        // let mut new_textures = Vec::new();
-        // for (texture_id, texture) in &self.state.state.textures {
-        //     if let None = self.state.textures.get(&texture_id) {
-        //         new_textures.push((texture_id, texture.clone()));
-        //         load_image(self.proxy.clone(), texture.source.clone(), texture_id)
-        //     }
-        // }
-        // for t in new_textures {
-        //     self.state.textures.insert(t.0, t.1);
-        // }
+        let mut new_textures = Vec::new();
+        for (texture_id, texture) in &self.state.state.textures {
+            if !self.textures.contains(&texture_id) {
+                new_textures.push((texture_id, texture.clone()));
+                load_image(self.proxy.clone(), texture.source.clone(), texture_id)
+            }
+        }
+        for t in new_textures {
+            self.textures.insert(t.0);
+        }
 
 		// let vertices: [[f32; 3]; 4] = [[0.0, 0.5, 0.0], [-0.5, -0.5, 0.0], [0.5, -0.5, 0.0], [0.0, 0.0, 0.0]];
 		// let indices: [u16; 4] = [0, 1, 2, 0];
@@ -197,7 +201,7 @@ where
             self.state.triangles.indices.dirty = false;
         }
         if self.state.triangles.tex_coords.len() > 0 && self.state.triangles.tex_coords.dirty {
-            //log::info!("writing triangle tex coords len: {}", self.state.triangles.tex_coords.len());
+            log::info!("writing triangle tex coords len: {}", self.state.triangles.tex_coords.len());
             self.tex_coords_buffer
                 .write(&self.state.triangles.tex_coords.data());
             self.state.triangles.tex_coords.dirty = false;
@@ -377,10 +381,16 @@ where
                     .iter()
                     .map(|d| {
                         let texture_bind_group = match d.texture {
-                            Some(t) => self
+                            Some(t) => {
+								match self
                                 .texture_bind_groups
-                                .get(&t)
-                                .unwrap_or(&self.default_texture),
+                                .get(&t) {
+									Some(t) => {
+										t
+									},
+									None => &self.default_texture,
+								}
+							}
                             None => &self.default_texture,
                         };
 

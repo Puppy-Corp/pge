@@ -187,23 +187,23 @@ where
 		// self.index_buffer.write(indices_data);
 
         if self.state.triangles.vertices.len() > 0 && self.state.triangles.vertices.dirty {
-            log::info!("writing triangle vertices len: {}", self.state.triangles.vertices.len());
+            //log::info!("writing triangle vertices len: {}", self.state.triangles.vertices.len());
     		self.vertices_buffer.write(&self.state.triangles.vertices.data());
             self.state.triangles.vertices.dirty = false;
         }
         if self.state.triangles.indices.len() > 0 && self.state.triangles.indices.dirty {
-            log::info!("writing triangle indices len: {}", self.state.triangles.indices.len());
+            //log::info!("writing triangle indices len: {}", self.state.triangles.indices.len());
 			self.index_buffer.write(&self.state.triangles.indices.data());
             self.state.triangles.indices.dirty = false;
         }
         if self.state.triangles.tex_coords.len() > 0 && self.state.triangles.tex_coords.dirty {
-            log::info!("writing triangle tex coords len: {}", self.state.triangles.tex_coords.len());
+            //log::info!("writing triangle tex coords len: {}", self.state.triangles.tex_coords.len());
             self.tex_coords_buffer
                 .write(&self.state.triangles.tex_coords.data());
             self.state.triangles.tex_coords.dirty = false;
         }
         if self.state.triangles.normals.len() > 0 && self.state.triangles.normals.dirty {
-            log::info!("writing triangle normals len: {}", self.state.triangles.normals.len());
+            //log::info!("writing triangle normals len: {}", self.state.triangles.normals.len());
             self.normal_buffer.write(&self.state.triangles.normals.data());
             self.state.triangles.normals.dirty = false;
         }
@@ -214,7 +214,7 @@ where
             }
 			b.dirty = false;
 
-			log::info!("[{:?}] writing instance buffer len: {}", index, b.len());
+			//log::info!("[{:?}] writing instance buffer len: {}", index, b.len());
 
             let buff = self.scene_instance_buffers.entry(*index).or_insert(
                 Buffer::new("scene_instance_buffer".to_string(), self.device.clone(), self.queue.clone()),
@@ -228,7 +228,7 @@ where
             }
 			b.dirty = false;
 
-			log::info!("[{:?}] writing point light buffer len: {}", id.index(), b.len());
+			//log::info!("[{:?}] writing point light buffer len: {}", id.index(), b.len());
 
             let buff = self.point_light_buffers.entry(*id)
                 .or_insert(BindableBuffer::new("point_light_buffer".to_string(), self.device.clone(), self.queue.clone()));
@@ -242,7 +242,7 @@ where
             }
 			b.dirty = false;
 
-            log::info!("[{:?}] writing camera buffer len: {}", id.index(), b.len());
+            //log::info!("[{:?}] writing camera buffer len: {}", id.index(), b.len());
 
 			let data = Mat4::IDENTITY.to_cols_array();
 

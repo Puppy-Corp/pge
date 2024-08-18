@@ -1,4 +1,6 @@
 use std::f32::consts::PI;
+use std::os::macos::raw::stat;
+use std::time::Instant;
 
 use pge::*;
 use rand::Rng;
@@ -86,7 +88,7 @@ impl Orc {
 
 pub struct FpsShooter {
 	sensitivity: f32,
-	player_inx: Option<ArenaId<Node>>,
+	player_id: Option<ArenaId<Node>>,
 	light_inx: Option<ArenaId<Node>>,
 	light_circle_i: f32,
 	pressed_keys: PressedKeys,
@@ -100,6 +102,12 @@ pub struct FpsShooter {
 	gripping_node: Option<ArenaId<Node>>,
 	rng: rand::rngs::ThreadRng,
 	orcs: Vec<Orc>,
+	shooting: bool,
+	firing_rate: Instant,
+	bullet_mesh: Option<ArenaId<Mesh>>,
+	main_scene: Option<ArenaId<Scene>>,
+	move_force: Vec3,
+	recoil_force: Vec3,
 }
 
 impl FpsShooter {
@@ -107,7 +115,7 @@ impl FpsShooter {
 		let mut rng = rand::thread_rng();
 
 		Self {
-			player_inx: None,
+			player_id: None,
 			light_inx: None,
 			sensitivity: 0.001,
 			pressed_keys: PressedKeys::new(),
@@ -122,6 +130,12 @@ impl FpsShooter {
 			gripping_node: None,
 			rng,
 			orcs: Vec::new(),
+			shooting: false,
+			firing_rate: Instant::now(),
+			bullet_mesh: None,
+			main_scene: None,
+			move_force: Vec3::ZERO,
+			recoil_force: Vec3::ZERO,
 		}
 	}
 }
@@ -137,12 +151,167 @@ impl FpsShooter {
 			self.pitch = -PI / 2.0;
 		}
 	}
+
+	fn handle_rays(&mut self, state: &mut State) {
+		if let Some(player_ray_inx) = self.player_ray {
+			if let Some(player_ray) = state.raycasts.get_mut(&player_ray_inx) {
+				if player_ray.intersects.len() > 0 {
+					if !self.gripping {
+						return;
+					}
+	
+					// log::info!("player ray intersects: {:?}", player_ray.intersects);
+	
+					let translation = {
+						let player_inx = match self.player_id {
+							Some(index) => index,
+							None => return,
+						};
+	
+						let player = match state.nodes.get_mut(&player_inx) {
+							Some(node) => node,
+							None => return,
+						};
+	
+						let dir = player.rotation * Vec3::new(0.0, 0.0, 1.0);
+						player.translation + dir * 5.0
+					};
+	
+					let first_node = match player_ray.intersects.first() {
+						Some(inx) => {
+							self.gripping_node = Some(*inx);
+							match state.nodes.get_mut(inx) {
+								Some(node) => node,
+								None => return,
+							}
+						},
+						None => return,
+					};
+	
+					if first_node.physics.typ != PhycisObjectType::Dynamic {
+						return;
+					}
+	
+					first_node.translation = translation;
+				}
+			}
+		}
+	}
+
+	fn handle_dashing(&mut self, state: &mut State) {
+		if self.dashing {
+			let player_inx = match self.player_id {
+				Some(index) => index,
+				None => return,
+			};
+			let player = match state.nodes.get_mut(&player_inx) {
+				Some(node) => node,
+				None => return,
+			};
+			let dir = player.rotation * Vec3::new(0.0, 0.0, 1.0);
+			player.physics.velocity = dir * 100.0;
+		}
+	}
+
+
+	fn handle_shooting(&mut self, state: &mut State) {
+		if self.firing_rate.elapsed().as_secs_f32() < 0.1 {
+			return;
+		}
+		self.firing_rate = Instant::now();
+
+		if !self.shooting {
+			self.recoil_force = Vec3::ZERO;
+			return;
+		}
+
+		let player_inx = match self.player_id {
+			Some(index) => index,
+			None => return,
+		};
+
+
+
+		if let Some(bullet_mesh_id) = self.bullet_mesh {
+			log::info!("spawn bullet");
+			let mut bullet = Node::new();
+			bullet.mesh = Some(bullet_mesh_id);
+			bullet.physics.typ = PhycisObjectType::Dynamic;
+			bullet.physics.mass = 1.0;
+			bullet.collision_shape = Some(CollisionShape::Box { size: glam::Vec3::new(0.3, 0.3, 0.3) });
+			bullet.parent = NodeParent::Scene(self.main_scene.unwrap());
+			let rotation = state.nodes.get(&player_inx).unwrap().rotation;
+			let mut translation = state.nodes.get(&player_inx).unwrap().translation;
+			// location in fron of player
+			translation += rotation * Vec3::new(0.0, 0.0, 3.0);
+			bullet.translation = translation;
+			
+			let dir = rotation * Vec3::new(0.0, 0.0, 1.0);
+			bullet.physics.velocity = dir * 50.0;
+			state.nodes.insert(bullet);
+		}
+
+		let player = match state.nodes.get_mut(&player_inx) {
+			Some(node) => node,
+			None => return,
+		};
+
+		let dir = player.rotation * Vec3::new(0.0, 0.0, 0.3);
+		self.recoil_force = dir * -100.0;
+
+		// rotate comera up
+		self.pitch -= 0.05;
+		// let rot = glam::Quat::from_euler(glam::EulerRot::YXZ, 0.0, 0.3, 0.0);
+		// player.rotation = rot * player.rotation;
+	}
+
+	fn handle_player_move(&mut self, state: &mut State) {
+		let player_id = match self.player_id {
+			Some(index) => index,
+			None => return,
+		};
+
+		if let Some(player) = state.nodes.get_mut(&player_id) {
+			let current_speed = player.physics.velocity.length();
+			if self.pressed_keys.any_pressed() {
+				let dir = self.pressed_keys.to_vec3();
+				let mut force = player.rotation * dir;
+
+				if force.x > 0.0 && player.physics.velocity.x < 0.0 {
+					force.x += -player.physics.velocity.x * self.movement_force;
+				} else if force.x < 0.0 && player.physics.velocity.x > 0.0 {
+					force.x += -player.physics.velocity.x * self.movement_force;
+				} else if current_speed < 25.0 {
+					force.x *= self.movement_force;
+				} 
+
+				if force.z > 0.0 && player.physics.velocity.z < 0.0 {
+					force.z += -player.physics.velocity.z * self.movement_force;
+				} else if force.z < 0.0 && player.physics.velocity.z > 0.0 {
+					force.z += -player.physics.velocity.z * self.movement_force;
+				} else if current_speed < 25.0 {
+					force.z *= self.movement_force;
+				}
+
+				force.y = 0.0;
+
+				self.move_force = force;
+				// log::info!("force: {:?}", player.physics.force);
+			} else {
+				// We calculate force opposite of momevement to slow down the player
+				let force = -player.physics.velocity.xz() * self.movement_force;
+				self.move_force = glam::Vec3::new(force.x, 0.0, force.y);
+				//player.physics.force = glam::Vec3::ZERO;
+			}
+		}
+	}
 }
 
 impl pge::App for FpsShooter {
 	fn on_create(&mut self, state: &mut State) {
 		let scene = Scene::new();
 		let scene_id = state.scenes.insert(scene);
+		self.main_scene = Some(scene_id);
 
 		let model_id = state.load_3d_model("./assets/orkki.glb");
 		let ork_scene_id = {
@@ -158,6 +327,10 @@ impl pge::App for FpsShooter {
 				node.parent = NodeParent::Node(orc_base_node_id);
 			}
 		} 
+
+		let bullet_mesh = cube(0.3);
+		let bullet_mesh_id = state.meshes.insert(bullet_mesh);
+		self.bullet_mesh = Some(bullet_mesh_id);
 
 		// log::info!("continue");
 
@@ -261,7 +434,7 @@ impl pge::App for FpsShooter {
 		camera.zfar = 1000.0;
 		camera.node_id = Some(player_id);
 		let camera_id = state.cameras.insert(camera);
-		self.player_inx = Some(player_id);
+		self.player_id = Some(player_id);
 
 		let gui = stack(&[
 			camera_view(camera_id),
@@ -281,7 +454,7 @@ impl pge::App for FpsShooter {
 					KeyboardKey::A => self.pressed_keys.left = true,
 					KeyboardKey::D => self.pressed_keys.right = true,
 					KeyboardKey::Space => {
-						let player_inx = match self.player_inx {
+						let player_inx = match self.player_id {
 							Some(index) => index,
 							None => return,
 						};
@@ -310,7 +483,7 @@ impl pge::App for FpsShooter {
 			},
 		};
 
-		let player = match self.player_inx {
+		let player = match self.player_id {
 			Some(index) => match state.nodes.get_mut(&index) {
 				Some(node) => node,
 				None => return,
@@ -325,7 +498,7 @@ impl pge::App for FpsShooter {
 	fn on_mouse_input(&mut self, event: MouseEvent, state: &mut State) {
 		match event {
 			MouseEvent::Moved { dx, dy } => {
-				let player_inx = match self.player_inx {
+				let player_inx = match self.player_id {
 					Some(index) => index,
 					None => {
 						log::error!("Player not found");
@@ -343,7 +516,7 @@ impl pge::App for FpsShooter {
 							self.gripping = false;
 
 							let push_vel = {
-								let player_inx = match self.player_inx {
+								let player_inx = match self.player_id {
 									Some(index) => index,
 									None => return,
 								};
@@ -360,13 +533,20 @@ impl pge::App for FpsShooter {
 							if let Some(node) = state.nodes.get_mut(&gripping_node) {
 								node.physics.velocity = push_vel;
 							}
+						} else {
+							self.shooting = true;
 						}
 					},
 					_ => {}
 				}
 			},
 			MouseEvent::Released { button } => {
-
+				match button {
+					MouseButton::Left => {
+						self.shooting = false;
+					},
+					_ => {}
+				}
 			},
 		}
 	}
@@ -380,97 +560,15 @@ impl pge::App for FpsShooter {
 			light.set_translation(x, 10.0, z);
 		}
 
-		if let Some(player_inx) = self.player_inx {
-			if let Some(player) = state.nodes.get_mut(&player_inx) {
-				let current_speed = player.physics.velocity.length();
-				if self.pressed_keys.any_pressed() {
-					let dir = self.pressed_keys.to_vec3();
-					let mut force = player.rotation * dir;
+		self.handle_player_move(state);
+		self.handle_dashing(state);
+		self.handle_rays(state);
+		self.handle_shooting(state);
 
-					if force.x > 0.0 && player.physics.velocity.x < 0.0 {
-						force.x += -player.physics.velocity.x * self.movement_force;
-					} else if force.x < 0.0 && player.physics.velocity.x > 0.0 {
-						force.x += -player.physics.velocity.x * self.movement_force;
-					} else if current_speed < 25.0 {
-						force.x *= self.movement_force;
-					} 
-
-					if force.z > 0.0 && player.physics.velocity.z < 0.0 {
-						force.z += -player.physics.velocity.z * self.movement_force;
-					} else if force.z < 0.0 && player.physics.velocity.z > 0.0 {
-						force.z += -player.physics.velocity.z * self.movement_force;
-					} else if current_speed < 25.0 {
-						force.z *= self.movement_force;
-					}
-
-					force.y = 0.0;
-
-					player.physics.force = force;
-					// log::info!("force: {:?}", player.physics.force);
-				} else {
-					// We calculate force opposite of momevement to slow down the player
-					let force = -player.physics.velocity.xz() * self.movement_force;
-					player.physics.force = glam::Vec3::new(force.x, 0.0, force.y);
-					//player.physics.force = glam::Vec3::ZERO;
-				}
-			}
-		}
-
-		if self.dashing {
-			let player_inx = match self.player_inx {
-				Some(index) => index,
-				None => return,
-			};
-			let player = match state.nodes.get_mut(&player_inx) {
-				Some(node) => node,
-				None => return,
-			};
-			let dir = player.rotation * Vec3::new(0.0, 0.0, 1.0);
-			player.physics.velocity = dir * 100.0;
-		}
-
-		if let Some(player_ray_inx) = self.player_ray {
-			if let Some(player_ray) = state.raycasts.get_mut(&player_ray_inx) {
-				if player_ray.intersects.len() > 0 {
-					if !self.gripping {
-						return;
-					}
-
-					log::info!("player ray intersects: {:?}", player_ray.intersects);
-
-					let translation = {
-						let player_inx = match self.player_inx {
-							Some(index) => index,
-							None => return,
-						};
-
-						let player = match state.nodes.get_mut(&player_inx) {
-							Some(node) => node,
-							None => return,
-						};
-
-						let dir = player.rotation * Vec3::new(0.0, 0.0, 1.0);
-						player.translation + dir * 5.0
-					};
-
-					let first_node = match player_ray.intersects.first() {
-						Some(inx) => {
-							self.gripping_node = Some(*inx);
-							match state.nodes.get_mut(inx) {
-								Some(node) => node,
-								None => return,
-							}
-						},
-						None => return,
-					};
-
-					if first_node.physics.typ != PhycisObjectType::Dynamic {
-						return;
-					}
-
-					first_node.translation = translation;
-				}
-			}
+		if let Some(player_id) = self.player_id {
+			let player = state.nodes.get_mut(&player_id).unwrap();
+			player.physics.force = self.move_force;
+			player.physics.force += self.recoil_force;
 		}
 	}
 }

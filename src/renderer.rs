@@ -279,12 +279,12 @@ impl Renderer<'_> {
             });
 
             for view in args.views {
-                // let vx = view.x * self.size.width as f32;
-                // let vy = view.y * self.size.height as f32;
-                // let vw = view.w * self.size.width as f32;
-                // let vh = view.h * self.size.height as f32;
+                let vx = view.x * self.size.width as f32;
+                let vy = view.y * self.size.height as f32;
+                let vw = view.w * self.size.width as f32;
+                let vh = view.h * self.size.height as f32;
 
-                // render_pass.set_viewport(vx, vy, vw, vh, 0.0, 1.0);
+                render_pass.set_viewport(vx, vy, vw, vh, 0.0, 1.0);
                 render_pass.set_pipeline(&self.pipeline_3d);
                 render_pass.set_bind_group(0, &view.camera_bind_group, &[]);
                 render_pass.set_bind_group(1, &view.point_light_bind_group, &[]);
@@ -299,20 +299,16 @@ impl Renderer<'_> {
                     render_pass.set_index_buffer(view.index_buffer.slice(call.index_range.clone()), wgpu::IndexFormat::Uint16);
                     render_pass.draw_indexed(call.indices_range.clone(), 0, call.instances_range.clone());
                 }
-
-				// render_pass.set_vertex_buffer(0, view.vertices_buffer.slice(..));
-				// render_pass.set_index_buffer(view.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-				// render_pass.draw_indexed(0..48, 0, 0..1);
             }
 
-            // let position_count = args.position_range.clone().count();
-            // if position_count > 0 {
-            //     render_pass.set_pipeline(&self.pipeline_gui);
-            //     render_pass.set_vertex_buffer(0, args.positions_buffer.slice(args.position_range));
-            //     render_pass.set_vertex_buffer(1, args.color_buffer.slice(args.color_range));
-            //     render_pass.set_index_buffer(args.index_buffer.slice(args.index_range), wgpu::IndexFormat::Uint16);
-            //     render_pass.draw_indexed(args.indices_range.clone(), 0, 0..1);
-            // }
+            let position_count = args.position_range.clone().count();
+            if position_count > 0 {
+                render_pass.set_pipeline(&self.pipeline_gui);
+                render_pass.set_vertex_buffer(0, args.positions_buffer.slice(args.position_range));
+                render_pass.set_vertex_buffer(1, args.color_buffer.slice(args.color_range));
+                render_pass.set_index_buffer(args.index_buffer.slice(args.index_range), wgpu::IndexFormat::Uint16);
+                render_pass.draw_indexed(args.indices_range.clone(), 0, 0..1);
+            }
         }
 
         output.present();

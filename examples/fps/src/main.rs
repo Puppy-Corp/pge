@@ -86,6 +86,11 @@ impl Orc {
 	}
 }
 
+struct Bullet {
+	spawned: Instant,
+	node_id: ArenaId<Node>,
+}
+
 pub struct FpsShooter {
 	sensitivity: f32,
 	player_id: Option<ArenaId<Node>>,
@@ -108,6 +113,7 @@ pub struct FpsShooter {
 	main_scene: Option<ArenaId<Scene>>,
 	move_force: Vec3,
 	recoil_force: Vec3,
+	bullets: Vec<Bullet>,
 }
 
 impl FpsShooter {
@@ -136,6 +142,7 @@ impl FpsShooter {
 			main_scene: None,
 			move_force: Vec3::ZERO,
 			recoil_force: Vec3::ZERO,
+			bullets: Vec::new(),
 		}
 	}
 }
@@ -248,7 +255,11 @@ impl FpsShooter {
 			
 			let dir = rotation * Vec3::new(0.0, 0.0, 1.0);
 			bullet.physics.velocity = dir * 50.0;
-			state.nodes.insert(bullet);
+			let bullet_id = state.nodes.insert(bullet);
+			self.bullets.push(Bullet {
+				spawned: Instant::now(),
+				node_id: bullet_id,
+			});
 		}
 
 		let player = match state.nodes.get_mut(&player_inx) {
@@ -570,6 +581,16 @@ impl pge::App for FpsShooter {
 			player.physics.force = self.move_force;
 			player.physics.force += self.recoil_force;
 		}
+
+		self.bullets.retain(|bullet| {
+			if bullet.spawned.elapsed().as_secs_f32() > 5.0 {
+				log::info!("depspawn bullet {:?}", bullet.node_id);
+				state.nodes.remove(&bullet.node_id);
+				false
+			} else {
+				true
+			}
+		});
 	}
 }
 

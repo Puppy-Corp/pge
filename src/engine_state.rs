@@ -277,10 +277,9 @@ impl EngineState {
 			}
 		}
 
-		self.printer.print(
-			MESH_NODES_SLOT,
-			format!("mesh nodes: {:?}", self.mesh_nodes),
-		);
+		for (_, c) in &mut self.scene_collections {
+			c.grid.retain_nodes(|node_id| processed_nodes.contains(&node_id));
+		}
 	}
 
 	fn process_meshes(&mut self) {

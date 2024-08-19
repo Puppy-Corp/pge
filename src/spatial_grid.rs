@@ -49,6 +49,17 @@ impl SpatialGrid {
 		}
 	}
 
+	pub fn retain_nodes(&mut self, f: impl Fn(&ArenaId<Node>) -> bool) {
+		let mut to_remove = HashSet::new();
+		for (node_id, _) in &self.nodes {
+			if !f(node_id) {
+				to_remove.insert(*node_id);
+			}
+		}
+
+		self.rem_nodes(&to_remove);
+	}
+
 	pub fn set_node(&mut self, node_id: ArenaId<Node>, rect: AABB) {
 		match self.nodes.contains_key(&node_id) {
 			true => {

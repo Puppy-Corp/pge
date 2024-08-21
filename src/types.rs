@@ -50,6 +50,9 @@ pub enum KeyboardKey {
 	D,
 	F,
 	G,
+	R,
+	Z,
+	ControlLeft,
 	Space,
 	ShiftLeft,
 	Digit1,
@@ -78,6 +81,9 @@ impl From<KeyCode> for KeyboardKey {
 			KeyCode::Digit4 => Self::Digit3,
 			KeyCode::Digit5 => Self::Digit4,
 			KeyCode::Digit6 => Self::Digit6,
+			KeyCode::KeyR => Self::R,
+			KeyCode::ControlLeft => Self::ControlLeft,
+			KeyCode::KeyZ => Self::Z,
 			_ => Self::Unknow
 		}
 	}

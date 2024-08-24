@@ -699,6 +699,7 @@ impl FontHandle {
 
 #[derive(Debug, Clone, Default)]
 pub struct Model3D {
+	pub path: String,
 	pub default_scene: Option<ArenaId<Scene>>,
 	pub scenes: Vec<ArenaId<Scene>>,
 	pub animations: Vec<Animation>,

@@ -1,5 +1,4 @@
 use std::f32::consts::PI;
-use std::os::macos::raw::stat;
 use std::time::Instant;
 
 use pge::*;

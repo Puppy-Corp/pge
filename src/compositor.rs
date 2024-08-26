@@ -224,8 +224,8 @@ impl Lineariser {
 		}
 
 		if item.children.len() > 0 {	
-			match item.flex_dir {
-				Flex::Horizontal => {
+			match item.layout {
+				Layout::Horizontal => {
 					let total_grow: f32 = item.children.iter().map(|child| child.grow.max(1) as f32).sum();
 					let top_width = outline.top_width();
 					let bottom_width = outline.bottom_width();
@@ -249,7 +249,7 @@ impl Lineariser {
 						}));
 					}
 				},
-				Flex::Vertical => {
+				Layout::Vertical => {
 					let total_grow: f32 = item.children.iter().map(|child| child.grow.max(1) as f32).sum();
 					let left_height = outline.left_height();
 					let right_height = outline.right_height();
@@ -273,7 +273,7 @@ impl Lineariser {
 						}));
 					}
 				},
-				Flex::None => {
+				Layout::Stack => {
 					let up_y = outline.left_up[1];
 					let down_y = outline.left_down[1];
 					let left_x = outline.left_up[0];

@@ -1,4 +1,3 @@
-use crate::idgen::gen_id;
 use crate::ArenaId;
 use crate::Camera;
 use crate::FontHandle;
@@ -77,15 +76,15 @@ pub fn window() -> Window {
 }
 
 #[derive(Clone, Debug)]
-pub enum Flex {
+pub enum Layout {
 	Horizontal,
 	Vertical,
-	None
+	Stack
 }
 
-impl Default for Flex {
+impl Default for Layout {
 	fn default() -> Self {
-		Flex::None
+		Layout::Stack
 	}
 }
 
@@ -93,7 +92,7 @@ impl Default for Flex {
 pub struct GUIElement {
 	pub grow: u32,
 	pub children: Vec<GUIElement>,
-	pub flex_dir: Flex,
+	pub layout: Layout,
 	pub top_left_radius: f32,
 	pub top_right_radius: f32,
 	pub bottom_left_radius: f32,
@@ -194,7 +193,7 @@ impl GUIElement {
 
 pub fn column(children: &[GUIElement]) -> GUIElement {
 	GUIElement {
-		flex_dir: Flex::Vertical,
+		layout: Layout::Vertical,
 		children: children.to_vec(),
 		..Default::default()
 	}
@@ -202,13 +201,20 @@ pub fn column(children: &[GUIElement]) -> GUIElement {
 
 pub fn row(children: &[GUIElement]) -> GUIElement {
 	GUIElement {
-		flex_dir: Flex::Horizontal,
+		layout: Layout::Horizontal,
 		children: children.to_vec(),
 		..Default::default()
 	}
 }
 
 pub fn stack(children: &[GUIElement]) -> GUIElement {
+	GUIElement {
+		children: children.to_vec(),
+		..Default::default()
+	}
+}
+
+pub fn float(children: &[GUIElement]) -> GUIElement {
 	GUIElement {
 		children: children.to_vec(),
 		..Default::default()

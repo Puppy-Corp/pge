@@ -4,6 +4,9 @@ use glam::Quat;
 use glam::Vec3;
 use lyon::geom::euclid::default;
 use serde::Serialize;
+use winit::event::DeviceId;
+use winit::event::MouseScrollDelta;
+use winit::event::TouchPhase;
 use winit::keyboard::KeyCode;
 
 use crate::arena::Arena;
@@ -29,6 +32,13 @@ impl From<winit::event::MouseButton> for MouseButton {
 			_ => panic!("Unknown mouse button"),
 		}
 	}
+}
+
+#[derive(Debug, Clone)]
+pub struct MouseWheelEvent {
+	pub device_id: DeviceId,
+	pub delta: MouseScrollDelta,
+	pub phase: TouchPhase,
 }
 
 #[derive(Debug, Clone)]
@@ -778,6 +788,7 @@ pub trait App {
 	fn on_create(&mut self, state: &mut State) {}
 	fn on_keyboard_input(&mut self, key: KeyboardKey, action: KeyAction, state: &mut State) {}
 	fn on_mouse_input(&mut self, event: MouseEvent, state: &mut State) {}
+	fn on_mouse_wheel(&mut self, event: MouseWheelEvent, state: &mut State) {}
 	/// Run before rendering
 	fn on_process(&mut self, state: &mut State, delta: f32) {}
 	/// Run before physics properties are updated

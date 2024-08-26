@@ -418,6 +418,8 @@ impl EngineState {
 			//let can_model = Mat4::from_translation(Vec3::new(0.0, 0.0, 2.0));
 			let can_model = cam_node.model;
 
+			// Mat4::orthographic_lh(left, right, bottom, top, near, far)
+
 			let model = glam::Mat4::perspective_lh(cam.fovy, cam.aspect, cam.znear, cam.zfar)
 				* can_model.inverse();
 

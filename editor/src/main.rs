@@ -12,6 +12,7 @@ struct PgeEditor {
 	windows: Vec<ArenaId<Window>>,
 	scenes: HashSet<ArenaId<Scene>>,
 	camera_nodes: HashSet<ArenaId<Node>>,
+	node_editor: Option<NodeEditor>,
 }
 
 impl PgeEditor {
@@ -21,6 +22,7 @@ impl PgeEditor {
 			windows: Vec::new(),
 			scenes: HashSet::new(),
 			camera_nodes: HashSet::new(),
+			node_editor: None,
 		}
 	}
 
@@ -34,64 +36,74 @@ impl pge::App for PgeEditor {
 		if let Some(path) = &self.asset_path {
 			state.load_3d_model(path);
 		}
+
+		self.node_editor = Some(NodeEditor::new(state));
 	}
 
 	fn on_process(&mut self, state: &mut State, delta: f32) {
-		for (scene_id,scene) in state.scenes.iter_mut() {
-			match self.scenes.contains(&scene_id) {
-				true => {
+		// for (scene_id,scene) in state.scenes.iter_mut() {
+		// 	match self.scenes.contains(&scene_id) {
+		// 		true => {
 
-				},
-				false => {
-					let name = scene.name.clone().unwrap_or_default();
-					self.scenes.insert(scene_id);
-					log::info!("Scene added: {:?}", scene_id);
+		// 		},
+		// 		false => {
+		// 			let name = scene.name.clone().unwrap_or_default();
+		// 			self.scenes.insert(scene_id);
+		// 			log::info!("Scene added: {:?}", scene_id);
 
-					let mut light_node = Node::new();
-					light_node.parent = NodeParent::Scene(scene_id);
-					light_node.translation = Vec3::new(0.0, 5.0,-5.0);
-					let light_node_id = state.nodes.insert(light_node);
-					let mut light = PointLight::new();
-					light.node_id = Some(light_node_id);
-					state.point_lights.insert(light);
+		// 			let mut light_node = Node::new();
+		// 			light_node.parent = NodeParent::Scene(scene_id);
+		// 			light_node.translation = Vec3::new(0.0, 5.0,-5.0);
+		// 			let light_node_id = state.nodes.insert(light_node);
+		// 			let mut light = PointLight::new();
+		// 			light.node_id = Some(light_node_id);
+		// 			state.point_lights.insert(light);
 
-					let mut camera_node = Node::new();
-					camera_node.translation = Vec3::new(0.0, 2.5, 3.3);
-					camera_node.looking_at(0.0, 1.0, 0.0);
-					camera_node.parent = NodeParent::Scene(scene_id);
-					let camera_node_id = state.nodes.insert(camera_node);
-					self.camera_nodes.insert(camera_node_id);
+		// 			let mut camera_node = Node::new();
+		// 			camera_node.translation = Vec3::new(0.0, 2.5, 3.3);
+		// 			camera_node.looking_at(0.0, 1.0, 0.0);
+		// 			camera_node.parent = NodeParent::Scene(scene_id);
+		// 			let camera_node_id = state.nodes.insert(camera_node);
+		// 			self.camera_nodes.insert(camera_node_id);
 
-					let mut camera = Camera::new();
-					camera.node_id = Some(camera_node_id);
-					let camera_id = state.cameras.insert(camera);
+		// 			let mut camera = Camera::new();
+		// 			camera.node_id = Some(camera_node_id);
+		// 			let camera_id = state.cameras.insert(camera);
 
-					let ui = camera_view(camera_id);
-					let ui_id = state.guis.insert(ui);
+		// 			let ui = camera_view(camera_id);
+		// 			let ui_id = state.guis.insert(ui);
 
-					let window = Window::new().title(&name).ui(ui_id).lock_cursor(true);
-					state.windows.insert(window);
-				},
-			}
+		// 			let window = Window::new().title(&name).ui(ui_id).lock_cursor(true);
+		// 			state.windows.insert(window);
+		// 		},
+		// 	}
+		// }
+
+		if let Some(node_editor) = &mut self.node_editor {
+			node_editor.on_process(state);
 		}
 	}
 
 	fn on_mouse_input(&mut self, event: MouseEvent, state: &mut State) {
 		match event {
 			MouseEvent::Moved { dx, dy } => {
-				let sensitivity = 0.005;
-				let rotation_x = Quat::from_axis_angle(Vec3::Y, -dx * sensitivity);
-				let rotation_y = Quat::from_axis_angle(Vec3::X, -dy * sensitivity);
-				let rotation = rotation_y * rotation_x;
+				// let sensitivity = 0.005;
+				// let rotation_x = Quat::from_axis_angle(Vec3::Y, -dx * sensitivity);
+				// let rotation_y = Quat::from_axis_angle(Vec3::X, -dy * sensitivity);
+				// let rotation = rotation_y * rotation_x;
 
-				for node_id in &self.camera_nodes {
-					if let Some(node) = state.nodes.get_mut(node_id) {
-						node.rotation = rotation * node.rotation;
-					}
-				}
+				// for node_id in &self.camera_nodes {
+				// 	if let Some(node) = state.nodes.get_mut(node_id) {
+				// 		node.rotation = rotation * node.rotation;
+				// 	}
+				// }
 			},
 			_ => {}
 		}
+	}
+
+	fn on_mouse_wheel(&mut self, event: MouseWheelEvent, state: &mut State) {
+		log::info!("Mouse wheel: {:?}", event);
 	}
 }
 

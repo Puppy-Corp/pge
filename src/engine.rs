@@ -448,7 +448,6 @@ where
                 let point_light_buffer = match self.point_light_buffers.get(&v.scene_id) {
                     Some(b) => b,
                     None => {
-						log::info!("point light buffer not found");
 						&self.default_point_lights
 					}
                 };
@@ -690,6 +689,14 @@ where
                     &mut self.state.state,
                 ),
             },
+			WindowEvent::MouseWheel { device_id, delta, phase } => {
+				let event = MouseWheelEvent {
+					device_id,
+					delta,
+					phase
+				};
+				self.app.on_mouse_wheel(event, &mut self.state.state);
+			}
             WindowEvent::KeyboardInput {
                 device_id,
                 event,

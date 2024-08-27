@@ -129,7 +129,7 @@ pub fn load_node(n: &gltf::Node, buffers: &[Data], state: &mut State, parser_sta
 
 pub fn load_scene(s: &gltf::Scene, buffers: &[Data], state: &mut State, parser_state: &mut ParserState) -> ArenaId<Scene> {
 	let scene = Scene {
-		name: Some(s.name().unwrap_or_default().to_string()),
+		name: s.name().unwrap_or_default().to_string(),
 		..Default::default()
 	};
 

@@ -146,6 +146,7 @@ pub struct Render3DView<'a> {
     pub y: f32,
     pub w: f32,
     pub h: f32,
+	pub background_color: [f32; 4],
 }
 
 #[derive(Debug)]
@@ -249,36 +250,35 @@ impl Renderer<'_> {
 
     pub fn render(&self, args: RenderArgs) -> anyhow::Result<()> {
         let output = self.surface.get_current_texture()?;
-        let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let tex_view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
 
         {
-            let mut render_pass = args.encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Render Pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.1,
-                            g: 0.2,
-                            b: 0.3,
-                            a: 1.0,
-                        }),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.depth_texture_view,
-                    depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(1.0),
-                        store: wgpu::StoreOp::Store,
-                    }),
-                    stencil_ops: None,
-                }),
-                ..Default::default()
-            });
-
             for view in args.views {
+				let mut render_pass = args.encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+					label: Some("Render Pass"),
+					color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+						view: &tex_view,
+						resolve_target: None,
+						ops: wgpu::Operations {
+							load: wgpu::LoadOp::Clear(wgpu::Color {
+								r: view.background_color[0] as f64,
+								g: view.background_color[1] as f64,
+								b: view.background_color[2] as f64,
+								a: view.background_color[3] as f64,
+							}),
+							store: wgpu::StoreOp::Store,
+						},
+					})],
+					depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+						view: &self.depth_texture_view,
+						depth_ops: Some(wgpu::Operations {
+							load: wgpu::LoadOp::Clear(1.0),
+							store: wgpu::StoreOp::Store,
+						}),
+						stencil_ops: None,
+					}),
+					..Default::default()
+				});
                 let vx = view.x * self.size.width as f32;
                 let vy = view.y * self.size.height as f32;
                 let vw = view.w * self.size.width as f32;
@@ -301,14 +301,14 @@ impl Renderer<'_> {
                 }
             }
 
-            let position_count = args.position_range.clone().count();
-            if position_count > 0 {
-                render_pass.set_pipeline(&self.pipeline_gui);
-                render_pass.set_vertex_buffer(0, args.positions_buffer.slice(args.position_range));
-                render_pass.set_vertex_buffer(1, args.color_buffer.slice(args.color_range));
-                render_pass.set_index_buffer(args.index_buffer.slice(args.index_range), wgpu::IndexFormat::Uint16);
-                render_pass.draw_indexed(args.indices_range.clone(), 0, 0..1);
-            }
+            // let position_count = args.position_range.clone().count();
+            // if position_count > 0 {
+            //     render_pass.set_pipeline(&self.pipeline_gui);
+            //     render_pass.set_vertex_buffer(0, args.positions_buffer.slice(args.position_range));
+            //     render_pass.set_vertex_buffer(1, args.color_buffer.slice(args.color_range));
+            //     render_pass.set_index_buffer(args.index_buffer.slice(args.index_range), wgpu::IndexFormat::Uint16);
+            //     render_pass.draw_indexed(args.indices_range.clone(), 0, 0..1);
+            // }
         }
 
         output.present();

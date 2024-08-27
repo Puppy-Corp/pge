@@ -42,6 +42,13 @@ pub struct MouseWheelEvent {
 }
 
 #[derive(Debug, Clone)]
+pub struct CursorMovedEvent {
+	pub device_id: DeviceId,
+	pub dx: f32,
+	pub dy: f32,
+}
+
+#[derive(Debug, Clone)]
 pub enum MouseEvent {
 	Moved { dx: f32, dy: f32 },
 	Pressed { button: MouseButton },
@@ -63,6 +70,7 @@ pub enum KeyboardKey {
 	R,
 	Z,
 	E,
+	H,
 	ControlLeft,
 	Space,
 	ShiftLeft,
@@ -96,6 +104,7 @@ impl From<KeyCode> for KeyboardKey {
 			KeyCode::KeyE => Self::E,
 			KeyCode::ControlLeft => Self::ControlLeft,
 			KeyCode::KeyZ => Self::Z,
+			KeyCode::KeyH => Self::H,
 			_ => Self::Unknow
 		}
 	}
@@ -518,36 +527,78 @@ pub struct Asset {
 
 #[derive(Debug, Clone, Default)]
 pub struct Scene {
-	pub name: Option<String>,
+	pub name: String,
+	pub background_color: [f32; 4],
 	pub _3d_model: Option<ArenaId<Model3D>>,
 }
 
 impl Scene {
 	pub fn new() -> Self {
 		Self {
-			name: None,
+			name: "".to_string(),
+			background_color: [0.0, 0.0, 0.0, 1.0],
 			_3d_model: None,
 		}
 	}
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
+pub enum Projection {
+	Perspective {
+		fov: f32,
+		aspect: f32,
+	},
+	Orthographic {
+		left: f32,
+		right: f32,
+		bottom: f32,
+		top: f32,
+	}
+}
+
+#[derive(Debug, Clone)]
 pub struct Camera {
-    pub aspect: f32,
-    pub fovy: f32,
+	pub projection: Projection,
+    // pub aspect: f32,
+    // pub fovy: f32,
     pub znear: f32,
     pub zfar: f32,
 	pub node_id: Option<ArenaId<Node>>
 }
 
-impl Camera {
-	pub fn new() -> Self {
+impl Default for Camera {
+	fn default() -> Self {
 		Self {
-			aspect: 16.0 / 9.0,
-			fovy: 45.0,
+			projection: Projection::Perspective {
+				fov: 45.0,
+				aspect: 16.0 / 9.0,
+			},
+			// aspect: 16.0 / 9.0,
+			// fovy: 45.0,
 			znear: 0.1,
 			zfar: 100.0,
 			node_id: None
+		}
+	}
+}
+
+impl Camera {
+	pub fn new() -> Self {
+		Self::default()
+	}
+
+	pub fn zoom(&mut self, zoom_factor: f32) {
+		match &mut self.projection {
+			Projection::Perspective { fov, .. } => {
+				*fov -= zoom_factor;
+				*fov = fov.clamp(1.0, 180.0);
+			},
+			Projection::Orthographic { left, right, bottom, top } => {
+				*left -= zoom_factor;
+				*right += zoom_factor;
+				*bottom -= zoom_factor;
+				*top += zoom_factor;
+			}
 		}
 	}
 }
@@ -788,12 +839,10 @@ pub trait App {
 	fn on_create(&mut self, state: &mut State) {}
 	fn on_keyboard_input(&mut self, key: KeyboardKey, action: KeyAction, state: &mut State) {}
 	fn on_mouse_input(&mut self, event: MouseEvent, state: &mut State) {}
+	fn on_cursor_moved(&mut self, event: CursorMovedEvent, state: &mut State) {}
 	fn on_mouse_wheel(&mut self, event: MouseWheelEvent, state: &mut State) {}
 	/// Run before rendering
 	fn on_process(&mut self, state: &mut State, delta: f32) {}
 	/// Run before physics properties are updated
 	fn on_phycis_update(&mut self, state: &mut State, delta: f32) {}
 }
-
-
-

@@ -24,6 +24,7 @@ use crate::Node;
 use crate::NodeParent;
 use crate::PointLight;
 use crate::PrimitiveTopology;
+use crate::Projection;
 use crate::Scene;
 use crate::State;
 use crate::Texture;
@@ -132,6 +133,7 @@ struct SceneDrawInstruction {
 pub struct View {
 	pub camview: CamView,
 	pub scene_id: ArenaId<Scene>,
+	pub background_color: [f32; 4],
 }
 
 #[derive(Debug, Clone)]
@@ -420,8 +422,20 @@ impl EngineState {
 
 			// Mat4::orthographic_lh(left, right, bottom, top, near, far)
 
-			let model = glam::Mat4::perspective_lh(cam.fovy, cam.aspect, cam.znear, cam.zfar)
-				* can_model.inverse();
+			// let model = glam::Mat4::perspective_lh(cam.fovy, cam.aspect, cam.znear, cam.zfar)
+			// 	* can_model.inverse();
+
+			let model = match cam.projection {
+				Projection::Perspective { fov, aspect } => {
+					Mat4::perspective_lh(fov, aspect, cam.znear, cam.zfar) 
+				},
+				Projection::Orthographic { left, right, bottom, top } => {
+					Mat4::orthographic_lh(left, right, bottom, top, cam.znear, cam.zfar)
+				},
+			} * can_model.inverse();
+
+			// let model = Mat4::orthographic_lh(-1.0, 1.0, -1.0, 1.0, 0.1, 100.0)
+			// 	* can_model.inverse();
 
 			let cam = RawCamera {
 				model: model.to_cols_array_2d(),
@@ -559,17 +573,20 @@ impl EngineState {
 					None => continue,
 				};
 
+				let scene = match self.state.scenes.get(&camera_node.scene_id) {
+					Some(scene) => scene,
+					None => continue,
+				};
+
 				render_args.views.push(View {
 					camview: view.clone(),
 					scene_id: camera_node.scene_id,
+					background_color: scene.background_color,
 				});
 			}
 		}
 
-		self.printer.print(
-			UI_RENDER_ARGS_SLOT,
-			format!("ui_render_args: {:?}", self.ui_render_args),
-		);
+		self.printer.print(UI_RENDER_ARGS_SLOT, format!("ui_render_args: {:?}", self.ui_render_args));
 	}
 
 	fn process_phycis(&mut self, dt: f32) {

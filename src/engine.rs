@@ -20,6 +20,7 @@ use wgpu::Backends;
 use wgpu::Features;
 use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalPosition;
+use winit::event::ElementState;
 use winit::event::WindowEvent;
 use winit::event_loop::ControlFlow;
 use winit::event_loop::EventLoop;
@@ -465,6 +466,7 @@ where
                     normal_buffer: &self.normal_buffer.buffer(),
                     tex_coords_buffer: &self.tex_coords_buffer.buffer(),
                     vertices_buffer: &self.vertices_buffer.buffer(),
+					background_color: v.background_color
                 };
                 views.push(a);
             }
@@ -670,19 +672,26 @@ where
                         }
                     }
                 }
+
+				let event = CursorMovedEvent {
+					device_id,
+					dx: position.x as f32,
+					dy: position.y as f32
+				};
+				self.app.on_cursor_moved(event, &mut self.state.state);
             }
             WindowEvent::MouseInput {
                 device_id,
                 state,
                 button,
             } => match state {
-                winit::event::ElementState::Pressed => self.app.on_mouse_input(
+                ElementState::Pressed => self.app.on_mouse_input(
                     MouseEvent::Pressed {
                         button: MouseButton::from(button),
                     },
                     &mut self.state.state,
                 ),
-                winit::event::ElementState::Released => self.app.on_mouse_input(
+                ElementState::Released => self.app.on_mouse_input(
                     MouseEvent::Released {
                         button: MouseButton::from(button),
                     },

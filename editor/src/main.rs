@@ -100,10 +100,29 @@ impl pge::App for PgeEditor {
 			},
 			_ => {}
 		}
+
+		if let Some(node_editor) = &mut self.node_editor {
+			node_editor.on_mouse_input(event, state);
+		}
 	}
 
 	fn on_mouse_wheel(&mut self, event: MouseWheelEvent, state: &mut State) {
 		log::info!("Mouse wheel: {:?}", event);
+		if let Some(node_editor) = &mut self.node_editor {
+			node_editor.on_mouse_wheel(event, state);
+		}
+	}
+
+	fn on_cursor_moved(&mut self, event: CursorMovedEvent, state: &mut State) {
+		if let Some(node_editor) = &mut self.node_editor {
+			node_editor.on_cursor_moved(event, state);
+		}
+	}
+
+	fn on_keyboard_input(&mut self, key: KeyboardKey, action: KeyAction, state: &mut State) {
+		if let Some(node_editor) = &mut self.node_editor {
+			node_editor.on_keyboard_input(key, action, state);
+		}
 	}
 }
 

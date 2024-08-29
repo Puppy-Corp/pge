@@ -7,7 +7,7 @@ use crate::texture::load_image;
 use crate::types::*;
 use crate::wgpu_types::*;
 use crate::ArenaId;
-use crate::GUIElement;
+use crate::UIElement;
 use crate::Window;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -87,7 +87,7 @@ struct Engine<'a, T> {
     point_light_buffers: HashMap<ArenaId<Scene>, BindableBuffer<RawPointLight>>,
     last_on_process_time: Instant,
     last_physics_update_time: Instant,
-    gui_buffers: HashMap<ArenaId<GUIElement>, GuiBuffers>,
+    gui_buffers: HashMap<ArenaId<UIElement>, GuiBuffers>,
     texture_bind_groups: HashMap<ArenaId<Texture>, wgpu::BindGroup>,
     camera_buffers: HashMap<ArenaId<Camera>, BindableBuffer<RawCamera>>,
     default_texture: wgpu::BindGroup,

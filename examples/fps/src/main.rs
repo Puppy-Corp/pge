@@ -455,7 +455,7 @@ impl pge::App for FpsShooter {
 			camera_view(camera_id),
 			rect().background_color(Color::GREEN).height(0.1).anchor_bottom()
 		]);
-		let gui_id = state.guis.insert(gui);
+		let gui_id = state.ui_elements.insert(gui);
 
 		state.windows.insert(window().title("FPS Shooter1").ui(gui_id).lock_cursor(true));
 	}
@@ -597,7 +597,7 @@ impl pge::App for FpsShooter {
 		});
 
 		if let Some(node_editor) = &mut self.node_enditor {
-			node_editor.on_process(state);
+			node_editor.on_process(state, delta);
 		}
 	}
 }

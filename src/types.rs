@@ -13,7 +13,7 @@ use crate::arena::Arena;
 use crate::arena::ArenaId;
 use crate::gltf::load_gltf;
 use crate::idgen::gen_id;
-use crate::GUIElement;
+use crate::UIElement;
 use crate::Window;
 
 #[derive(Debug, Clone)]
@@ -361,8 +361,6 @@ impl Default for NodeParent {
 	}
 }
 
-pub struct NodeId;
-
 #[derive(Debug, Clone)]
 pub struct Node {
 	pub name: Option<String>,
@@ -432,6 +430,12 @@ impl Node {
 
 		translation * rotation * scale
 	}
+}
+
+#[derive(Debug, Clone)]
+pub struct UINode {
+	pub node_id: ArenaId<Node>,
+	pub ui_element_id: ArenaId<UIElement>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -773,7 +777,8 @@ pub struct State {
 	pub nodes: Arena<Node>,
 	pub cameras: Arena<Camera>,
 	pub windows: Arena<Window>,
-	pub guis: Arena<GUIElement>,
+	pub ui_elements: Arena<UIElement>,
+	pub ui_nodes: Arena<UINode>,
 	pub point_lights: Arena<PointLight>,
 	pub textures: Arena<Texture>,
 	pub raycasts: Arena<RayCast>,
@@ -812,7 +817,7 @@ impl State {
 	}
 
 	pub fn mem_size(&self) -> usize {
-		self.scenes.mem_size() + self.meshes.mem_size() + self.nodes.mem_size() + self.cameras.mem_size() + self.windows.mem_size() + self.guis.mem_size() + self.point_lights.mem_size() + self.textures.mem_size() + self.raycasts.mem_size()
+		self.scenes.mem_size() + self.meshes.mem_size() + self.nodes.mem_size() + self.cameras.mem_size() + self.windows.mem_size() + self.ui_elements.mem_size() + self.point_lights.mem_size() + self.textures.mem_size() + self.raycasts.mem_size()
 	}
 
 	pub fn print_state(&self) {
@@ -821,7 +826,7 @@ impl State {
 		log::info!("node count: {:?}", self.nodes.len());
 		log::info!("camera count: {:?}", self.cameras.len());
 		log::info!("window count: {:?}", self.windows.len());
-		log::info!("gui count: {:?}", self.guis.len());
+		log::info!("gui count: {:?}", self.ui_elements.len());
 		log::info!("point light count: {:?}", self.point_lights.len());
 		log::info!("texture count: {:?}", self.textures.len());
 		log::info!("raycast count: {:?}", self.raycasts.len());

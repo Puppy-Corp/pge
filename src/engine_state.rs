@@ -5,6 +5,7 @@ use std::time::Instant;
 
 use bytemuck::bytes_of;
 use glam::*;
+use log::Log;
 
 use crate::arena::ArenaId;
 use crate::buffer::DirtyBuffer;
@@ -17,7 +18,7 @@ use crate::physics::PhysicsSystem;
 use crate::spatial_grid::SpatialGrid;
 use crate::wgpu_types::*;
 use crate::Camera;
-use crate::GUIElement;
+use crate::UIElement;
 use crate::Mesh;
 use crate::Model3D;
 use crate::Node;
@@ -138,7 +139,7 @@ pub struct View {
 
 #[derive(Debug, Clone)]
 pub struct UIRenderArgs {
-	pub ui: ArenaId<GUIElement>,
+	pub ui: ArenaId<UIElement>,
 	pub views: Vec<View>,
 }
 
@@ -160,8 +161,8 @@ pub struct EngineState {
 	pub all_point_lights_data: Vec<u8>,
 	pub triangles: Gemometry,
 	_3d_models: HashMap<String, Model3D>,
-	pub ui_compositors: HashMap<ArenaId<GUIElement>, UICompositor>,
-	ui_render_args: HashMap<ArenaId<GUIElement>, UIRenderArgs>,
+	pub ui_compositors: HashMap<ArenaId<UIElement>, UICompositor>,
+	ui_render_args: HashMap<ArenaId<UIElement>, UIRenderArgs>,
 	mesh_pointers: HashMap<ArenaId<Mesh>, MeshPointer>,
 	mesh_nodes: HashMap<ArenaId<Mesh>, Vec<ArenaId<Node>>>,
 	scene_draw_calls: HashMap<ArenaId<Scene>, Vec<DrawCall>>,
@@ -545,7 +546,7 @@ impl EngineState {
 	}
 
 	fn process_ui(&mut self) {
-		for (ui_id, gui) in &self.state.guis {
+		for (ui_id, gui) in &self.state.ui_elements {
 			let compositor = self
 				.ui_compositors
 				.entry(ui_id)
@@ -585,6 +586,10 @@ impl EngineState {
 				});
 			}
 		}
+
+		for (ui_node_id, ui_node) in &self.state.ui_nodes {
+			
+		}	
 
 		self.printer.print(UI_RENDER_ARGS_SLOT, format!("ui_render_args: {:?}", self.ui_render_args));
 	}

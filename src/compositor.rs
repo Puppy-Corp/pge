@@ -155,7 +155,7 @@ impl Lineariser {
 		}
 	}
 
-	fn inner_linearize(&mut self, item: &GUIElement, outline: Option<Outline>) {
+	fn inner_linearize(&mut self, item: &UIElement, outline: Option<Outline>) {
 		let mut outline = outline.unwrap_or(Outline {
 			left_up: [-1.0, 1.0],
 			right_up: [1.0, 1.0],
@@ -295,7 +295,7 @@ impl Lineariser {
 		}
 	}
 
-	pub fn linearize(&mut self, item: &GUIElement) {
+	pub fn linearize(&mut self, item: &UIElement) {
 		self.items.clear();
 		self.inner_linearize(item, None);
 	}
@@ -321,7 +321,7 @@ impl UICompositor {
 		}
 	}
 
-	pub fn process(&mut self, item: &GUIElement) {
+	pub fn process(&mut self, item: &UIElement) {
 		self.positions.clear();
 		self.indices.clear();
 		self.colors.clear();

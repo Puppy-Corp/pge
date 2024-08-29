@@ -23,7 +23,7 @@ impl TodoApp {
 
 impl pge::App for TodoApp {
 	fn on_create(&mut self, state: &mut State) {
-		let gui_id = state.guis.insert(
+		let gui_id = state.ui_elements.insert(
 			row(&[
 				column(&[
 					rect().background_color(Color::RED),

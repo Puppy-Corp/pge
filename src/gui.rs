@@ -40,7 +40,7 @@ pub struct Window {
 	pub title: String,
 	pub width: u32,
 	pub height: u32,
-	pub ui: Option<ArenaId<GUIElement>>,
+	pub ui: Option<ArenaId<UIElement>>,
 	pub lock_cursor: bool,
 }
 
@@ -60,7 +60,7 @@ impl Window {
 		self
 	}
 
-	pub fn ui(mut self, ui: ArenaId<GUIElement>) -> Self {
+	pub fn ui(mut self, ui: ArenaId<UIElement>) -> Self {
 		self.ui = Some(ui);
 		self
 	}
@@ -89,9 +89,9 @@ impl Default for Layout {
 }
 
 #[derive(Clone, Debug, Default)]
-pub struct GUIElement {
+pub struct UIElement {
 	pub grow: u32,
-	pub children: Vec<GUIElement>,
+	pub children: Vec<UIElement>,
 	pub layout: Layout,
 	pub top_left_radius: f32,
 	pub top_right_radius: f32,
@@ -115,19 +115,19 @@ pub struct GUIElement {
 	pub anchor_bottom: bool,
 }
 
-impl GUIElement {
+impl UIElement {
 	pub fn new() -> Self {
 		Self {
 			..Default::default()
 		}
 	}
 
-	pub fn add(mut self, child: GUIElement) -> Self {
+	pub fn add(mut self, child: UIElement) -> Self {
 		self.children.push(child);
 		self
 	}
 
-	pub fn add_many(mut self, children: Vec<GUIElement>) -> Self {
+	pub fn add_many(mut self, children: Vec<UIElement>) -> Self {
 		self.children.extend(children);
 		self
 	}
@@ -191,64 +191,64 @@ impl GUIElement {
 	}
 }
 
-pub fn column(children: &[GUIElement]) -> GUIElement {
-	GUIElement {
+pub fn column(children: &[UIElement]) -> UIElement {
+	UIElement {
 		layout: Layout::Vertical,
 		children: children.to_vec(),
 		..Default::default()
 	}
 }
 
-pub fn row(children: &[GUIElement]) -> GUIElement {
-	GUIElement {
+pub fn row(children: &[UIElement]) -> UIElement {
+	UIElement {
 		layout: Layout::Horizontal,
 		children: children.to_vec(),
 		..Default::default()
 	}
 }
 
-pub fn stack(children: &[GUIElement]) -> GUIElement {
-	GUIElement {
+pub fn stack(children: &[UIElement]) -> UIElement {
+	UIElement {
 		children: children.to_vec(),
 		..Default::default()
 	}
 }
 
-pub fn float(children: &[GUIElement]) -> GUIElement {
-	GUIElement {
+pub fn float(children: &[UIElement]) -> UIElement {
+	UIElement {
 		children: children.to_vec(),
 		..Default::default()
 	}
 }
 
-pub fn empty() -> GUIElement {
-	GUIElement {
+pub fn empty() -> UIElement {
+	UIElement {
 		..Default::default()
 	}
 }
 
-pub fn rect() -> GUIElement {
-	GUIElement {
+pub fn rect() -> UIElement {
+	UIElement {
 		background_color: Some(Color::WHITE),
 		..Default::default()
 	}
 }
 
-pub fn list() -> GUIElement {
-	GUIElement {
+pub fn list() -> UIElement {
+	UIElement {
 		..Default::default()
 	}
 }
 
-pub fn camera_view(camera_id: ArenaId<Camera>) -> GUIElement {
-	GUIElement {
+pub fn camera_view(camera_id: ArenaId<Camera>) -> UIElement {
+	UIElement {
 		camera_id: Some(camera_id),
 		..Default::default()
 	}
 }
 
-pub fn text(t: &str) -> GUIElement {
-	GUIElement {
+pub fn text(t: &str) -> UIElement {
+	UIElement {
 		text: Some(t.to_string()),
 		..Default::default()
 	}

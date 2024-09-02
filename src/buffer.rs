@@ -111,16 +111,18 @@ pub struct DirtyBuffer {
     data: Vec<u8>,
     pub dirty: bool,
     offset: usize,
+	pub bindable: bool
 }
 
 impl DirtyBuffer {
     /// Creates a new DirtyBuffer with the given name.
-    pub fn new(name: &str) -> Self {
+    pub fn new(name: &str, bindable: bool) -> Self {
         Self {
             name: name.to_string(),
             data: Vec::new(),
             dirty: false,
             offset: 0,
+			bindable
         }
     }
 
@@ -176,7 +178,7 @@ mod tests {
 
 	#[test]
 	fn test_new_buffer() {
-		let buffer = DirtyBuffer::new("test");
+		let buffer = DirtyBuffer::new("test", false);
 		assert_eq!(buffer.data, Vec::<u8>::new());
 		assert_eq!(buffer.dirty, false);
 		assert_eq!(buffer.offset, 0);
@@ -184,7 +186,7 @@ mod tests {
 
 	#[test]
 	fn test_clear_buffer() {
-		let mut buffer = DirtyBuffer::new("test");
+		let mut buffer = DirtyBuffer::new("test", false);
 		buffer.extend_from_slice(&[1, 2, 3]);
 		buffer.clear();
 		assert_eq!(buffer.data, Vec::<u8>::new());
@@ -194,7 +196,7 @@ mod tests {
 
 	#[test]
 	fn test_extend_from_slice() {
-		let mut buffer = DirtyBuffer::new("test");
+		let mut buffer = DirtyBuffer::new("test", false);
 		buffer.extend_from_slice(&[1, 2, 3]);
 		assert_eq!(buffer.data, vec![1, 2, 3]);
 		assert_eq!(buffer.dirty, true);
@@ -203,7 +205,7 @@ mod tests {
 
 	#[test]
 	fn test_extend_from_slice_no_change() {
-		let mut buffer = DirtyBuffer::new("test");
+		let mut buffer = DirtyBuffer::new("test", false);
 		buffer.extend_from_slice(&[1, 2, 3]);
 		buffer.reset_offset();
 		buffer.dirty = false;

@@ -7,6 +7,15 @@ pub struct ArenaId<T> {
     _phantom: PhantomData<T>,
 }
 
+impl<T> Default for ArenaId<T> {
+	fn default() -> Self {
+		Self {
+			index: usize::MAX,
+			_phantom: PhantomData,
+		}
+	}
+}
+
 impl<T> ArenaId<T> {
     fn new(index: usize) -> Self {
         Self {
@@ -82,6 +91,17 @@ impl<T> Arena<T> {
     pub fn get_mut(&mut self, id: &ArenaId<T>) -> Option<&mut T> {
         self.items.get_mut(id.index).and_then(|opt| opt.as_mut())
     }
+
+	pub fn entry(&mut self, id: &ArenaId<T>) -> Option<&mut T> {
+		if id.index < self.items.len() {
+			if self.items[id.index].is_none() {
+				self.items[id.index] = Some(Default::default());
+			}
+			self.items.get_mut(id.index).and_then(|opt| opt.as_mut())
+		} else {
+			None
+		}
+	}
 
     pub fn remove(&mut self, id: &ArenaId<T>) -> Option<T> {
         if id.index < self.items.len() {

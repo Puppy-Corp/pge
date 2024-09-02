@@ -17,6 +17,7 @@ use crate::internal_types::CamView;
 use crate::physics::PhysicsSystem;
 use crate::spatial_grid::SpatialGrid;
 use crate::wgpu_types::*;
+use crate::Arena;
 use crate::Camera;
 use crate::UIElement;
 use crate::Mesh;
@@ -46,32 +47,25 @@ const DRAW_CALLS_SLOT: u32 = 10;
 const MESH_NODES_SLOT: u32 = 11;
 const UI_RENDER_ARGS_SLOT: u32 = 12;
 
-#[derive(Debug, Clone, Default)]
-pub struct Gemometry {
-	pub vertices: DirtyBuffer,
-	pub normals: DirtyBuffer,
-	pub tex_coords: DirtyBuffer,
-	pub indices: DirtyBuffer,
+#[derive(Debug, Clone)]
+pub struct BufferRange {
+	pub range: Range<u64>,
+	pub buffer_id: ArenaId<DirtyBuffer>,
 }
 
-impl Gemometry {
-	pub fn new() -> Self {
-		Self {
-			vertices: DirtyBuffer::new("vertices"),
-			normals: DirtyBuffer::new("normals"),
-			tex_coords: DirtyBuffer::new("tex_coords"),
-			indices: DirtyBuffer::new("indices"),
-		}
+impl BufferRange {
+	pub fn new(buffer_id: ArenaId<DirtyBuffer>, range: Range<u64>) -> Self {
+		Self { buffer_id, range }
 	}
 }
 
 #[derive(Debug, Clone)]
 pub struct DrawCall {
 	pub texture: Option<ArenaId<Texture>>,
-	pub vertices: Range<u64>,
-	pub indices: Range<u64>,
-	pub normals: Range<u64>,
-	pub tex_coords: Range<u64>,
+	pub vertices: BufferRange,
+	pub indices: BufferRange,
+	pub normals: BufferRange,
+	pub tex_coords: BufferRange,
 	pub instances: Range<u32>,
 	pub indices_range: Range<u32>,
 }
@@ -157,9 +151,12 @@ pub struct EngineState {
 	cameras: HashMap<ArenaId<Camera>, RawCamera>,
 	printer: ChangePrinter,
 	pub all_instances_data: Vec<u8>,
-	pub camera_buffers: HashMap<ArenaId<Camera>, DirtyBuffer>,
+	pub camera_buffers: HashMap<ArenaId<Camera>, ArenaId<DirtyBuffer>>,
 	pub all_point_lights_data: Vec<u8>,
-	pub triangles: Gemometry,
+	vertices: ArenaId<DirtyBuffer>,
+	normals: ArenaId<DirtyBuffer>,
+	tex_coords: ArenaId<DirtyBuffer>,
+	indices: ArenaId<DirtyBuffer>,
 	_3d_models: HashMap<String, Model3D>,
 	pub ui_compositors: HashMap<ArenaId<UIElement>, UICompositor>,
 	ui_render_args: HashMap<ArenaId<UIElement>, UIRenderArgs>,
@@ -167,14 +164,29 @@ pub struct EngineState {
 	mesh_nodes: HashMap<ArenaId<Mesh>, Vec<ArenaId<Node>>>,
 	scene_draw_calls: HashMap<ArenaId<Scene>, Vec<DrawCall>>,
 	pub scene_point_lights: HashMap<ArenaId<Scene>, DirtyBuffer>,
-	pub scene_instance_buffers: HashMap<ArenaId<Scene>, DirtyBuffer>,
+	pub scene_instance_buffers: HashMap<ArenaId<Scene>, ArenaId<DirtyBuffer>>,
 	scene_collections: HashMap<ArenaId<Scene>, SceneCollection>,
 	point_lights: HashMap<ArenaId<PointLight>, RawPointLight>,
+	buffers: Arena<DirtyBuffer>
 }
 
 impl EngineState {
 	pub fn new() -> Self {
-		Default::default()
+		let mut buffers = Arena::new();
+
+		let vertices = buffers.insert(DirtyBuffer::new("vertices", false));
+		let normals = buffers.insert(DirtyBuffer::new("normals", false));
+		let tex_coords = buffers.insert(DirtyBuffer::new("tex_coords", false));
+		let indices = buffers.insert(DirtyBuffer::new("indices", false));
+
+		Self {
+			buffers,
+			vertices,
+			normals,
+			tex_coords,
+			indices,
+			..Default::default()
+		}
 	}
 
 	fn process_nodes(&mut self) {
@@ -291,13 +303,6 @@ impl EngineState {
 			MESHES_COUNT_SLOT,
 			format!("meshes count: {}", self.state.meshes.len()),
 		);
-		self.triangles.vertices.reset_offset();
-		self.triangles.normals.reset_offset();
-		self.triangles.tex_coords.reset_offset();
-		self.triangles.indices.reset_offset();
-		for (_, s) in &mut self.scene_instance_buffers {
-			s.reset_offset();
-		}
 		for (_, s) in &mut self.scene_draw_calls {
 			s.clear();
 		}
@@ -308,36 +313,27 @@ impl EngineState {
 						continue;
 					}
 
-					let vertices_start = self.triangles.vertices.len() as u64;
-					self.triangles.vertices.extend_from_slice(bytemuck::cast_slice(&primitive.vertices));
-					let vertices_end = self.triangles.vertices.len() as u64;
-					let normals_start = self.triangles.normals.len() as u64;
-					self.triangles.normals.extend_from_slice(bytemuck::cast_slice(&primitive.normals));
-					let normals_end = self.triangles.normals.len() as u64;
-					let indices_start = self.triangles.indices.len() as u64;
-					self.triangles.indices.extend_from_slice(bytemuck::cast_slice(&primitive.indices));
-					let indices_end = self.triangles.indices.len() as u64;
-					let tex_coords_start = self.triangles.tex_coords.len() as u64;
+					let vertices = self.buffers.get_mut(&self.vertices).unwrap();
+					let vertices_start = vertices.len() as u64;
+					vertices.extend_from_slice(bytemuck::cast_slice(&primitive.vertices));
+					let vertices_end = vertices.len() as u64;
+					let normals = self.buffers.get_mut(&self.normals).unwrap();
+					let normals_start = normals.len() as u64;
+					normals.extend_from_slice(bytemuck::cast_slice(&primitive.normals));
+					let normals_end = normals.len() as u64;
+					let indices = self.buffers.get_mut(&self.indices).unwrap();
+					let indices_start = indices.len() as u64;
+					indices.extend_from_slice(bytemuck::cast_slice(&primitive.indices));
+					let indices_end = indices.len() as u64;
+					let tex_coords = self.buffers.get_mut(&self.tex_coords).unwrap();
+					let tex_coords_start = tex_coords.len() as u64;
 					if primitive.tex_coords.len() > 0 {
-						self.triangles
-							.tex_coords
-							.extend_from_slice(bytemuck::cast_slice(&primitive.tex_coords));
+						tex_coords.extend_from_slice(bytemuck::cast_slice(&primitive.tex_coords));
 					} else {
-						let tex_coords = vec![[0.0, 0.0]; primitive.vertices.len()];
-						self.triangles
-							.tex_coords
-							.extend_from_slice(bytemuck::cast_slice(&tex_coords));
+						let t = vec![[0.0, 0.0]; primitive.vertices.len()];
+						tex_coords.extend_from_slice(bytemuck::cast_slice(&t));
 					}
-					let tex_coords_end = self.triangles.tex_coords.len() as u64;
-
-					let pointer = MeshPointer {
-						positions: vertices_start..vertices_end,
-						normals: normals_start..normals_end,
-						tex_coords: tex_coords_start..tex_coords_end,
-						indices: indices_start..indices_end,
-						indice_count: primitive.indices.len() as u32,
-					};
-					self.mesh_pointers.insert(mesh_id, pointer);
+					let tex_coords_end = tex_coords.len() as u64;
 
 					let node_ids = match self.mesh_nodes.get(&mesh_id) {
 						Some(nodes) => nodes,
@@ -357,10 +353,11 @@ impl EngineState {
 							model: node.model.to_cols_array_2d(),
 						};
 
-						let buffer = self
-							.scene_instance_buffers
-							.entry(node.scene_id)
-							.or_insert(DirtyBuffer::new("instances"));
+						let id = match self.scene_instance_buffers.get(&node.scene_id) {
+							Some(id) => *id,
+							None => self.buffers.insert(DirtyBuffer::new("instances", false)),
+						};
+						let buffer = self.buffers.get_mut(&id).unwrap();
 
 						let instance_start = buffer.len() as u32 / std::mem::size_of::<RawInstance>() as u32;
 						buffer.extend_from_slice(bytemuck::bytes_of(&instance));
@@ -373,17 +370,14 @@ impl EngineState {
 					}
 
 					for (scene_id, instances) in checkpoints {
-						let draw_calls =
-							self.scene_draw_calls.entry(scene_id).or_insert(Vec::new());
-
-						// log::info!("draw_calls: {:?}", draw_calls.len());
+						let draw_calls = self.scene_draw_calls.entry(scene_id).or_insert(Vec::new());
 
 						draw_calls.push(DrawCall {
 							texture: mesh.texture,
-							vertices: vertices_start..vertices_end,
-							indices: indices_start..indices_end,
-							normals: normals_start..normals_end,
-							tex_coords: tex_coords_start..tex_coords_end,
+							vertices: BufferRange::new(self.vertices, vertices_start..vertices_end),
+							indices: BufferRange::new(self.indices, indices_start..indices_end),
+							normals: BufferRange::new(self.normals, normals_start..normals_end),
+							tex_coords: BufferRange::new(self.tex_coords, tex_coords_start..tex_coords_end),
 							instances,
 							indices_range: 0..primitive.indices.len() as u32,
 						});
@@ -588,7 +582,12 @@ impl EngineState {
 		}
 
 		for (ui_node_id, ui_node) in &self.state.ui_nodes {
-			
+			let node = match self.nodes.get(&ui_node.node_id) {
+				Some(node) => node,
+				None => continue,
+			};
+
+			node.scene_id
 		}	
 
 		self.printer.print(UI_RENDER_ARGS_SLOT, format!("ui_render_args: {:?}", self.ui_render_args));
@@ -681,6 +680,10 @@ impl EngineState {
 		// self.all_normals_data.clear();
 		// self.all_indices_data.clear();
 		self.all_point_lights_data.clear();
+
+		for (_, s) in &mut self.buffers {
+			s.reset_offset();
+		}
 
 		self.process_nodes();
 		self.process_meshes();

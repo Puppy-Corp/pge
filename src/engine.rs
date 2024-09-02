@@ -270,16 +270,12 @@ where
                 let positions_data = bytemuck::cast_slice(&c.positions);
                 let positions_data_len = positions_data.len() as u64;
 				buffers.vertices_buffer.write(positions_data);
-                // self.queue
-                //     .write_buffer(&buffers.vertices_buffer, 0, positions_data);
                 buffers.position_range = 0..positions_data_len;
             }
 
             if c.indices.len() > 0 {
                 let indices_data = bytemuck::cast_slice(&c.indices);
                 let indices_data_len = indices_data.len() as u64;
-                // self.queue
-                //     .write_buffer(&buffers.index_buffer, 0, indices_data);
 				buffers.index_buffer.write(indices_data);
                 buffers.index_range = 0..indices_data_len;
                 buffers.indices_range = 0..c.indices.len() as u32;
@@ -288,8 +284,6 @@ where
             if c.colors.len() > 0 {
                 let colors_data = bytemuck::cast_slice(&c.colors);
                 let colors_data_len = colors_data.len() as u64;
-                // self.queue
-                //     .write_buffer(&buffers.color_buffer, 0, colors_data);
 				buffers.color_buffer.write(colors_data);
                 buffers.colors_range = 0..colors_data_len;
             }

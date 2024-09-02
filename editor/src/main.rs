@@ -40,7 +40,7 @@ impl pge::App for PgeEditor {
 		self.node_editor = Some(NodeEditor::new(state));
 	}
 
-	fn on_process(&mut self, state: &mut State, delta: f32) {
+	fn on_process(&mut self, state: &mut State, dt: f32) {
 		// for (scene_id,scene) in state.scenes.iter_mut() {
 		// 	match self.scenes.contains(&scene_id) {
 		// 		true => {
@@ -80,7 +80,7 @@ impl pge::App for PgeEditor {
 		// }
 
 		if let Some(node_editor) = &mut self.node_editor {
-			node_editor.on_process(state);
+			node_editor.on_process(state, dt);
 		}
 	}
 

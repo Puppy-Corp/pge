@@ -95,6 +95,7 @@ struct Engine<'a, T> {
     proxy: EventLoopProxy<EngineEvent>,
     scene_instance_buffers: HashMap<ArenaId<Scene>, Buffer<RawInstance>>,
 	textures: HashSet<ArenaId<Texture>>,
+	buffers: HashMap<ArenaId<DirtyBuffer>, BindableBuffer<>>
 }
 
 impl<'a, T> Engine<'a, T>
@@ -191,27 +192,27 @@ where
 		// self.vertices_buffer.write(vertices_data);
 		// self.index_buffer.write(indices_data);
 
-        if self.state.triangles.vertices.len() > 0 && self.state.triangles.vertices.dirty {
-            //log::info!("writing triangle vertices len: {}", self.state.triangles.vertices.len());
-    		self.vertices_buffer.write(&self.state.triangles.vertices.data());
-            self.state.triangles.vertices.dirty = false;
-        }
-        if self.state.triangles.indices.len() > 0 && self.state.triangles.indices.dirty {
-            //log::info!("writing triangle indices len: {}", self.state.triangles.indices.len());
-			self.index_buffer.write(&self.state.triangles.indices.data());
-            self.state.triangles.indices.dirty = false;
-        }
-        if self.state.triangles.tex_coords.len() > 0 && self.state.triangles.tex_coords.dirty {
-            log::info!("writing triangle tex coords len: {}", self.state.triangles.tex_coords.len());
-            self.tex_coords_buffer
-                .write(&self.state.triangles.tex_coords.data());
-            self.state.triangles.tex_coords.dirty = false;
-        }
-        if self.state.triangles.normals.len() > 0 && self.state.triangles.normals.dirty {
-            //log::info!("writing triangle normals len: {}", self.state.triangles.normals.len());
-            self.normal_buffer.write(&self.state.triangles.normals.data());
-            self.state.triangles.normals.dirty = false;
-        }
+        // if self.state.triangles.vertices.len() > 0 && self.state.triangles.vertices.dirty {
+        //     //log::info!("writing triangle vertices len: {}", self.state.triangles.vertices.len());
+    	// 	self.vertices_buffer.write(&self.state.triangles.vertices.data());
+        //     self.state.triangles.vertices.dirty = false;
+        // }
+        // if self.state.triangles.indices.len() > 0 && self.state.triangles.indices.dirty {
+        //     //log::info!("writing triangle indices len: {}", self.state.triangles.indices.len());
+		// 	self.index_buffer.write(&self.state.triangles.indices.data());
+        //     self.state.triangles.indices.dirty = false;
+        // }
+        // if self.state.triangles.tex_coords.len() > 0 && self.state.triangles.tex_coords.dirty {
+        //     log::info!("writing triangle tex coords len: {}", self.state.triangles.tex_coords.len());
+        //     self.tex_coords_buffer
+        //         .write(&self.state.triangles.tex_coords.data());
+        //     self.state.triangles.tex_coords.dirty = false;
+        // }
+        // if self.state.triangles.normals.len() > 0 && self.state.triangles.normals.dirty {
+        //     //log::info!("writing triangle normals len: {}", self.state.triangles.normals.len());
+        //     self.normal_buffer.write(&self.state.triangles.normals.data());
+        //     self.state.triangles.normals.dirty = false;
+        // }
 
         for (index, b) in &mut self.state.scene_instance_buffers {
             if !b.dirty {
@@ -288,6 +289,10 @@ where
                 buffers.colors_range = 0..colors_data_len;
             }
         }
+
+		for (_, buf) in self.state.buffers {
+
+		}
     }
 
     fn update_windows(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {

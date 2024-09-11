@@ -45,6 +45,23 @@ impl<T> Hash for ArenaId<T> {
     }
 }
 
+// pub enum Entry {
+// 	Occupied,
+// 	Vacant,
+// }
+
+// impl<T> Entry {
+// 	pub fn or_insert(&mut self, default: T) -> &mut T {
+// 		match self {
+// 			Entry::Occupied => panic!("Entry already occupied"),
+// 			Entry::Vacant => {
+// 				*self = Entry::Occupied;
+// 				unsafe { &mut *(default as *mut T) }
+// 			}
+// 		}
+// 	}
+// }
+
 #[derive(Debug, Clone)]
 pub struct Arena<T> {
     items: Vec<Option<T>>,
@@ -92,16 +109,16 @@ impl<T> Arena<T> {
         self.items.get_mut(id.index).and_then(|opt| opt.as_mut())
     }
 
-	pub fn entry(&mut self, id: &ArenaId<T>) -> Option<&mut T> {
-		if id.index < self.items.len() {
-			if self.items[id.index].is_none() {
-				self.items[id.index] = Some(Default::default());
-			}
-			self.items.get_mut(id.index).and_then(|opt| opt.as_mut())
-		} else {
-			None
-		}
-	}
+	// pub fn entry(&mut self, id: &ArenaId<T>) -> Entry {
+	// 	if id.index < self.items.len() {
+	// 		if self.items[id.index].is_none() {
+	// 			self.items[id.index] = Some(Default::default());
+	// 		}
+	// 		self.items.get_mut(id.index).and_then(|opt| opt.as_mut())
+	// 	} else {
+	// 		None
+	// 	}
+	// }
 
     pub fn remove(&mut self, id: &ArenaId<T>) -> Option<T> {
         if id.index < self.items.len() {

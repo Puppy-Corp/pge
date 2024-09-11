@@ -150,9 +150,7 @@ pub struct EngineState {
 	nodes: HashMap<ArenaId<Node>, NodeMetadata>,
 	cameras: HashMap<ArenaId<Camera>, RawCamera>,
 	printer: ChangePrinter,
-	pub all_instances_data: Vec<u8>,
 	pub camera_buffers: HashMap<ArenaId<Camera>, ArenaId<DirtyBuffer>>,
-	pub all_point_lights_data: Vec<u8>,
 	vertices: ArenaId<DirtyBuffer>,
 	normals: ArenaId<DirtyBuffer>,
 	tex_coords: ArenaId<DirtyBuffer>,
@@ -163,11 +161,11 @@ pub struct EngineState {
 	mesh_pointers: HashMap<ArenaId<Mesh>, MeshPointer>,
 	mesh_nodes: HashMap<ArenaId<Mesh>, Vec<ArenaId<Node>>>,
 	scene_draw_calls: HashMap<ArenaId<Scene>, Vec<DrawCall>>,
-	pub scene_point_lights: HashMap<ArenaId<Scene>, DirtyBuffer>,
+	pub scene_point_lights: HashMap<ArenaId<Scene>, ArenaId<DirtyBuffer>>,
 	pub scene_instance_buffers: HashMap<ArenaId<Scene>, ArenaId<DirtyBuffer>>,
 	scene_collections: HashMap<ArenaId<Scene>, SceneCollection>,
 	point_lights: HashMap<ArenaId<PointLight>, RawPointLight>,
-	buffers: Arena<DirtyBuffer>
+	pub buffers: Arena<DirtyBuffer>
 }
 
 impl EngineState {
@@ -394,10 +392,6 @@ impl EngineState {
 	}
 
 	fn process_cameras(&mut self) {
-		for (_, buf) in &mut self.camera_buffers {
-			buf.reset_offset();
-		}
-
 		for (cam_id, cam) in &self.state.cameras {
 			let cam_node = match cam.node_id {
 				Some(id) => match self.nodes.get(&id) {
@@ -448,15 +442,12 @@ impl EngineState {
 				}
 			}
 
-			let buffer = self
+			let buffer_id = self
 				.camera_buffers
 				.entry(cam_id)
-				.or_insert(DirtyBuffer::new("cameras"));
-
-			let camdata = Mat4::IDENTITY;
-
+				.or_insert(self.buffers.insert(DirtyBuffer::new("cameras", true)));
+			let buffer = self.buffers.get_mut(buffer_id).unwrap();
 			buffer.extend_from_slice(bytemuck::bytes_of(&cam));
-			//buffer.extend_from_slice(bytemuck::bytes_of(&camdata.to_cols_array_2d()));
 		}
 
 		self.printer
@@ -464,10 +455,6 @@ impl EngineState {
 	}
 
 	fn process_point_lights(&mut self) {
-		for (_, s) in &mut self.scene_point_lights {
-			s.reset_offset();
-		}
-
 		for (light_id, light) in &self.state.point_lights {
 			//log::info!("light: {:?}", light);
 
@@ -510,7 +497,10 @@ impl EngineState {
 				}
 			}
 
-			self.scene_point_lights.entry(node.scene_id).or_insert(DirtyBuffer::new("pointlight")).extend_from_slice(bytes_of(&light));
+			let buffer_id = self.scene_point_lights.entry(node.scene_id)
+				.or_insert(self.buffers.insert(DirtyBuffer::new("pointlight", false)));
+			let buffer = self.buffers.get_mut(buffer_id).unwrap();
+			buffer.extend_from_slice(bytes_of(&light));
 		}
 	}
 
@@ -540,12 +530,12 @@ impl EngineState {
 	}
 
 	fn process_ui(&mut self) {
-		for (ui_id, gui) in &self.state.ui_elements {
+		for (ui_id, ui_element) in &self.state.ui_elements {
 			let compositor = self
 				.ui_compositors
 				.entry(ui_id)
 				.or_insert(UICompositor::new());
-			compositor.process(gui);
+			compositor.process(ui_element);
 
 			let render_args = self.ui_render_args.entry(ui_id).or_insert(UIRenderArgs {
 				ui: ui_id,
@@ -581,14 +571,16 @@ impl EngineState {
 			}
 		}
 
-		for (ui_node_id, ui_node) in &self.state.ui_nodes {
-			let node = match self.nodes.get(&ui_node.node_id) {
-				Some(node) => node,
-				None => continue,
-			};
+		// for (ui_node_id, ui_node) in &self.state.ui_nodes {
+		// 	let node = match self.nodes.get(&ui_node.node_id) {
+		// 		Some(node) => node,
+		// 		None => continue,
+		// 	};
 
-			node.scene_id
-		}	
+		// 	ui_node.ui_element_id
+
+		// 	node.scene_id
+		// }	
 
 		self.printer.print(UI_RENDER_ARGS_SLOT, format!("ui_render_args: {:?}", self.ui_render_args));
 	}
@@ -673,18 +665,9 @@ impl EngineState {
 	}
 
 	pub fn process(&mut self, dt: f32) {
-		let timer = Instant::now();
-		self.all_instances_data.clear();
-		// self.all_positions_data.clear();
-		// self.all_tex_coords_data.clear();
-		// self.all_normals_data.clear();
-		// self.all_indices_data.clear();
-		self.all_point_lights_data.clear();
-
 		for (_, s) in &mut self.buffers {
 			s.reset_offset();
 		}
-
 		self.process_nodes();
 		self.process_meshes();
 		self.process_cameras();

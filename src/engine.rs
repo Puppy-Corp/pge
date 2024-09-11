@@ -15,7 +15,6 @@ use std::ops::Range;
 use std::sync::Arc;
 use std::time::Duration;
 use std::time::Instant;
-use glam::Mat4;
 use wgpu::Backends;
 use wgpu::Features;
 use winit::application::ApplicationHandler;
@@ -86,7 +85,6 @@ struct Engine<'a, T> {
     windows: HashMap<WindowId, WindowContext<'a>>,
     point_light_buffers: HashMap<ArenaId<Scene>, BindableBuffer<RawPointLight>>,
     last_on_process_time: Instant,
-    last_physics_update_time: Instant,
     gui_buffers: HashMap<ArenaId<UIElement>, GuiBuffers>,
     texture_bind_groups: HashMap<ArenaId<Texture>, wgpu::BindGroup>,
     camera_buffers: HashMap<ArenaId<Camera>, BindableBuffer<RawCamera>>,
@@ -150,7 +148,6 @@ where
             windows: HashMap::new(),
             point_light_buffers: HashMap::new(),
             last_on_process_time: Instant::now(),
-            last_physics_update_time: Instant::now(),
             gui_buffers: HashMap::new(),
             texture_bind_groups: HashMap::new(),
             camera_buffers: HashMap::new(),
@@ -174,41 +171,19 @@ where
             self.textures.insert(t.0);
         }
 
-		// let vertices: [[f32; 3]; 4] = [[0.0, 0.5, 0.0], [-0.5, -0.5, 0.0], [0.5, -0.5, 0.0], [0.0, 0.0, 0.0]];
-		// let indices: [u16; 4] = [0, 1, 2, 0];
-
-
-		// let mesh = cube(0.5);
-		// println!("indices len: {}", mesh.primitives[0].indices.len());
-		// let vertices_data = bytemuck::cast_slice(&mesh.primitives[0].vertices);
-		// println!("vertices_data len: {}", vertices_data.len());
-		// println!("vertices_data: {:?}", vertices_data);
-		// let indices_data = bytemuck::cast_slice(&mesh.primitives[0].indices);
-		// println!("indices_data len: {}", indices_data.len());
-		// println!("indices_data: {:?}", indices_data);
-		// // self.queue.write_buffer(&self.vertices_buffer2, 0, vertices_data);
-		// // self.queue.write_buffer(&self.index_buffer2, 0, indices_data);
-		// self.vertices_buffer.write(vertices_data);
-		// self.index_buffer.write(indices_data);
-
         if self.state.triangles.vertices.len() > 0 && self.state.triangles.vertices.dirty {
-            //log::info!("writing triangle vertices len: {}", self.state.triangles.vertices.len());
     		self.vertices_buffer.write(&self.state.triangles.vertices.data());
             self.state.triangles.vertices.dirty = false;
         }
         if self.state.triangles.indices.len() > 0 && self.state.triangles.indices.dirty {
-            //log::info!("writing triangle indices len: {}", self.state.triangles.indices.len());
 			self.index_buffer.write(&self.state.triangles.indices.data());
             self.state.triangles.indices.dirty = false;
         }
         if self.state.triangles.tex_coords.len() > 0 && self.state.triangles.tex_coords.dirty {
-            log::info!("writing triangle tex coords len: {}", self.state.triangles.tex_coords.len());
-            self.tex_coords_buffer
-                .write(&self.state.triangles.tex_coords.data());
+            self.tex_coords_buffer.write(&self.state.triangles.tex_coords.data());
             self.state.triangles.tex_coords.dirty = false;
         }
         if self.state.triangles.normals.len() > 0 && self.state.triangles.normals.dirty {
-            //log::info!("writing triangle normals len: {}", self.state.triangles.normals.len());
             self.normal_buffer.write(&self.state.triangles.normals.data());
             self.state.triangles.normals.dirty = false;
         }
@@ -218,9 +193,6 @@ where
                 continue;
             }
 			b.dirty = false;
-
-			//log::info!("[{:?}] writing instance buffer len: {}", index, b.len());
-
             let buff = self.scene_instance_buffers.entry(*index).or_insert(
                 Buffer::new("scene_instance_buffer".to_string(), self.device.clone(), self.queue.clone()),
             );
@@ -232,9 +204,6 @@ where
                 continue;
             }
 			b.dirty = false;
-
-			//log::info!("[{:?}] writing point light buffer len: {}", id.index(), b.len());
-
             let buff = self.point_light_buffers.entry(*id)
                 .or_insert(BindableBuffer::new("point_light_buffer".to_string(), self.device.clone(), self.queue.clone()));
 
@@ -246,18 +215,11 @@ where
                 continue;
             }
 			b.dirty = false;
-
-            //log::info!("[{:?}] writing camera buffer len: {}", id.index(), b.len());
-
-			let data = Mat4::IDENTITY.to_cols_array();
-
             let buff = self
                 .camera_buffers
                 .entry(*id)
                 .or_insert(BindableBuffer::new("camera_buffer".to_string(), self.device.clone(), self.queue.clone()));
-
             buff.write(&b.data());
-			//buff.write(bytemuck::cast_slice(&data));
         }
 
 		for (i, c) in &self.state.ui_compositors {
@@ -270,16 +232,12 @@ where
                 let positions_data = bytemuck::cast_slice(&c.positions);
                 let positions_data_len = positions_data.len() as u64;
 				buffers.vertices_buffer.write(positions_data);
-                // self.queue
-                //     .write_buffer(&buffers.vertices_buffer, 0, positions_data);
                 buffers.position_range = 0..positions_data_len;
             }
 
             if c.indices.len() > 0 {
                 let indices_data = bytemuck::cast_slice(&c.indices);
                 let indices_data_len = indices_data.len() as u64;
-                // self.queue
-                //     .write_buffer(&buffers.index_buffer, 0, indices_data);
 				buffers.index_buffer.write(indices_data);
                 buffers.index_range = 0..indices_data_len;
                 buffers.indices_range = 0..c.indices.len() as u32;
@@ -288,8 +246,6 @@ where
             if c.colors.len() > 0 {
                 let colors_data = bytemuck::cast_slice(&c.colors);
                 let colors_data_len = colors_data.len() as u64;
-                // self.queue
-                //     .write_buffer(&buffers.color_buffer, 0, colors_data);
 				buffers.color_buffer.write(colors_data);
                 buffers.colors_range = 0..colors_data_len;
             }
@@ -348,7 +304,6 @@ where
             let args = match self.state.get_window_render_args(window_ctx.window_id) {
                 Some(a) => a,
                 None => {
-                    //log::error!("Window render args not found");
 					continue;
                 }
             };
@@ -356,7 +311,6 @@ where
             let gui_buffers = match self.gui_buffers.get(&args.ui) {
                 Some(b) => b,
                 None => {
-                    //panic!("Gui buffers not found");
 					continue;
                 }
             };
@@ -373,7 +327,6 @@ where
                 let calls = match self.state.get_camera_draw_calls(v.camview.camera_id) {
                     Some(c) => c,
                     None => {
-                        //panic!("Draw calls not found");
 						continue;
                     }
                 };
@@ -425,8 +378,6 @@ where
                             panic!("Tex coords range is empty");
                         }
 
-						// log::info!("call {:?}", d);
-
                         DrawCall {
                             index_range: d.indices.clone(),
                             indices_range: d.indices_range.clone(),
@@ -466,7 +417,6 @@ where
                     normal_buffer: &self.normal_buffer.buffer(),
                     tex_coords_buffer: &self.tex_coords_buffer.buffer(),
                     vertices_buffer: &self.vertices_buffer.buffer(),
-					background_color: v.background_color
                 };
                 views.push(a);
             }
@@ -611,8 +561,6 @@ where
         window_id: winit::window::WindowId,
         event: winit::event::WindowEvent,
     ) {
-        // println!("window event");
-
         match event {
             WindowEvent::CloseRequested => {
                 event_loop.exit();
@@ -620,28 +568,7 @@ where
             WindowEvent::RedrawRequested => {
                 println!("redraw requested for window {:?}", window_id);
                 match self.windows.get(&window_id) {
-                    Some(window) => {
-                        // let renderer = &window.renderer;
-                        // let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                        // 	label: Some("Render Encoder")
-                        // });
-                        // let args = RenderArgs {
-                        // 	encoder: &mut encoder,
-                        // 	camera_bind_group: &self.camera_buffer.bind_group(),
-                        // 	node_bind_group: &self.node_buffer.bind_group(),
-                        // 	positions_buffer: &self.position_buffer.buffer(),
-                        // 	index_buffer: &self.index_buffer.buffer(),
-                        // 	instance_buffer: &self.instance_buffer.buffer(),
-                        // 	instructions: &self.draw_instructions
-                        // };
-                        // match renderer.render(args) {
-                        // 	Ok(_) => {}
-                        // 	Err(err) => {
-                        // 		log::error!("Error rendering: {:?} window {:?}", err, window_id);
-                        // 	}
-                        // }
-                        // self.queue.submit(std::iter::once(encoder.finish()));
-                    }
+                    Some(_) => {}
                     None => {
                         log::error!("Window not found: {:?}", window_id);
                     }

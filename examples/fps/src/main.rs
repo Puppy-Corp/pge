@@ -113,7 +113,6 @@ pub struct FpsShooter {
 	move_force: Vec3,
 	recoil_force: Vec3,
 	bullets: Vec<Bullet>,
-	node_enditor: Option<NodeEditor>,
 }
 
 impl FpsShooter {
@@ -143,7 +142,6 @@ impl FpsShooter {
 			move_force: Vec3::ZERO,
 			recoil_force: Vec3::ZERO,
 			bullets: Vec::new(),
-			node_enditor: None,
 		}
 	}
 }
@@ -321,8 +319,6 @@ impl FpsShooter {
 
 impl pge::App for FpsShooter {
 	fn on_create(&mut self, state: &mut State) {
-		self.node_enditor = Some(NodeEditor::new(state));
-
 		let mut scene = Scene::new();
 		scene.name = "FPS shooter".to_string();
 		let scene_id = state.scenes.insert(scene);
@@ -595,10 +591,6 @@ impl pge::App for FpsShooter {
 				true
 			}
 		});
-
-		if let Some(node_editor) = &mut self.node_enditor {
-			node_editor.on_process(state, delta);
-		}
 	}
 }
 

@@ -1,18 +1,12 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::ops::Range;
-use std::time::Instant;
-
 use bytemuck::bytes_of;
 use glam::*;
-use log::Log;
-
 use crate::arena::ArenaId;
 use crate::buffer::DirtyBuffer;
 use crate::compositor::UICompositor;
-use crate::cube;
 use crate::debug::ChangePrinter;
-use crate::gltf::load_gltf;
 use crate::internal_types::CamView;
 use crate::physics::PhysicsSystem;
 use crate::spatial_grid::SpatialGrid;
@@ -30,20 +24,11 @@ use crate::Scene;
 use crate::State;
 use crate::Texture;
 use crate::Window;
-use crate::AABB;
 
-const REM_NODE_SLOT: u32 = 0;
-const ADD_NODE_SLOT: u32 = 1;
 const NODE_UPDATE_TIME_SLOT: u32 = 2;
 const BROAD_PHASE_TIME_SLOT: u32 = 3;
 const NARROW_PHASE_TIME_SLOT: u32 = 4;
-const NODES_COUNT_SLOT: u32 = 5;
-const MESHES_COUNT_SLOT: u32 = 6;
 const CAMERAS_SLOT: u32 = 7;
-const POINT_LIGHTS_COUNT_SLOT: u32 = 8;
-const SCENES_COUNT_SLOT: u32 = 9;
-const DRAW_CALLS_SLOT: u32 = 10;
-const MESH_NODES_SLOT: u32 = 11;
 const UI_RENDER_ARGS_SLOT: u32 = 12;
 
 #[derive(Debug, Clone, Default)]
@@ -52,17 +37,6 @@ pub struct Gemometry {
 	pub normals: DirtyBuffer,
 	pub tex_coords: DirtyBuffer,
 	pub indices: DirtyBuffer,
-}
-
-impl Gemometry {
-	pub fn new() -> Self {
-		Self {
-			vertices: DirtyBuffer::new("vertices"),
-			normals: DirtyBuffer::new("normals"),
-			tex_coords: DirtyBuffer::new("tex_coords"),
-			indices: DirtyBuffer::new("indices"),
-		}
-	}
 }
 
 #[derive(Debug, Clone)]
@@ -76,65 +50,16 @@ pub struct DrawCall {
 	pub indices_range: Range<u32>,
 }
 
-pub struct UIDrawCalls {
-	pub vertices: Vec<[f32; 3]>,
-	pub indices: Vec<u16>,
-	pub colors: Vec<[f32; 3]>,
-}
-
-pub struct DrawCalls3D {
-	pub camera: Vec<u8>,
-	pub nodes: Vec<u8>,
-	pub point_lights: Vec<u8>,
-	pub x: f32,
-	pub y: f32,
-	pub w: f32,
-	pub h: f32,
-	pub calls: Vec<DrawCall>,
-}
-
-// #[derive(Debug, Clone)]
-// pub struct WindowDrawData {
-// 	pub ui: UIDrawCalls,
-// 	pub draw_calls: DrawCalls3D,
-// }
-
-struct GuiBuffers {
-	vertices: DirtyBuffer,
-	indices: DirtyBuffer,
-	colors: DirtyBuffer,
-}
-
 #[derive(Debug, Clone)]
 struct NodeMetadata {
 	model: glam::Mat4,
 	scene_id: ArenaId<Scene>,
 }
 
-#[derive(Debug, Clone)]
-struct CollisionNode {
-	node_id: ArenaId<Node>,
-	aabb: AABB,
-}
-
-#[derive(Debug, Clone)]
-struct MeshPointer {
-	positions: Range<u64>,
-	normals: Range<u64>,
-	tex_coords: Range<u64>,
-	indices: Range<u64>,
-	indice_count: u32,
-}
-
-struct SceneDrawInstruction {
-	draw_calls: Vec<DrawCall>,
-}
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone)] 
 pub struct View {
 	pub camview: CamView,
 	pub scene_id: ArenaId<Scene>,
-	pub background_color: [f32; 4],
 }
 
 #[derive(Debug, Clone)]
@@ -156,14 +81,11 @@ pub struct EngineState {
 	nodes: HashMap<ArenaId<Node>, NodeMetadata>,
 	cameras: HashMap<ArenaId<Camera>, RawCamera>,
 	printer: ChangePrinter,
-	pub all_instances_data: Vec<u8>,
 	pub camera_buffers: HashMap<ArenaId<Camera>, DirtyBuffer>,
-	pub all_point_lights_data: Vec<u8>,
 	pub triangles: Gemometry,
 	_3d_models: HashMap<String, Model3D>,
 	pub ui_compositors: HashMap<ArenaId<UIElement>, UICompositor>,
 	ui_render_args: HashMap<ArenaId<UIElement>, UIRenderArgs>,
-	mesh_pointers: HashMap<ArenaId<Mesh>, MeshPointer>,
 	mesh_nodes: HashMap<ArenaId<Mesh>, Vec<ArenaId<Node>>>,
 	scene_draw_calls: HashMap<ArenaId<Scene>, Vec<DrawCall>>,
 	pub scene_point_lights: HashMap<ArenaId<Scene>, DirtyBuffer>,
@@ -178,10 +100,6 @@ impl EngineState {
 	}
 
 	fn process_nodes(&mut self) {
-		self.printer.print(
-			NODES_COUNT_SLOT,
-			format!("nodes count: {}", self.state.nodes.len()),
-		);
 		let mut processed_nodes: HashSet<ArenaId<Node>> = HashSet::new();
 		for (_, nodes) in &mut self.mesh_nodes {
 			nodes.clear();
@@ -286,11 +204,6 @@ impl EngineState {
 	}
 
 	fn process_meshes(&mut self) {
-		// log::info!("meshes: {:?}", self.state.meshes.len());
-		self.printer.print(
-			MESHES_COUNT_SLOT,
-			format!("meshes count: {}", self.state.meshes.len()),
-		);
 		self.triangles.vertices.reset_offset();
 		self.triangles.normals.reset_offset();
 		self.triangles.tex_coords.reset_offset();
@@ -329,16 +242,6 @@ impl EngineState {
 							.extend_from_slice(bytemuck::cast_slice(&tex_coords));
 					}
 					let tex_coords_end = self.triangles.tex_coords.len() as u64;
-
-					let pointer = MeshPointer {
-						positions: vertices_start..vertices_end,
-						normals: normals_start..normals_end,
-						tex_coords: tex_coords_start..tex_coords_end,
-						indices: indices_start..indices_end,
-						indice_count: primitive.indices.len() as u32,
-					};
-					self.mesh_pointers.insert(mesh_id, pointer);
-
 					let node_ids = match self.mesh_nodes.get(&mesh_id) {
 						Some(nodes) => nodes,
 						None => continue,
@@ -376,8 +279,6 @@ impl EngineState {
 						let draw_calls =
 							self.scene_draw_calls.entry(scene_id).or_insert(Vec::new());
 
-						// log::info!("draw_calls: {:?}", draw_calls.len());
-
 						draw_calls.push(DrawCall {
 							texture: mesh.texture,
 							vertices: vertices_start..vertices_end,
@@ -391,12 +292,6 @@ impl EngineState {
 				}
 			}
 		}
-
-		// log::info!("scene_draw_calls: {:?}", self.scene_draw_calls.len());
-		self.printer.print(
-			DRAW_CALLS_SLOT,
-			format!("scene draw calls: {:?}", self.scene_draw_calls),
-		);
 	}
 
 	fn process_cameras(&mut self) {
@@ -413,19 +308,7 @@ impl EngineState {
 				None => continue,
 			};
 
-			// let model = glam::Mat4::perspective_lh(cam.fovy, cam.aspect, cam.znear, cam.zfar)
-			//     * cam_node.model;
-
-			//log::info!("cam_node: {:?}", cam_node);
-
-			//let can_model = Mat4::from_translation(Vec3::new(0.0, 0.0, 2.0));
 			let can_model = cam_node.model;
-
-			// Mat4::orthographic_lh(left, right, bottom, top, near, far)
-
-			// let model = glam::Mat4::perspective_lh(cam.fovy, cam.aspect, cam.znear, cam.zfar)
-			// 	* can_model.inverse();
-
 			let model = match cam.projection {
 				Projection::Perspective { fov, aspect } => {
 					Mat4::perspective_lh(fov, aspect, cam.znear, cam.zfar) 
@@ -434,10 +317,6 @@ impl EngineState {
 					Mat4::orthographic_lh(left, right, bottom, top, cam.znear, cam.zfar)
 				},
 			} * can_model.inverse();
-
-			// let model = Mat4::orthographic_lh(-1.0, 1.0, -1.0, 1.0, 0.1, 100.0)
-			// 	* can_model.inverse();
-
 			let cam = RawCamera {
 				model: model.to_cols_array_2d(),
 			};
@@ -459,10 +338,7 @@ impl EngineState {
 				.entry(cam_id)
 				.or_insert(DirtyBuffer::new("cameras"));
 
-			let camdata = Mat4::IDENTITY;
-
 			buffer.extend_from_slice(bytemuck::bytes_of(&cam));
-			//buffer.extend_from_slice(bytemuck::bytes_of(&camdata.to_cols_array_2d()));
 		}
 
 		self.printer
@@ -492,13 +368,6 @@ impl EngineState {
 					continue;
 				}
 			};
-
-			// let light = RawPointLight {
-			// 	color: light.color.into(),
-			// 	intensity: light.intensity,
-			// 	position: node.model.w_axis.truncate().into(),
-
-			// };
 
 			let pos = node.model.w_axis.truncate().into();
 			let light = RawPointLight::new(light.color, light.intensity, pos);
@@ -574,15 +443,9 @@ impl EngineState {
 					None => continue,
 				};
 
-				let scene = match self.state.scenes.get(&camera_node.scene_id) {
-					Some(scene) => scene,
-					None => continue,
-				};
-
 				render_args.views.push(View {
 					camview: view.clone(),
 					scene_id: camera_node.scene_id,
-					background_color: scene.background_color,
 				});
 			}
 		}
@@ -595,14 +458,6 @@ impl EngineState {
 	}
 
 	fn process_phycis(&mut self, dt: f32) {
-		// for (scene_id, scene) in &self.state.scenes {
-		// 	self.scene_collections.entry(scene_id).or_insert(SceneCollection {
-		// 		moved_nodes: Vec::new(),
-		// 		grid: SpatialGrid::new(5.0),
-		// 		physics_system: PhysicsSystem::new(),
-		// 	});
-		// }
-
 		for (_, c) in &mut self.scene_collections {
 			let timings = c
 				.physics_system
@@ -613,7 +468,7 @@ impl EngineState {
 					format!("node_update_time: {}", timings.node_update_time),
 				);
 			}
-			if timings.broad_phase_time > 10 {
+			if timings.broad_phase_time > 20 {
 				self.printer.print(
 					BROAD_PHASE_TIME_SLOT,
 					format!("broad_phase_time: {}", timings.broad_phase_time),
@@ -674,14 +529,6 @@ impl EngineState {
 	}
 
 	pub fn process(&mut self, dt: f32) {
-		let timer = Instant::now();
-		self.all_instances_data.clear();
-		// self.all_positions_data.clear();
-		// self.all_tex_coords_data.clear();
-		// self.all_normals_data.clear();
-		// self.all_indices_data.clear();
-		self.all_point_lights_data.clear();
-
 		self.process_nodes();
 		self.process_meshes();
 		self.process_cameras();

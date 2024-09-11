@@ -187,7 +187,6 @@ impl PhysicsSystem {
 		let broad_phase_time = timer.elapsed().as_millis() as u32 - node_update_time;
 	
 		if collisions.len() > 0 {
-			self.printer.print(9999, format!("collisions: {:?}", collisions.len()));
 			for collision in collisions {
 				let node1 = state.nodes.get(&collision.node1).unwrap();
 				let node2 = state.nodes.get(&collision.node2).unwrap();

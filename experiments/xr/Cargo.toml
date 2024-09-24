@@ -1,0 +1,8 @@
+[package]
+name = "xr"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+openxr = "0.19"
+android-activity = "0.6.0"

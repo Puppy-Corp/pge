@@ -5,4 +5,7 @@ edition = "2021"
 
 [dependencies]
 openxr = "0.19"
-android-activity = "0.6.0"
+android-activity = { version = "0.6", features = ["native-activity"] }
+
+[lib]
+crate_type=["cdylib"]

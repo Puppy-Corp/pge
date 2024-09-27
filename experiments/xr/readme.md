@@ -2,6 +2,14 @@
 
 Android project files are in the android directory. And it can be built with Android Studio.
 
+openxr requires openxr loader which apparently is not provided by android so one option 
+is to download prebuild aar and extract it from: https://github.com/KhronosGroup/OpenXR-SDK-Source/releases
+
+```
+unzip library.aar -d extracted_library
+```
+And then cope open **libopenxr_loader.so** from **prefab/modules/openxr_loader/libs/android.arm64-v8a** to **src/main/jniLibs/arm64-v8a**
+
 ## Building
 
 ```

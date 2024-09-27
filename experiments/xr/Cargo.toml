@@ -4,8 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-openxr = "0.19"
+openxr = { version = "0.19", features = ["loaded"] }
 android-activity = { version = "0.6", features = ["native-activity"] }
+ash = { version = "0.38", default-features = false, features = ["loaded"] }
+ctrlc = "3.4.5"
 
 [lib]
 crate_type=["cdylib"]

@@ -9,7 +9,7 @@ cargo build --target aarch64-linux-android --package xr
 ```
 Then need to copy the library to the android project.
 ```
-cp target/aarch64-linux-android/debug/libxr.so ../android/app/src/main/jniLibs/arm64-v8a/
+cp ./target/aarch64-linux-android/debug/libxr.so ./experiments/xr/android/app/src/main/jniLibs/arm64-v8a
 ```
 
 ### Macos

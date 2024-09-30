@@ -2,9 +2,13 @@ use std::io::Cursor;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use std::sync::Mutex;
 use std::time::Duration;
 
 use android_activity::AndroidApp;
+use android_activity::InputStatus;
+use android_activity::MainEvent;
+use android_activity::PollEvent;
 use openxr as xr;
 use ash::util::read_spv;
 use ash::vk;
@@ -13,6 +17,64 @@ use ash::vk::Handle;
 #[no_mangle]
 fn android_main(app: AndroidApp) {
 	println!("Hello, Android!2");
+
+	// Shared state to communicate between threads
+	let ready_to_start = Arc::new(Mutex::new(false));
+
+	loop {
+		let ready_to_start_clone = ready_to_start.clone();
+		app.poll_events(Some(Duration::from_secs(1)), move |event| {
+			match event {
+				PollEvent::Wake => {
+					println!("Activity woke up");
+				}
+				PollEvent::Main(event) => match event {
+					// MainEvent::Create => {
+					// 	println!("Activity created");
+					// }
+					MainEvent::Start => {
+						println!("Activity started");
+					}
+					MainEvent::Resume { loader, .. } => {
+						println!("Activity resumed");
+						// Signal that the activity is resumed
+						let mut ready = ready_to_start_clone.lock().unwrap();
+						*ready = true;
+					}
+					MainEvent::Pause => {
+						println!("Activity paused");
+						// Signal that the activity is paused
+						let mut ready = ready_to_start_clone.lock().unwrap();
+						*ready = false;
+					}
+					MainEvent::Destroy => {
+						println!("Activity destroyed");
+						// app.quit();
+					}
+					_ => {}
+				}
+				PollEvent::Timeout => {
+					println!("Activity timeout");
+				}
+				_ => {
+					println!("unknown PollEvent");
+				}
+			}
+
+			// InputStatus::Unhandled
+		});
+
+		// Check if the activity is ready to start
+		{
+			let ready = ready_to_start.lock().unwrap();
+			if *ready {
+				println!("Activity ready to start");
+				break;
+			} else {
+				println!("Activity not ready to start");
+			}
+		}
+	}
 
     // Handle interrupts gracefully
     let running = Arc::new(AtomicBool::new(true));
@@ -198,7 +260,7 @@ fn android_main(app: AndroidApp) {
                         .pipeline_bind_point(vk::PipelineBindPoint::GRAPHICS)])
                     .dependencies(&[vk::SubpassDependency {
                         src_subpass: vk::SUBPASS_EXTERNAL,
-                        dst_subpass: 0,
+                        dst_subpass: 0, 
                         src_stage_mask: vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
                         dst_stage_mask: vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
                         dst_access_mask: vk::AccessFlags::COLOR_ATTACHMENT_WRITE,
@@ -331,6 +393,11 @@ fn android_main(app: AndroidApp) {
             )
             .unwrap();
 
+		let reference_space = session.create_reference_space(
+			xr::ReferenceSpaceType::LOCAL,
+			xr::Posef::IDENTITY,
+		).unwrap();
+
         // Create an action set to encapsulate our actions
         let action_set = xr_instance
             .create_action_set("input", "input pose information", 0)
@@ -419,6 +486,7 @@ fn android_main(app: AndroidApp) {
         let mut swapchain = None;
         let mut event_storage = xr::EventDataBuffer::new();
         let mut session_running = false;
+		println!("Entering main loop");
         // Index of the current frame, wrapped by PIPELINE_DEPTH. Not to be confused with the
         // swapchain image index.
         let mut frame = 0;
@@ -458,20 +526,51 @@ fn android_main(app: AndroidApp) {
                         }
                     }
                     InstanceLossPending(_) => {
+						println!("Instance loss pending");
                         break 'main_loop;
                     }
                     EventsLost(e) => {
                         println!("lost {} events", e.lost_event_count());
                     }
-                    _ => {}
+					ReferenceSpaceChangePending(reference_space_change_pending) => println!("ReferenceSpaceChangePending"),
+					PerfSettingsEXT(perf_settings_ext) => println!("PerfSettingsEXT"),
+					VisibilityMaskChangedKHR(visibility_mask_changed_khr) => println!("VisibilityMaskChangedKHR"),
+					InteractionProfileChanged(interaction_profile_changed) => println!("InteractionProfileChanged"),
+					MainSessionVisibilityChangedEXTX(main_session_visibility_changed_extx) => println!("MainSessionVisibilityChangedEXTX"),
+					DisplayRefreshRateChangedFB(display_refresh_rate_changed_fb) => println!("DisplayRefreshRateChangedFB"),
+					SpatialAnchorCreateCompleteFB(spatial_anchor_create_complete_fb) => println!("SpatialAnchorCreateCompleteFB"),
+					SpaceSetStatusCompleteFB(space_set_status_complete_fb) => println!("SpaceSetStatusCompleteFB"),
+					SpaceQueryResultsAvailableFB(space_query_results_available_fb) => println!("SpaceQueryResultsAvailableFB"),
+					SpaceQueryCompleteFB(space_query_complete_fb) => println!("SpaceQueryCompleteFB"),
+					SpaceSaveCompleteFB(space_save_complete_fb) => println!("SpaceSaveCompleteFB"),
+					SpaceEraseCompleteFB(space_erase_complete_fb) => println!("SpaceEraseCompleteFB"),
+					SpaceShareCompleteFB(space_share_complete_fb) => println!("SpaceShareCompleteFB"),
+					SpaceListSaveCompleteFB(space_list_save_complete_fb) => println!("SpaceListSaveCompleteFB"),
+					SceneCaptureCompleteFB(scene_capture_complete_fb) => println!("SceneCaptureCompleteFB"),
+					PassthroughStateChangedFB(passthrough_state_changed_fb) => println!("PassthroughStateChangedFB"),
+					ViveTrackerConnectedHTCX(vive_tracker_connected_htcx) => println!("ViveTrackerConnectedHTCX"),
+					MarkerTrackingUpdateVARJO(marker_tracking_update_varjo) => println!("MarkerTrackingUpdateVARJO"),
+					VirtualKeyboardCommitTextMETA(virtual_keyboard_commit_text_meta) => println!("VirtualKeyboardCommitTextMETA"),
+					VirtualKeyboardBackspaceMETA(virtual_keyboard_backspace_meta) => println!("VirtualKeyboardBackspaceMETA"),
+					VirtualKeyboardEnterMETA(virtual_keyboard_enter_meta) => println!("VirtualKeyboardEnterMETA"),
+					VirtualKeyboardShownMETA(virtual_keyboard_shown_meta) => println!("VirtualKeyboardShownMETA"),
+					VirtualKeyboardHiddenMETA(virtual_keyboard_hidden_meta) => println!("VirtualKeyboardHiddenMETA"),
+					HeadsetFitChangedML(headset_fit_changed_ml) => println!("HeadsetFitChangedML"),
+					EyeCalibrationChangedML(eye_calibration_changed_ml) => println!("EyeCalibrationChangedML"),
+					LocalizationChangedML(localization_changed_ml) => println!("LocalizationChangedML"),
+					UserPresenceChangedEXT(user_presence_changed_ext) => println!("UserPresenceChangedEXT"),
+					_ => println!("Unhandled event"),
                 }
             }
 
             if !session_running {
                 // Don't grind up the CPU
+				// println!("Session is not running");
                 std::thread::sleep(Duration::from_millis(100));
                 continue;
             }
+
+			// println!("Session is running");
 
             // Block until the previous frame is finished displaying, and is ready for another one.
             // Also returns a prediction of when the next frame will be displayed, for use with
@@ -601,7 +700,7 @@ fn android_main(app: AndroidApp) {
                     })
                     .clear_values(&[vk::ClearValue {
                         color: vk::ClearColorValue {
-                            float32: [0.0, 0.0, 0.0, 1.0],
+                            float32: [1.0, 1.0, 0.0, 1.0],
                         },
                     }]),
                 vk::SubpassContents::INLINE,
@@ -621,6 +720,8 @@ fn android_main(app: AndroidApp) {
             }];
             vk_device.cmd_set_viewport(cmd, 0, &viewports);
             vk_device.cmd_set_scissor(cmd, 0, &scissors);
+
+			println!("Drawing something");
 
             // Draw the scene. Multiview means we only need to do this once, and the GPU will
             // automatically broadcast operations to all views. Shaders can use `gl_ViewIndex` to

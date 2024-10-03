@@ -18,64 +18,6 @@ use ash::vk::Handle;
 fn android_main(app: AndroidApp) {
 	println!("Hello, Android!2");
 
-	// Shared state to communicate between threads
-	let ready_to_start = Arc::new(Mutex::new(false));
-
-	loop {
-		let ready_to_start_clone = ready_to_start.clone();
-		app.poll_events(Some(Duration::from_secs(1)), move |event| {
-			match event {
-				PollEvent::Wake => {
-					println!("Activity woke up");
-				}
-				PollEvent::Main(event) => match event {
-					// MainEvent::Create => {
-					// 	println!("Activity created");
-					// }
-					MainEvent::Start => {
-						println!("Activity started");
-					}
-					MainEvent::Resume { loader, .. } => {
-						println!("Activity resumed");
-						// Signal that the activity is resumed
-						let mut ready = ready_to_start_clone.lock().unwrap();
-						*ready = true;
-					}
-					MainEvent::Pause => {
-						println!("Activity paused");
-						// Signal that the activity is paused
-						let mut ready = ready_to_start_clone.lock().unwrap();
-						*ready = false;
-					}
-					MainEvent::Destroy => {
-						println!("Activity destroyed");
-						// app.quit();
-					}
-					_ => {}
-				}
-				PollEvent::Timeout => {
-					println!("Activity timeout");
-				}
-				_ => {
-					println!("unknown PollEvent");
-				}
-			}
-
-			// InputStatus::Unhandled
-		});
-
-		// Check if the activity is ready to start
-		{
-			let ready = ready_to_start.lock().unwrap();
-			if *ready {
-				println!("Activity ready to start");
-				break;
-			} else {
-				println!("Activity not ready to start");
-			}
-		}
-	}
-
     // Handle interrupts gracefully
     let running = Arc::new(AtomicBool::new(true));
     let r = running.clone();
@@ -503,6 +445,47 @@ fn android_main(app: AndroidApp) {
                 }
             }
 
+			app.poll_events(Some(Duration::from_secs(0)), move |event| {
+				match event {
+					PollEvent::Wake => {
+						println!("Activity woke up");
+					}
+					PollEvent::Main(event) => match event {
+						// MainEvent::Create => {
+						// 	println!("Activity created");
+						// }
+						MainEvent::Start => {
+							println!("Activity started");
+						}
+						MainEvent::Resume { loader, .. } => {
+							println!("Activity resumed");
+							// Signal that the activity is resumed
+							// let mut ready = ready_to_start_clone.lock().unwrap();
+							// *ready = true;
+						}
+						MainEvent::Pause => {
+							println!("Activity paused");
+							// Signal that the activity is paused
+							// let mut ready = ready_to_start_clone.lock().unwrap();
+							// *ready = false;
+						}
+						MainEvent::Destroy => {
+							println!("Activity destroyed");
+							// app.quit();
+						}
+						_ => {}
+					}
+					PollEvent::Timeout => {
+						// println!("Activity timeout");
+					}
+					_ => {
+						println!("unknown PollEvent");
+					}
+				}
+	
+				// InputStatus::Unhandled
+			});
+
             while let Some(event) = xr_instance.poll_event(&mut event_storage).unwrap() {
                 use xr::Event::*;
                 match event {
@@ -700,7 +683,7 @@ fn android_main(app: AndroidApp) {
                     })
                     .clear_values(&[vk::ClearValue {
                         color: vk::ClearColorValue {
-                            float32: [1.0, 1.0, 0.0, 1.0],
+                            float32: [0.0, 0.0, 0.0, 1.0],
                         },
                     }]),
                 vk::SubpassContents::INLINE,
@@ -720,8 +703,6 @@ fn android_main(app: AndroidApp) {
             }];
             vk_device.cmd_set_viewport(cmd, 0, &viewports);
             vk_device.cmd_set_scissor(cmd, 0, &scissors);
-
-			println!("Drawing something");
 
             // Draw the scene. Multiview means we only need to do this once, and the GPU will
             // automatically broadcast operations to all views. Shaders can use `gl_ViewIndex` to

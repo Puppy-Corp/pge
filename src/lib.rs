@@ -19,6 +19,7 @@ mod gltf;
 mod arena;
 mod log;
 mod node_editor;
+mod experiment;
 pub mod text;
 pub use engine::run;
 pub use types::*;

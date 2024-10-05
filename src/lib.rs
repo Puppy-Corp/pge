@@ -20,6 +20,7 @@ mod arena;
 mod log;
 mod node_editor;
 mod experiment;
+mod interface;
 pub mod text;
 pub use engine::run;
 pub use types::*;

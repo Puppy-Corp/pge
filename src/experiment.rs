@@ -1,3 +1,5 @@
+use std::ops::Sub;
+
 
 struct Vec3 {}
 
@@ -35,8 +37,8 @@ impl Buffer {
 	}
 }
 
-fn buffer() -> Buffer {
-	Buffer::new()
+fn buffer() -> LazyOP {
+	LazyOP {}
 }
 
 fn input<T>() -> Input<T> {
@@ -61,8 +63,30 @@ struct LazyOP {
 
 }
 
-fn max() {
+impl LazyOP {
+	pub fn dot(&self, b: LazyOP) -> LazyOP {
+		LazyOP {}
+	}
 
+	pub fn max(&self, b: LazyOP) -> LazyOP {
+		LazyOP {}
+	}
+
+	pub fn normilize(&self) -> LazyOP {
+		LazyOP {}
+	}
+}
+
+impl Sub for LazyOP {
+	type Output = LazyOP;
+
+	fn sub(self, rhs: LazyOP) -> LazyOP {
+		LazyOP {}
+	}
+}
+
+fn max(a: LazyOP, b: LazyOP) -> LazyOP {
+	LazyOP {}
 }
 
 #[cfg(test)]
@@ -75,18 +99,22 @@ mod tests {
 			clip_position: Vec4,
 			world_position: Vec3,
 		}
-		let input = input::<VertexOutput>();
-		let point_lights = buffer();
-		let light_count = uniform();
-		let mut light_color = vec3(1.0, 1.0, 1.0);
-		let mut result = vec3(0.0, 0.0, 0.0);
-		for i in 0..2 {
-			// let point_light = point_lights[i];
-			// let light_position = point_light.position;
-			// let light_direction = normalize(light_position - world_position);
-			// let diffuse_stregth = max(dot(normal, light_direction), 0.0);
-			// let diffuse_color = light_color * diffuse_stregth;
-			// result += diffuse_color;
-		}
+		// let input = VertexOutput {
+		// 	clip_position: vec3(0.0, 0.0, 0.0),
+		// 	world_position: vec3(0.0, 0.0, 0.0),
+		// };
+		// let point_lights = buffer();
+		// let mut light_color = vec3(1.0, 1.0, 1.0);
+		// let mut result = vec3(0.0, 0.0, 0.0);
+		// for i in 0..2 {
+		// 	let point_light = point_lights[i];
+		// 	let light_position = point_light.position;
+		// 	let light_direction = (light_position - input.world_position).normalize();
+		// 	//let light_direction = normalize(light_position - world_position);
+		// 	let diffuce_stregth = 
+		// 	//let diffuse_stregth = max(dot(normal, light_direction), 0.0);
+		// 	let diffuse_color = light_color * diffuse_stregth;
+		// 	result += diffuse_color;
+		// }
 	}
 }

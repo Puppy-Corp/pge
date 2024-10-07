@@ -78,7 +78,6 @@ pub struct SceneCollection {
 pub struct EngineState {
 	pub state: State,
 	grids: HashMap<ArenaId<Scene>, SpatialGrid>,
-	nodes: HashMap<ArenaId<Node>, NodeMetadata>,
 	cameras: HashMap<ArenaId<Camera>, RawCamera>,
 	printer: ChangePrinter,
 	pub camera_buffers: HashMap<ArenaId<Camera>, DirtyBuffer>,
@@ -97,7 +96,7 @@ pub struct EngineState {
 impl EngineState {
 	pub fn new() -> Self {
 		Default::default()
-	}
+	}	
 
 	fn process_nodes(&mut self) {
 		let mut processed_nodes: HashSet<ArenaId<Node>> = HashSet::new();
@@ -242,27 +241,18 @@ impl EngineState {
 							.extend_from_slice(bytemuck::cast_slice(&tex_coords));
 					}
 					let tex_coords_end = self.triangles.tex_coords.len() as u64;
-					let node_ids = match self.mesh_nodes.get(&mesh_id) {
-						Some(nodes) => nodes,
-						None => continue,
-					};
-
+					let node_ids = self.state.get_mesh_nodes(mesh_id);
 					let mut checkpoints: HashMap<ArenaId<Scene>, Range<u32>> = HashMap::new();
-					
 
 					for node_id in node_ids {
-						let node = match self.nodes.get(node_id) {
-							Some(node) => node,
-							None => continue,
-						};
-
+						let model = self.state.get_node_model(node_id);
+						let scene_id = self.state.get_scene_id(node_id);
 						let instance = RawInstance {
-							model: node.model.to_cols_array_2d(),
+							model: model.to_cols_array_2d(),
 						};
-
 						let buffer = self
 							.scene_instance_buffers
-							.entry(node.scene_id)
+							.entry(scene_id)
 							.or_insert(DirtyBuffer::new("instances"));
 
 						let instance_start = buffer.len() as u32 / std::mem::size_of::<RawInstance>() as u32;
@@ -270,7 +260,7 @@ impl EngineState {
 						let instance_end = buffer.len() as u32 / std::mem::size_of::<RawInstance>() as u32;
 
 						let checkpoint = checkpoints
-							.entry(node.scene_id)
+							.entry(scene_id)
 							.or_insert(instance_start..instance_end);
 						checkpoint.end = instance_end;
 					}
@@ -300,15 +290,7 @@ impl EngineState {
 		}
 
 		for (cam_id, cam) in &self.state.cameras {
-			let cam_node = match cam.node_id {
-				Some(id) => match self.nodes.get(&id) {
-					Some(node) => node,
-					None => continue,
-				},
-				None => continue,
-			};
-
-			let can_model = cam_node.model;
+			let cam_model = self.state.get_node_model(cam.node_id);
 			let model = match cam.projection {
 				Projection::Perspective { fov, aspect } => {
 					Mat4::perspective_lh(fov, aspect, cam.znear, cam.zfar) 
@@ -316,17 +298,15 @@ impl EngineState {
 				Projection::Orthographic { left, right, bottom, top } => {
 					Mat4::orthographic_lh(left, right, bottom, top, cam.znear, cam.zfar)
 				},
-			} * can_model.inverse();
+			} * cam_model.inverse();
 			let cam = RawCamera {
 				model: model.to_cols_array_2d(),
 			};
-
 			match self.cameras.get(&cam_id) {
 				Some(camera) => {
 					self.cameras.insert(cam_id, *camera);
 				}
 				None => {
-					log::info!("can_node: {:?}", cam_node);
 					log::info!("model: {:?}", model);
 					log::info!("new camera cam_id: {:?} camera: {:?}", cam_id, cam);
 					self.cameras.insert(cam_id, cam);
@@ -351,25 +331,16 @@ impl EngineState {
 		}
 
 		for (light_id, light) in &self.state.point_lights {
-			//log::info!("light: {:?}", light);
-
-			let node = match light.node_id {
-				Some(id) => {
-					match self.nodes.get(&id) {
-						Some(node) => node,
-						None => {
-							log::warn!("Node with ID {:?} not found for light {:?}", id, light_id);
-							continue;
-						}
-					}
-				}
+			let node_id = match light.node_id {
+				Some(id) => id,
 				None => {
 					log::warn!("Light {:?} has no associated node ID", light_id);
 					continue;
 				}
 			};
 
-			let pos = node.model.w_axis.truncate().into();
+			let model = self.state.get_node_model(node_id);
+			let pos = model.w_axis.truncate().into();
 			let light = RawPointLight::new(light.color, light.intensity, pos);
 
 			match self.point_lights.get(&light_id) {
@@ -385,7 +356,8 @@ impl EngineState {
 				}
 			}
 
-			self.scene_point_lights.entry(node.scene_id).or_insert(DirtyBuffer::new("pointlight")).extend_from_slice(bytes_of(&light));
+			let scene_id = self.state.get_scene_id(node_id);
+			self.scene_point_lights.entry(scene_id).or_insert(DirtyBuffer::new("pointlight")).extend_from_slice(bytes_of(&light));
 		}
 	}
 

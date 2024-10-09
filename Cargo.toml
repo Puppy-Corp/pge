@@ -1,4 +1,4 @@
-workspace = { members = [ "editor","examples/*", "experiments/xr"] }
+workspace = { members = [ "editor","examples/*", "experiments/xr", "impl/android", "impl/apple", "impl/windows"] }
 
 [package]
 name = "pge"

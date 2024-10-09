@@ -80,7 +80,7 @@ impl pge::App for PgeEditor {
 		// }
 
 		if let Some(node_editor) = &mut self.node_editor {
-			node_editor.on_process(state);
+			node_editor.on_process(state, delta);
 		}
 	}
 

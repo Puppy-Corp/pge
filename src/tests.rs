@@ -33,7 +33,7 @@ mod tests {
 		let mesh = cube(3.0);
 		let mut engine_state = EngineState::new();
 		engine_state.state.meshes.insert(mesh);
-		engine_state.update(0.5);
+		engine_state.process(0.5);
 
 		println!("{:?}", engine_state.triangles);
 	}

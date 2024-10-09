@@ -22,6 +22,7 @@ mod node_editor;
 mod experiment;
 mod interface;
 mod state;
+mod qhull;
 pub mod text;
 pub use engine::run;
 pub use types::*;

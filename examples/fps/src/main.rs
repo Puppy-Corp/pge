@@ -441,9 +441,8 @@ impl pge::App for FpsShooter {
 			let node_id = state.nodes.insert(cube_node);
 		}
 
-		let mut camera = Camera::new();
+		let mut camera = Camera::new(player_id);
 		camera.zfar = 1000.0;
-		camera.node_id = Some(player_id);
 		let camera_id = state.cameras.insert(camera);
 		self.player_id = Some(player_id);
 

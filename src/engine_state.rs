@@ -246,7 +246,10 @@ impl EngineState {
 
 					for node_id in node_ids {
 						let model = self.state.get_node_model(node_id);
-						let scene_id = self.state.get_scene_id(node_id);
+						let scene_id = match self.state.get_scene_id(node_id) {
+							Some(scene_id) => scene_id,
+							None => continue,
+						};
 						let instance = RawInstance {
 							model: model.to_cols_array_2d(),
 						};
@@ -356,7 +359,10 @@ impl EngineState {
 				}
 			}
 
-			let scene_id = self.state.get_scene_id(node_id);
+			let scene_id = match self.state.get_scene_id(node_id) {
+				Some(scene_id) => scene_id,
+				None => continue,
+			};
 			self.scene_point_lights.entry(scene_id).or_insert(DirtyBuffer::new("pointlight")).extend_from_slice(bytes_of(&light));
 		}
 	}
@@ -502,6 +508,7 @@ impl EngineState {
 
 	pub fn process(&mut self, dt: f32) {
 		// self.process_nodes();
+		self.state.prepare_cache();
 		self.process_meshes();
 		self.process_cameras();
 		self.process_point_lights();

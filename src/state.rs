@@ -251,7 +251,7 @@ mod tests {
 		// Prepare the cache before testing
 		state.prepare_cache();
 
-		assert_eq!(state.get_scene_id(child_id), scene_id);
+		assert_eq!(state.get_scene_id(child_id), Some(scene_id));
 	}
 
 	#[test]

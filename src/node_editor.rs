@@ -141,14 +141,13 @@ impl NodeEditor {
 			camera_node.parent = NodeParent::Scene(editor_scene_id);
 			let camera_node_id = state.nodes.insert(camera_node);
 
-			let mut camera = Camera::new();
+			let mut camera = Camera::new(camera_node_id);
 			camera.projection = Projection::Orthographic {
 				left: -1.0,
 				right: 1.0,
 				bottom: -1.0,
 				top: 1.0,
 			};
-			camera.node_id = Some(camera_node_id);
 			let camera_id = state.cameras.insert(camera);
 
 			let mut window = Window {

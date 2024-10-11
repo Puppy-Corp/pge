@@ -98,109 +98,109 @@ impl EngineState {
 		Default::default()
 	}	
 
-	fn process_nodes(&mut self) {
-		let mut processed_nodes: HashSet<ArenaId<Node>> = HashSet::new();
-		for (_, nodes) in &mut self.mesh_nodes {
-			nodes.clear();
-		}
+	// fn process_nodes(&mut self) {
+	// 	let mut processed_nodes: HashSet<ArenaId<Node>> = HashSet::new();
+	// 	for (_, nodes) in &mut self.mesh_nodes {
+	// 		nodes.clear();
+	// 	}
 
-		for (node_id, node) in &self.state.nodes {
-			if processed_nodes.contains(&node_id) {
-				continue;
-			}
+	// 	for (node_id, node) in &self.state.nodes {
+	// 		if processed_nodes.contains(&node_id) {
+	// 			continue;
+	// 		}
 
-			let mut stack = vec![node_id];
+	// 		let mut stack = vec![node_id];
 
-			while let Some(node_id) = stack.last() {
-				let node_id = *node_id;
+	// 		while let Some(node_id) = stack.last() {
+	// 			let node_id = *node_id;
 
-				let node = match self.state.nodes.get(&node_id) {
-					Some(node) => node,
-					None => {
-						panic!("Node with ID {:?} not found", node_id);
-					},
-				};
+	// 			let node = match self.state.nodes.get(&node_id) {
+	// 				Some(node) => node,
+	// 				None => {
+	// 					panic!("Node with ID {:?} not found", node_id);
+	// 				},
+	// 			};
 	
-				let node_metadata = match node.parent {
-					NodeParent::Node(parent_node_id) => {
-						match processed_nodes.contains(&parent_node_id) {
-							true => {
-								let parent = match self.nodes.get(&parent_node_id) {
-									Some(model) => model,
-									None => {
-										stack.push(parent_node_id);
-										continue;
-									}
-								};
+	// 			let node_metadata = match node.parent {
+	// 				NodeParent::Node(parent_node_id) => {
+	// 					match processed_nodes.contains(&parent_node_id) {
+	// 						true => {
+	// 							let parent = match self.nodes.get(&parent_node_id) {
+	// 								Some(model) => model,
+	// 								None => {
+	// 									stack.push(parent_node_id);
+	// 									continue;
+	// 								}
+	// 							};
 
-								let model = node.model_matrix();
-								let model = parent.model * model;
+	// 							let model = node.model_matrix();
+	// 							let model = parent.model * model;
 
-								NodeMetadata {
-									model,
-									scene_id: parent.scene_id,
-								}
-							}
-							false => {
-								stack.push(parent_node_id);
-								continue;
-							}
-						}
-					}
-					NodeParent::Scene(scene_id) => {
-						let model = node.model_matrix();
-						NodeMetadata { scene_id, model }
-					}
-					NodeParent::Orphan => {
-						processed_nodes.insert(node_id);
-						break;
-					}
-				};
+	// 							NodeMetadata {
+	// 								model,
+	// 								scene_id: parent.scene_id,
+	// 							}
+	// 						}
+	// 						false => {
+	// 							stack.push(parent_node_id);
+	// 							continue;
+	// 						}
+	// 					}
+	// 				}
+	// 				NodeParent::Scene(scene_id) => {
+	// 					let model = node.model_matrix();
+	// 					NodeMetadata { scene_id, model }
+	// 				}
+	// 				NodeParent::Orphan => {
+	// 					processed_nodes.insert(node_id);
+	// 					break;
+	// 				}
+	// 			};
 
-				if let Some(collision_shape) = &node.collision_shape {
-					let modify = match self.nodes.get(&node_id) {
-						Some(old) => {
-							if old.model != node_metadata.model {
-								true
-							} else {
-								false
-							}
-						}
-						None => {
-							true
-						}
-					};
+	// 			if let Some(collision_shape) = &node.collision_shape {
+	// 				let modify = match self.nodes.get(&node_id) {
+	// 					Some(old) => {
+	// 						if old.model != node_metadata.model {
+	// 							true
+	// 						} else {
+	// 							false
+	// 						}
+	// 					}
+	// 					None => {
+	// 						true
+	// 					}
+	// 				};
 
-					if modify {
-						let aabb = collision_shape.aabb(node.translation);
+	// 				if modify {
+	// 					let aabb = collision_shape.aabb(node.translation);
 
-						let collection = self.scene_collections.entry(node_metadata.scene_id).or_insert(SceneCollection {
-							grid: SpatialGrid::new(5.0),
-							physics_system: PhysicsSystem::new(),
-						});
+	// 					let collection = self.scene_collections.entry(node_metadata.scene_id).or_insert(SceneCollection {
+	// 						grid: SpatialGrid::new(5.0),
+	// 						physics_system: PhysicsSystem::new(),
+	// 					});
 
-						collection.grid.set_node(node_id, aabb);
-					}
-				}
+	// 					collection.grid.set_node(node_id, aabb);
+	// 				}
+	// 			}
 
-				self.nodes.insert(node_id, node_metadata);
+	// 			self.nodes.insert(node_id, node_metadata);
 
-				if let Some(mesh_id) = node.mesh {
-					self.mesh_nodes
-						.entry(mesh_id)
-						.or_insert(Vec::new())
-						.push(node_id);
-				}
+	// 			if let Some(mesh_id) = node.mesh {
+	// 				self.mesh_nodes
+	// 					.entry(mesh_id)
+	// 					.or_insert(Vec::new())
+	// 					.push(node_id);
+	// 			}
 
-				stack.pop();
-				processed_nodes.insert(node_id);
-			}
-		}
+	// 			stack.pop();
+	// 			processed_nodes.insert(node_id);
+	// 		}
+	// 	}
 
-		for (_, c) in &mut self.scene_collections {
-			c.grid.retain_nodes(|node_id| processed_nodes.contains(&node_id));
-		}
-	}
+	// 	for (_, c) in &mut self.scene_collections {
+	// 		c.grid.retain_nodes(|node_id| processed_nodes.contains(&node_id));
+	// 	}
+	// }
 
 	fn process_meshes(&mut self) {
 		self.triangles.vertices.reset_offset();
@@ -246,7 +246,10 @@ impl EngineState {
 
 					for node_id in node_ids {
 						let model = self.state.get_node_model(node_id);
-						let scene_id = self.state.get_scene_id(node_id);
+						let scene_id = match self.state.get_scene_id(node_id) {
+							Some(scene_id) => scene_id,
+							None => continue,
+						};
 						let instance = RawInstance {
 							model: model.to_cols_array_2d(),
 						};
@@ -356,7 +359,10 @@ impl EngineState {
 				}
 			}
 
-			let scene_id = self.state.get_scene_id(node_id);
+			let scene_id = match self.state.get_scene_id(node_id) {
+				Some(scene_id) => scene_id,
+				None => continue,
+			};
 			self.scene_point_lights.entry(scene_id).or_insert(DirtyBuffer::new("pointlight")).extend_from_slice(bytes_of(&light));
 		}
 	}
@@ -401,25 +407,25 @@ impl EngineState {
 
 			render_args.views.clear();
 
-			for view in &compositor.views {
-				let camera = match self.state.cameras.get(&view.camera_id) {
-					Some(camera) => camera,
-					None => continue,
-				};
+			// for view in &compositor.views {
+			// 	let camera = match self.state.cameras.get(&view.camera_id) {
+			// 		Some(camera) => camera,
+			// 		None => continue,
+			// 	};
 
-				let camera_node = match camera.node_id {
-					Some(node_id) => match self.nodes.get(&node_id) {
-						Some(node) => node,
-						None => continue,
-					},
-					None => continue,
-				};
+			// 	let camera_node = match camera.node_id {
+			// 		Some(node_id) => match self.nodes.get(&node_id) {
+			// 			Some(node) => node,
+			// 			None => continue,
+			// 		},
+			// 		None => continue,
+			// 	};
 
-				render_args.views.push(View {
-					camview: view.clone(),
-					scene_id: camera_node.scene_id,
-				});
-			}
+			// 	render_args.views.push(View {
+			// 		camview: view.clone(),
+			// 		scene_id: camera_node.scene_id,
+			// 	});
+			// }
 		}
 
 		for (ui_node_id, ui_node) in &self.state.ui_nodes {
@@ -501,7 +507,8 @@ impl EngineState {
 	}
 
 	pub fn process(&mut self, dt: f32) {
-		self.process_nodes();
+		// self.process_nodes();
+		self.state.prepare_cache();
 		self.process_meshes();
 		self.process_cameras();
 		self.process_point_lights();
@@ -526,14 +533,15 @@ impl EngineState {
 
 	pub fn get_camera_draw_calls(&self, camera_id: ArenaId<Camera>) -> Option<&Vec<DrawCall>> {
 		let camera = self.state.cameras.get(&camera_id)?;
-		let scene_id = match camera.node_id {
-			Some(node_id) => {
-				let node = self.nodes.get(&node_id)?;
-				node.scene_id
-			}
-			None => return None,
-		};
-		self.scene_draw_calls.get(&scene_id)
+		// let scene_id = match camera.node_id {
+		// 	Some(node_id) => {
+		// 		let node = self.nodes.get(&node_id)?;
+		// 		node.scene_id
+		// 	}
+		// 	None => return None,
+		// };
+		// self.scene_draw_calls.get(&scene_id)
+		None
 	}
 }
 
@@ -554,7 +562,7 @@ use super::*;
 
 		let node_id = state.state.nodes.insert(node);
 
-		state.process_nodes();
+		// state.process_nodes();
 
 		println!("{:#?}", state);
 	}

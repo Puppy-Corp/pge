@@ -1,5 +1,6 @@
-use crate::buffer::*;
 use crate::engine_state::EngineState;
+use crate::hardware::Buffer;
+use crate::hardware::Hardware;
 use crate::internal_types::EngineEvent;
 use crate::renderer::*;
 use crate::texture::create_texture_with_uniform_color;
@@ -15,17 +16,6 @@ use std::ops::Range;
 use std::sync::Arc;
 use std::time::Duration;
 use std::time::Instant;
-use wgpu::Backends;
-use wgpu::Features;
-use winit::application::ApplicationHandler;
-use winit::dpi::PhysicalPosition;
-use winit::event::ElementState;
-use winit::event::WindowEvent;
-use winit::event_loop::ControlFlow;
-use winit::event_loop::EventLoop;
-use winit::event_loop::EventLoopProxy;
-use winit::keyboard::KeyCode;
-use winit::window::WindowId;
 
 pub async fn run<T>(app: T) -> anyhow::Result<()>
 where
@@ -38,9 +28,9 @@ where
 }
 
 struct GuiBuffers {
-    vertices_buffer: Buffer<Vertices>,
-    index_buffer: Buffer<Indexes>,
-    color_buffer: Buffer<Colors>,
+    vertices_buffer: Buffer,
+    index_buffer: Buffer,
+    color_buffer: Buffer,
     position_range: Range<u64>,
     index_range: Range<u64>,
     colors_range: Range<u64>,
@@ -71,17 +61,14 @@ struct WindowContext<'a> {
     wininit_window: Arc<winit::window::Window>,
 }
 
-struct Engine<'a, T> {
+struct Engine<'a, T, H> {
     app: T,
+	hardware: H,
     state: EngineState,
-    adapter: Arc<wgpu::Adapter>,
-    instance: Arc<wgpu::Instance>,
-    queue: Arc<wgpu::Queue>,
-    device: Arc<wgpu::Device>,
-    vertices_buffer: Buffer<Vertices>,
-    tex_coords_buffer: Buffer<TexCoords>,
-    normal_buffer: Buffer<Normals>,
-    index_buffer: Buffer<Indexes>,
+    vertices_buffer: Buffer,
+    tex_coords_buffer: Buffer,
+    normal_buffer: Buffer,
+    index_buffer: Buffer,
     windows: HashMap<WindowId, WindowContext<'a>>,
     point_light_buffers: HashMap<ArenaId<Scene>, BindableBuffer<RawPointLight>>,
     last_on_process_time: Instant,
@@ -95,52 +82,24 @@ struct Engine<'a, T> {
 	textures: HashSet<ArenaId<Texture>>,
 }
 
-impl<'a, T> Engine<'a, T>
+impl<'a, T, H> Engine<'a, T, H>
 where
     T: App,
+    H: Hardware,
 {
-    pub async fn new(app: T, proxy: EventLoopProxy<EngineEvent>) -> Self {
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::default());
-        let adapters = instance.enumerate_adapters(Backends::all());
-        for adapter in adapters {
-            println!("Adapter: {:?}", adapter.get_info());
-        }
-        let adapter = instance
-            .request_adapter(&wgpu::RequestAdapterOptions::default())
-            .await
-            .expect("Failed to find an appropriate adapter");
-        let (device, queue) = adapter
-            .request_device(
-                &wgpu::DeviceDescriptor {
-                    required_features: Features::VERTEX_WRITABLE_STORAGE,
-                    ..Default::default()
-                },
-                None,
-            )
-            .await
-            .expect("Failed to create device");
-
-        let device = Arc::new(device);
-        let queue = Arc::new(queue);
-        let adapter = Arc::new(adapter);
-        let instance = Arc::new(instance);
-
+    pub async fn new(app: T, hardware: H, proxy: EventLoopProxy<EngineEvent>) -> Self {
         let default_texture = create_texture_with_uniform_color(&device, &queue);
 
-        let vertices_buffer = Buffer::new("vertices".to_string(), device.clone(), queue.clone());
-        let tex_coords_buffer = Buffer::new("tex_coords".to_string(), device.clone(), queue.clone());
-        let normal_buffer = Buffer::new("normals".to_string(), device.clone(), queue.clone());
-        let index_buffer = Buffer::new("indices".to_string(), device.clone(), queue.clone());
-
-		let default_point_lights = BindableBuffer::new("default_point_lights".to_string(), device.clone(), queue.clone());
+		let vertices_buffer = hardware.create_buffer("vertices");
+		let tex_coords_buffer = hardware.create_buffer("tex_coords");
+		let normal_buffer = hardware.create_buffer("normals");
+		let index_buffer = hardware.create_buffer("indices");
+		let default_point_lights = hardware.create_buffer("default_point_lights");
 
         Self {
             app,
+			hardware,
             state: EngineState::new(),
-            adapter,
-            instance,
-            queue,
-            device,
             vertices_buffer,
             tex_coords_buffer,
             normal_buffer,
@@ -437,8 +396,13 @@ where
         }
         self.queue.submit(std::iter::once(encoder.finish()));
     }
+
+	pub fn process(&mut self, dt: f32) {
+
+	}
 }
 
+/*
 impl<'a, T> ApplicationHandler<EngineEvent> for Engine<'a, T>
 where
     T: App,
@@ -678,3 +642,4 @@ where
         }
     }
 }
+*/

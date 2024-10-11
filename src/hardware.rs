@@ -1,6 +1,5 @@
-pub trait HardwareInterface {
-    fn create_buffer(&self, size: u64) -> Buffer;
-    fn write_buffer(&self, buffer: &Buffer, data: &[u8], offset: u64);
+pub trait Hardware {
+    fn create_buffer(&self, name: &str) -> Buffer;
     fn create_texture(&self, args: CreateTextureArgs) -> Texture;
     fn create_pipeline(&self, args: CreatePipelineArgs) -> Pipeline;
     fn create_bind_group(&self, args: CreateBindGroupArgs) -> BindGroup;
@@ -55,7 +54,8 @@ pub struct CreateTextureArgs {
 }
 
 pub struct CreatePipelineArgs {
-    // Add fields like shader modules, pipeline layout, vertex descriptors, etc.
+    vertex_shader: VertexShader,
+	fragment_shader: FragmentShader,
 }
 
 pub struct CreateBindGroupArgs {
@@ -84,6 +84,10 @@ pub struct Pipeline {
     // Add fields for pipeline properties, like shaders, render states, etc.
 }
 
+impl Pipeline {
+	pub fn render(&self) {}
+}
+
 pub struct BindGroup {
     // Add fields for bind group properties, like bindings, resources, etc.
 }
@@ -106,14 +110,10 @@ pub struct RenderPass {
 
 pub struct MockHardwareInterface;
 
-impl HardwareInterface for MockHardwareInterface {
+impl Hardware for MockHardwareInterface {
     fn create_buffer(&self, size: u64) -> Buffer {
         println!("Mock: Creating buffer of size {}", size);
         Buffer {}
-    }
-
-    fn write_buffer(&self, buffer: &Buffer, data: &[u8], offset: u64) {
-        println!("Mock: Writing data to buffer at offset {}", offset);
     }
 
     fn create_texture(&self, args: CreateTextureArgs) -> Texture {

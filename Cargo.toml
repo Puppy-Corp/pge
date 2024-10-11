@@ -1,7 +1,7 @@
-workspace = { members = [ "editor","examples/*", "experiments/xr", "impl/android", "impl/apple", "impl/windows"] }
+workspace = { members = ["examples/fps", "impl/android", "impl/apple", "impl/windows", "pge"] }
 
 [package]
-name = "pge"
+name = "pgecore"
 version = "0.0.0"
 edition = "2021"
 
@@ -9,8 +9,8 @@ edition = "2021"
 
 [dependencies]
 log = "0.4"
-winit = "0.30"
-wgpu = "0.20"
+#winit = "0.30"
+#wgpu = "0.20"
 anyhow = "1"
 bytemuck = { version = "1.15", features = ["derive"] }
 glam = "0.27.0"
@@ -19,8 +19,6 @@ lyon = "1.0.1"
 image = "0.25"
 gltf = "1"
 colored = "2"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = { version = "1" }
 
 [[bin]]
 name = "large_state_test"

@@ -593,8 +593,7 @@ impl pge::App for FpsShooter {
 	}
 }
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
-	simple_logger::init_with_level(log::Level::Info)?;
-	Ok(pge::run(FpsShooter::new()).await?)
+fn main() {
+	simple_logger::init_with_level(log::Level::Info).unwrap();
+	pge::run(FpsShooter::new());
 }

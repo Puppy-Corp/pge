@@ -92,7 +92,7 @@ struct Engine<'a, T> {
     last_physics_update_time: Instant,
     gui_buffers: HashMap<ArenaId<GUIElement>, GuiBuffers>,
     texture_bind_groups: HashMap<ArenaId<Texture>, wgpu::BindGroup>,
-    camera_buffers: HashMap<ArenaId<Camera>, BindableBuffer<RawCamera>>,
+    camera_buffers: HashMap<ArenaId<Camera>, hardware::Buffer>,
     default_texture: wgpu::BindGroup,
 	default_point_lights: BindableBuffer<RawPointLight>,
     proxy: EventLoopProxy<EngineEvent>,
@@ -118,6 +118,11 @@ where
             .request_device(
                 &wgpu::DeviceDescriptor {
                     required_features: Features::VERTEX_WRITABLE_STORAGE,
+                    required_limits: wgpu::Limits {
+                        max_uniform_buffer_binding_size: 20_000_000,
+                        max_buffer_size: 100_000_000,
+                        ..Default::default()
+                    },
                     ..Default::default()
                 },
                 None,
@@ -260,7 +265,7 @@ where
             let buff = self
                 .camera_buffers
                 .entry(*id)
-                .or_insert(BindableBuffer::new("camera_buffer".to_string(), self.device.clone(), self.queue.clone()));
+                .or_insert(self.hardware.create_buffer("camera_buffer"));
 
             buff.write(&b.data());
 			//buff.write(bytemuck::cast_slice(&data));

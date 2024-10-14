@@ -19,6 +19,7 @@ mod texture;
 mod gltf;
 mod arena;
 mod log;
+mod hardware;
 pub mod text;
 pub use engine::run;
 pub use types::*;

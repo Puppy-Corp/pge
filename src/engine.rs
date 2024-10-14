@@ -1,5 +1,8 @@
 use crate::buffer::*;
 use crate::engine_state::EngineState;
+use crate::hardware;
+use crate::hardware::Hardware;
+use crate::hardware::WgpuHardware;
 use crate::internal_types::EngineEvent;
 use crate::renderer::*;
 use crate::texture::create_texture_with_uniform_color;
@@ -74,14 +77,15 @@ struct WindowContext<'a> {
 struct Engine<'a, T> {
     app: T,
     state: EngineState,
+    hardware: WgpuHardware,
     adapter: Arc<wgpu::Adapter>,
     instance: Arc<wgpu::Instance>,
     queue: Arc<wgpu::Queue>,
     device: Arc<wgpu::Device>,
-    vertices_buffer: Buffer<Vertices>,
-    tex_coords_buffer: Buffer<TexCoords>,
-    normal_buffer: Buffer<Normals>,
-    index_buffer: Buffer<Indexes>,
+    vertices_buffer: hardware::Buffer,
+    tex_coords_buffer: hardware::Buffer,
+    normal_buffer: hardware::Buffer,
+    index_buffer: hardware::Buffer,
     windows: HashMap<WindowId, WindowContext<'a>>,
     point_light_buffers: HashMap<ArenaId<Scene>, BindableBuffer<RawPointLight>>,
     last_on_process_time: Instant,
@@ -92,7 +96,7 @@ struct Engine<'a, T> {
     default_texture: wgpu::BindGroup,
 	default_point_lights: BindableBuffer<RawPointLight>,
     proxy: EventLoopProxy<EngineEvent>,
-    scene_instance_buffers: HashMap<ArenaId<Scene>, Buffer<RawInstance>>,
+    scene_instance_buffers: HashMap<ArenaId<Scene>, hardware::Buffer>,
 	textures: HashSet<ArenaId<Texture>>,
 }
 
@@ -125,19 +129,21 @@ where
         let queue = Arc::new(queue);
         let adapter = Arc::new(adapter);
         let instance = Arc::new(instance);
+        let mut hardware = WgpuHardware::new(device.clone(), queue.clone());
 
         let default_texture = create_texture_with_uniform_color(&device, &queue);
 
-        let vertices_buffer = Buffer::new("vertices".to_string(), device.clone(), queue.clone());
-        let tex_coords_buffer = Buffer::new("tex_coords".to_string(), device.clone(), queue.clone());
-        let normal_buffer = Buffer::new("normals".to_string(), device.clone(), queue.clone());
-        let index_buffer = Buffer::new("indices".to_string(), device.clone(), queue.clone());
+        let vertices_buffer = hardware.create_buffer("vertices");
+        let tex_coords_buffer = hardware.create_buffer("tex_coords");
+        let normal_buffer = hardware.create_buffer("normals");
+        let index_buffer = hardware.create_buffer("indices");
 
 		let default_point_lights = BindableBuffer::new("default_point_lights".to_string(), device.clone(), queue.clone());
 
         Self {
             app,
             state: EngineState::new(),
+            hardware,
             adapter,
             instance,
             queue,
@@ -160,6 +166,7 @@ where
 			textures: HashSet::new(),
         }
     }
+
 
     pub fn update_buffers(&mut self) {
         let mut new_textures = Vec::new();
@@ -221,7 +228,7 @@ where
 			//log::info!("[{:?}] writing instance buffer len: {}", index, b.len());
 
             let buff = self.scene_instance_buffers.entry(*index).or_insert(
-                Buffer::new("scene_instance_buffer".to_string(), self.device.clone(), self.queue.clone()),
+                self.hardware.create_buffer("scene_instance_buffer"),
             );
 
             buff.write(&b.data());
@@ -336,7 +343,7 @@ where
             .retain(|_, w| self.state.state.windows.contains(&w.window_id));
     }
 
-    fn render_windows(&mut self) {
+    fn render(&mut self) {
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -461,11 +468,11 @@ where
                     calls,
                     camera_bind_group: &camera_buffer.bind_group(),
                     point_light_bind_group: &point_light_buffer.bind_group(),
-                    index_buffer: &self.index_buffer.buffer(),
-                    instance_buffer: &instance_buffer.buffer(),
-                    normal_buffer: &self.normal_buffer.buffer(),
-                    tex_coords_buffer: &self.tex_coords_buffer.buffer(),
-                    vertices_buffer: &self.vertices_buffer.buffer(),
+                    index_buffer: &self.index_buffer,
+                    instance_buffer: &instance_buffer,
+                    normal_buffer: &self.normal_buffer,
+                    tex_coords_buffer: &self.tex_coords_buffer,
+                    vertices_buffer: &self.vertices_buffer,
                 };
                 views.push(a);
             }
@@ -601,7 +608,7 @@ where
         self.app.on_process(&mut self.state.state, dt);
         self.state.process(dt);
         self.update_buffers();
-        self.render_windows();
+        self.render();
     }
 
     fn window_event(

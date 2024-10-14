@@ -6,6 +6,7 @@ use wgpu::TextureUsages;
 use winit::dpi::PhysicalSize;
 
 use crate::buffer::*;
+use crate::hardware;
 use crate::wgpu_types::*;
 
 struct CreatePipelineArgs<'a> {
@@ -134,11 +135,11 @@ pub struct DrawCall<'a> {
 
 #[derive(Debug)]
 pub struct Render3DView<'a> {
-    pub vertices_buffer: &'a wgpu::Buffer,
-    pub index_buffer: &'a wgpu::Buffer,
-    pub normal_buffer: &'a wgpu::Buffer,
-    pub tex_coords_buffer: &'a wgpu::Buffer,
-    pub instance_buffer: &'a wgpu::Buffer,
+    pub vertices_buffer: &'a hardware::Buffer,
+    pub index_buffer: &'a hardware::Buffer,
+    pub normal_buffer: &'a hardware::Buffer,
+    pub tex_coords_buffer: &'a hardware::Buffer,
+    pub instance_buffer: &'a hardware::Buffer,
     pub camera_bind_group: &'a wgpu::BindGroup,
     pub point_light_bind_group: &'a wgpu::BindGroup,
     pub calls: Vec<DrawCall<'a>>,
@@ -293,7 +294,7 @@ impl Renderer<'_> {
 					// log::info!("call: {:?}", call);
                     render_pass.set_bind_group(2, &call.texture_bind_group, &[]);
                     render_pass.set_vertex_buffer(0, view.vertices_buffer.slice(call.vertices.clone()));
-                    render_pass.set_vertex_buffer(1, view.instance_buffer.slice(..));
+                    render_pass.set_vertex_buffer(1, view.instance_buffer.full());
                     render_pass.set_vertex_buffer(2, view.normal_buffer.slice(call.normal_range.clone()));
                     render_pass.set_vertex_buffer(3, view.tex_coords_buffer.slice(call.tex_coords_range.clone()));
                     render_pass.set_index_buffer(view.index_buffer.slice(call.index_range.clone()), wgpu::IndexFormat::Uint16);

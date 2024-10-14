@@ -5,14 +5,15 @@ use bytemuck::bytes_of;
 use glam::*;
 use crate::arena::ArenaId;
 use crate::buffer::DirtyBuffer;
-use crate::compositor::UICompositor;
+use crate::compositor::Compositor;
 use crate::debug::ChangePrinter;
 use crate::internal_types::CamView;
 use crate::physics::PhysicsSystem;
+use crate::raw_types::RawPointLight;
 use crate::spatial_grid::SpatialGrid;
-use crate::wgpu_types::*;
+//use crate::wgpu_types::*;
 use crate::Camera;
-use crate::UIElement;
+use crate::Element;
 use crate::Mesh;
 use crate::Model3D;
 use crate::Node;
@@ -64,7 +65,7 @@ pub struct View {
 
 #[derive(Debug, Clone)]
 pub struct UIRenderArgs {
-	pub ui: ArenaId<UIElement>,
+	pub element_id: ArenaId<Element>,
 	pub views: Vec<View>,
 }
 
@@ -83,8 +84,8 @@ pub struct EngineState {
 	pub camera_buffers: HashMap<ArenaId<Camera>, DirtyBuffer>,
 	pub triangles: Gemometry,
 	_3d_models: HashMap<String, Model3D>,
-	pub ui_compositors: HashMap<ArenaId<UIElement>, UICompositor>,
-	ui_render_args: HashMap<ArenaId<UIElement>, UIRenderArgs>,
+	pub ui_compositors: HashMap<ArenaId<Element>, Compositor>,
+	ui_render_args: HashMap<ArenaId<Element>, UIRenderArgs>,
 	mesh_nodes: HashMap<ArenaId<Mesh>, Vec<ArenaId<Node>>>,
 	scene_draw_calls: HashMap<ArenaId<Scene>, Vec<DrawCall>>,
 	pub scene_point_lights: HashMap<ArenaId<Scene>, DirtyBuffer>,
@@ -302,10 +303,9 @@ impl EngineState {
 					Mat4::orthographic_lh(left, right, bottom, top, cam.znear, cam.zfar)
 				},
 			} * cam_model.inverse();
-			let cam = RawCamera {
-				model: model.to_cols_array_2d(),
-			};
-			match self.cameras.get(&cam_id) {
+
+			let model = model.to_cols_array_2d();
+			/*match self.cameras.get(&cam_id) {
 				Some(camera) => {
 					self.cameras.insert(cam_id, *camera);
 				}
@@ -314,18 +314,15 @@ impl EngineState {
 					log::info!("new camera cam_id: {:?} camera: {:?}", cam_id, cam);
 					self.cameras.insert(cam_id, cam);
 				}
-			}
+			}*/
 
 			let buffer = self
 				.camera_buffers
 				.entry(cam_id)
 				.or_insert(DirtyBuffer::new("cameras"));
 
-			buffer.extend_from_slice(bytemuck::bytes_of(&cam));
+			buffer.extend_from_slice(bytemuck::bytes_of(&model));
 		}
-
-		self.printer
-			.print(CAMERAS_SLOT, format!("cameras: {:?}", self.cameras));
 	}
 
 	fn process_point_lights(&mut self) {
@@ -397,11 +394,11 @@ impl EngineState {
 			let compositor = self
 				.ui_compositors
 				.entry(ui_id)
-				.or_insert(UICompositor::new());
+				.or_insert(Compositor::new());
 			compositor.process(gui);
 
 			let render_args = self.ui_render_args.entry(ui_id).or_insert(UIRenderArgs {
-				ui: ui_id,
+				element_id: ui_id,
 				views: Vec::new(),
 			});
 
@@ -517,19 +514,7 @@ impl EngineState {
 		self.process_phycis(dt);
 	}
 
-	pub fn get_window_render_args(&self, window_id: ArenaId<Window>) -> Option<&UIRenderArgs> {
-		let window = match self.state.windows.get(&window_id) {
-			Some(window) => window,
-			None => return None,
-		};
 
-		let ui_id = match window.ui {
-			Some(ui_id) => ui_id,
-			None => return None,
-		};
-
-		self.ui_render_args.get(&ui_id)
-	}
 
 	pub fn get_camera_draw_calls(&self, camera_id: ArenaId<Camera>) -> Option<&Vec<DrawCall>> {
 		let camera = self.state.cameras.get(&camera_id)?;

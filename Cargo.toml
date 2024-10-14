@@ -9,11 +9,9 @@ edition = "2021"
 
 [dependencies]
 log = "0.4"
-#winit = "0.30"
-#wgpu = "0.20"
 anyhow = "1"
-bytemuck = { version = "1.15", features = ["derive"] }
-glam = "0.27.0"
+bytemuck = { version = "1", features = ["derive"] }
+glam = "0.29"
 ttf-parser = "0.21.1"
 lyon = "1.0.1"
 image = "0.25"

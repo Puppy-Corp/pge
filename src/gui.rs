@@ -40,7 +40,7 @@ pub struct Window {
 	pub title: String,
 	pub width: u32,
 	pub height: u32,
-	pub ui: Option<ArenaId<UIElement>>,
+	pub ui: Option<ArenaId<Element>>,
 	pub lock_cursor: bool,
 }
 
@@ -60,7 +60,7 @@ impl Window {
 		self
 	}
 
-	pub fn ui(mut self, ui: ArenaId<UIElement>) -> Self {
+	pub fn ui(mut self, ui: ArenaId<Element>) -> Self {
 		self.ui = Some(ui);
 		self
 	}
@@ -89,9 +89,9 @@ impl Default for Layout {
 }
 
 #[derive(Clone, Debug, Default)]
-pub struct UIElement {
+pub struct Element {
 	pub grow: u32,
-	pub children: Vec<UIElement>,
+	pub children: Vec<Element>,
 	pub layout: Layout,
 	pub top_left_radius: f32,
 	pub top_right_radius: f32,
@@ -115,19 +115,19 @@ pub struct UIElement {
 	pub anchor_bottom: bool,
 }
 
-impl UIElement {
+impl Element {
 	pub fn new() -> Self {
 		Self {
 			..Default::default()
 		}
 	}
 
-	pub fn add(mut self, child: UIElement) -> Self {
+	pub fn add(mut self, child: Element) -> Self {
 		self.children.push(child);
 		self
 	}
 
-	pub fn add_many(mut self, children: Vec<UIElement>) -> Self {
+	pub fn add_many(mut self, children: Vec<Element>) -> Self {
 		self.children.extend(children);
 		self
 	}
@@ -191,64 +191,64 @@ impl UIElement {
 	}
 }
 
-pub fn column(children: &[UIElement]) -> UIElement {
-	UIElement {
+pub fn column(children: &[Element]) -> Element {
+	Element {
 		layout: Layout::Vertical,
 		children: children.to_vec(),
 		..Default::default()
 	}
 }
 
-pub fn row(children: &[UIElement]) -> UIElement {
-	UIElement {
+pub fn row(children: &[Element]) -> Element {
+	Element {
 		layout: Layout::Horizontal,
 		children: children.to_vec(),
 		..Default::default()
 	}
 }
 
-pub fn stack(children: &[UIElement]) -> UIElement {
-	UIElement {
+pub fn stack(children: &[Element]) -> Element {
+	Element {
 		children: children.to_vec(),
 		..Default::default()
 	}
 }
 
-pub fn float(children: &[UIElement]) -> UIElement {
-	UIElement {
+pub fn float(children: &[Element]) -> Element {
+	Element {
 		children: children.to_vec(),
 		..Default::default()
 	}
 }
 
-pub fn empty() -> UIElement {
-	UIElement {
+pub fn empty() -> Element {
+	Element {
 		..Default::default()
 	}
 }
 
-pub fn rect() -> UIElement {
-	UIElement {
+pub fn rect() -> Element {
+	Element {
 		background_color: Some(Color::WHITE),
 		..Default::default()
 	}
 }
 
-pub fn list() -> UIElement {
-	UIElement {
+pub fn list() -> Element {
+	Element {
 		..Default::default()
 	}
 }
 
-pub fn camera_view(camera_id: ArenaId<Camera>) -> UIElement {
-	UIElement {
+pub fn camera_view(camera_id: ArenaId<Camera>) -> Element {
+	Element {
 		camera_id: Some(camera_id),
 		..Default::default()
 	}
 }
 
-pub fn text(t: &str) -> UIElement {
-	UIElement {
+pub fn text(t: &str) -> Element {
+	Element {
 		text: Some(t.to_string()),
 		..Default::default()
 	}

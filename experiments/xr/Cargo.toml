@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+pge = { path = "../../pge" }
 openxr = { version = "0.19", features = ["loaded"] }
 android-activity = { version = "0.6", features = ["native-activity"] }
 ash = { version = "0.38", default-features = false, features = ["loaded"] }

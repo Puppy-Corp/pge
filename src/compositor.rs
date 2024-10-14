@@ -155,7 +155,7 @@ impl Lineariser {
 		}
 	}
 
-	fn inner_linearize(&mut self, item: &UIElement, outline: Option<Outline>) {
+	fn inner_linearize(&mut self, item: &Element, outline: Option<Outline>) {
 		let mut outline = outline.unwrap_or(Outline {
 			left_up: [-1.0, 1.0],
 			right_up: [1.0, 1.0],
@@ -295,14 +295,14 @@ impl Lineariser {
 		}
 	}
 
-	pub fn linearize(&mut self, item: &UIElement) {
+	pub fn linearize(&mut self, item: &Element) {
 		self.items.clear();
 		self.inner_linearize(item, None);
 	}
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct UICompositor {
+pub struct Compositor {
 	lineariser: Lineariser,
 	pub positions: Vec<[f32; 3]>,
 	pub indices: Vec<u16>,
@@ -310,7 +310,7 @@ pub struct UICompositor {
 	pub views: Vec<CamView>
 }
 
-impl UICompositor {
+impl Compositor {
 	pub fn new() -> Self {
 		Self {
 			lineariser: Lineariser::new(),
@@ -321,7 +321,7 @@ impl UICompositor {
 		}
 	}
 
-	pub fn process(&mut self, item: &UIElement) {
+	pub fn process(&mut self, item: &Element) {
 		self.positions.clear();
 		self.indices.clear();
 		self.colors.clear();

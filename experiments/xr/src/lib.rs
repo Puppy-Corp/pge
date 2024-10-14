@@ -14,6 +14,21 @@ use ash::util::read_spv;
 use ash::vk;
 use ash::vk::Handle;
 
+struct XrTestApp {
+
+}
+
+impl XrTestApp {
+	pub fn new() -> Self {
+		Self {}
+	}
+}
+
+impl pge::App for XrTestApp {
+}
+
+
+
 #[no_mangle]
 fn android_main(app: AndroidApp) {
 	println!("Hello, Android!2");

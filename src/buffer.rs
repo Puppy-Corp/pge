@@ -1,7 +1,7 @@
 use std::sync::Arc;
-use crate::wgpu_types::{BindableBufferRecipe, BufferRecipe};
+//use crate::wgpu_types::{BindableBufferRecipe, BufferRecipe};
 
-pub struct BindableBuffer<B> {
+/*pub struct BindableBuffer<B> {
 	pub buffer: Buffer<B>,
 	pub bind_group: wgpu::BindGroup,
 	pub bind_group_layout: wgpu::BindGroupLayout,
@@ -103,7 +103,7 @@ impl<B: BufferRecipe> Buffer<B> {
 	pub fn buffer(&self) -> &wgpu::Buffer {
 		&self.buffer
 	}
-}
+}*/
 
 #[derive(Debug, Clone, Default)]
 pub struct DirtyBuffer {

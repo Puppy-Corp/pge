@@ -1,23 +1,33 @@
+use crate::buffers::process_cameras;
+use crate::compositor::Compositor;
+use crate::engine_state::DrawCall;
 use crate::engine_state::EngineState;
+use crate::engine_state::UIRenderArgs;
 use crate::hardware::Buffer;
+use crate::hardware::CreateTextureArgs;
+use crate::hardware::HTexture;
 use crate::hardware::Hardware;
+use crate::hardware::Window;
+use crate::internal_types::CamView;
 use crate::internal_types::EngineEvent;
-use crate::renderer::*;
-use crate::texture::create_texture_with_uniform_color;
-use crate::texture::load_image;
+use crate::raw_types::RawPointLight;
+//use crate::renderer::*;
+//use crate::texture::create_texture_with_uniform_color;
+//use crate::texture::load_image;
 use crate::types::*;
-use crate::wgpu_types::*;
+//use crate::wgpu_types::*;
 use crate::ArenaId;
-use crate::UIElement;
-use crate::Window;
+use crate::Element;
+use crate::State;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::ops::Range;
 use std::sync::Arc;
 use std::time::Duration;
 use std::time::Instant;
+use glam::*;
 
-pub async fn run<T>(app: T) -> anyhow::Result<()>
+/*pub async fn run<T>(app: T) -> anyhow::Result<()>
 where
     T: App,
 {
@@ -25,9 +35,9 @@ where
     let proxy = event_loop.create_proxy();
     let mut engine = Engine::new(app, proxy).await;
     Ok(event_loop.run_app(&mut engine)?)
-}
+}*/ 
 
-struct GuiBuffers {
+/*struct GuiBuffers {
     vertices_buffer: Buffer,
     index_buffer: Buffer,
     color_buffer: Buffer,
@@ -52,73 +62,277 @@ impl GuiBuffers {
             indices_range: 0..0,
         }
     }
+}*/
+
+#[derive(Debug, Clone)]
+pub struct UIRenderArgs {
+	pub element_id: ArenaId<Element>,
+	pub views: Vec<View>,
 }
 
-#[derive(Debug)]
-struct WindowContext<'a> {
-    window_id: ArenaId<Window>,
-    renderer: Renderer<'a>,
-    wininit_window: Arc<winit::window::Window>,
+#[derive(Debug, Clone)] 
+pub struct View {
+	pub camview: CamView,
+	pub scene_id: ArenaId<Scene>,
 }
 
-struct Engine<'a, T, H> {
+#[derive(Debug, Clone, Default)]
+pub struct Triangles {
+	pub vertices: Vec<f32>,
+	pub normals: Vec<f32>,
+	pub tex_coords: Vec<f32>,
+	pub indices: Vec<u32>,
+}
+
+struct Engine<T, H> {
     app: T,
 	hardware: H,
-    state: EngineState,
+	fps: u32,
+    state: State,
+	triangles: Triangles,
     vertices_buffer: Buffer,
     tex_coords_buffer: Buffer,
     normal_buffer: Buffer,
     index_buffer: Buffer,
-    windows: HashMap<WindowId, WindowContext<'a>>,
-    point_light_buffers: HashMap<ArenaId<Scene>, BindableBuffer<RawPointLight>>,
+    //windows: HashMap<WindowId, WindowContext<'a>>,
+    point_light_buffers: HashMap<ArenaId<Scene>, Buffer>,
     last_on_process_time: Instant,
-    gui_buffers: HashMap<ArenaId<UIElement>, GuiBuffers>,
-    texture_bind_groups: HashMap<ArenaId<Texture>, wgpu::BindGroup>,
-    camera_buffers: HashMap<ArenaId<Camera>, BindableBuffer<RawCamera>>,
-    default_texture: wgpu::BindGroup,
-	default_point_lights: BindableBuffer<RawPointLight>,
-    proxy: EventLoopProxy<EngineEvent>,
-    scene_instance_buffers: HashMap<ArenaId<Scene>, Buffer<RawInstance>>,
+    texture_bind_groups: HashMap<ArenaId<Texture>,Texture>,
+    camera_buffers: HashMap<ArenaId<Camera>, Buffer>,
+    default_texture: HTexture,
+	default_point_lights: Buffer,
+    scene_instance_buffers: HashMap<ArenaId<Scene>, Buffer>,
 	textures: HashSet<ArenaId<Texture>>,
+	camera_buffer: Buffer,
+	scene_draw_calls: HashMap<ArenaId<Scene>, Vec<DrawCall>>,
+	point_light_buffer: Buffer,
+	compositors: HashMap<ArenaId<Element>, Compositor>,
+	render_args: HashMap<ArenaId<Element>, UIRenderArgs>,
+	windows: HashMap<ArenaId<Window>, Window>,
 }
 
-impl<'a, T, H> Engine<'a, T, H>
+impl<T, H> Engine<T, H>
 where
     T: App,
     H: Hardware,
 {
-    pub async fn new(app: T, hardware: H, proxy: EventLoopProxy<EngineEvent>) -> Self {
-        let default_texture = create_texture_with_uniform_color(&device, &queue);
+    pub fn new(app: T, mut hardware: H) -> Self {
+        //let default_texture = create_texture_with_uniform_color(&device, &queue);
 
 		let vertices_buffer = hardware.create_buffer("vertices");
 		let tex_coords_buffer = hardware.create_buffer("tex_coords");
 		let normal_buffer = hardware.create_buffer("normals");
 		let index_buffer = hardware.create_buffer("indices");
 		let default_point_lights = hardware.create_buffer("default_point_lights");
+		let camera_buffer = hardware.create_buffer("camera_buffer");
+		let point_light_buffer = hardware.create_buffer("point_light_buffer");
+		let default_texture = hardware.create_texture(CreateTextureArgs {});
 
         Self {
             app,
 			hardware,
-            state: EngineState::new(),
+			fps: 60,
+			state: State::default(),
+			triangles: Triangles::default(),
             vertices_buffer,
             tex_coords_buffer,
             normal_buffer,
             index_buffer,
-            windows: HashMap::new(),
+            //windows: HashMap::new(),
             point_light_buffers: HashMap::new(),
             last_on_process_time: Instant::now(),
-            gui_buffers: HashMap::new(),
             texture_bind_groups: HashMap::new(),
             camera_buffers: HashMap::new(),
             default_texture,
-            proxy,
             scene_instance_buffers: HashMap::new(),
 			default_point_lights,
 			textures: HashSet::new(),
+			camera_buffer,
+			scene_draw_calls: HashMap::new(),
+			point_light_buffer,
+			compositors: HashMap::new(),
+			render_args: HashMap::new(),
         }
     }
 
-    pub fn update_buffers(&mut self) {
+	fn process_cameras(&mut self) {
+		self.camera_buffer.clear();
+		for (_, cam) in self.state.cameras.iter() {
+			let model = self.state.get_node_model(cam.node_id);
+			let model = match cam.projection {
+				Projection::Perspective { fov, aspect } => {
+					Mat4::perspective_rh(fov, aspect, cam.znear, cam.zfar) 
+				},
+				Projection::Orthographic { left, right, bottom, top } => {
+					Mat4::orthographic_lh(left, right, bottom, top, cam.znear, cam.zfar)
+				},
+			} * model.inverse();
+	
+			let model = model.to_cols_array_2d();
+			self.camera_buffer.write(bytemuck::bytes_of(&model));
+		}
+	}
+
+	fn process_point_lights(&mut self) {
+		self.point_light_buffer.clear();
+		for (light_id, light) in &self.state.point_lights {
+			let node_id = match light.node_id {
+				Some(id) => id,
+				None => {
+					log::warn!("Light {:?} has no associated node ID", light_id);
+					continue;
+				}
+			};
+	
+			let model = self.state.get_node_model(node_id);
+			let pos = model.w_axis.truncate().into();
+			let light = RawPointLight::new(light.color, light.intensity, pos);
+			self.point_light_buffer.write(bytemuck::bytes_of(&light));
+		}
+	}
+
+	pub fn process_meshes(&mut self) {
+		self.triangles.vertices.clear();
+		self.triangles.normals.clear();
+		self.triangles.tex_coords.clear();
+		self.triangles.indices.clear();
+		for (_, s) in &mut self.scene_instance_buffers {
+			s.clear();
+		}
+		for (_, s) in &mut self.scene_draw_calls {
+			s.clear();
+		}
+		for (mesh_id, mesh) in &self.state.meshes {
+			for primitive in &mesh.primitives {
+				if primitive.topology == PrimitiveTopology::TriangleList {
+					if primitive.vertices.len() == 0 || primitive.indices.len() == 0 {
+						continue;
+					}
+	
+					let vertices_start = self.triangles.vertices.len() as u64;
+					self.triangles.vertices.extend_from_slice(bytemuck::cast_slice(&primitive.vertices));
+					let vertices_end = self.triangles.vertices.len() as u64;
+					let normals_start = self.triangles.normals.len() as u64;
+					self.triangles.normals.extend_from_slice(bytemuck::cast_slice(&primitive.normals));
+					let normals_end = self.triangles.normals.len() as u64;
+					let indices_start = self.triangles.indices.len() as u64;
+					self.triangles.indices.extend_from_slice(bytemuck::cast_slice(&primitive.indices));
+					let indices_end = self.triangles.indices.len() as u64;
+					let tex_coords_start = self.triangles.tex_coords.len() as u64;
+					if primitive.tex_coords.len() > 0 {
+						self.triangles
+							.tex_coords
+							.extend_from_slice(bytemuck::cast_slice(&primitive.tex_coords));
+					} else {
+						let tex_coords = vec![[0.0, 0.0]; primitive.vertices.len()];
+						self.triangles
+							.tex_coords
+							.extend_from_slice(bytemuck::cast_slice(&tex_coords));
+					}
+					let tex_coords_end = self.triangles.tex_coords.len() as u64;
+					let node_ids = self.state.get_mesh_nodes(mesh_id);
+					let mut checkpoints: HashMap<ArenaId<Scene>, Range<u32>> = HashMap::new();
+	
+					for node_id in node_ids {
+						let model = self.state.get_node_model(node_id);
+						let scene_id = match self.state.get_scene_id(node_id) {
+							Some(scene_id) => scene_id,
+							None => continue,
+						};
+						let model = model.to_cols_array_2d();
+						let buffer = self.scene_instance_buffers
+							.entry(scene_id)
+							.or_insert(self.hardware.create_buffer("scene_instance_buffer"));
+	
+						let instance_start = buffer.len() as u32 / 64;
+						buffer.write(bytemuck::bytes_of(&model));
+						let instance_end = buffer.len() as u32 / 64;
+	
+						let checkpoint = checkpoints
+							.entry(scene_id)
+							.or_insert(instance_start..instance_end);
+						checkpoint.end = instance_end;
+					}
+	
+					for (scene_id, instances) in checkpoints {
+						let draw_calls = self.scene_draw_calls.entry(scene_id).or_insert(Vec::new());
+						draw_calls.push(DrawCall {
+							texture: mesh.texture,
+							vertices: vertices_start..vertices_end,
+							indices: indices_start..indices_end,
+							normals: normals_start..normals_end,
+							tex_coords: tex_coords_start..tex_coords_end,
+							instances,
+							indices_range: 0..primitive.indices.len() as u32,
+						});
+					}
+				}
+			}
+		}
+	}
+
+	fn process_ui(&mut self) {
+		for (id, element) in &self.state.ui_elements {
+			let compositor = self.compositors.entry(id).or_insert(Compositor::new());
+			compositor.process(element);
+	
+			let render_args = self.render_args.entry(id).or_insert(UIRenderArgs {
+				element_id: id,
+				views: Vec::new(),
+			});
+			render_args.views.clear();
+			for view in &compositor.views {
+				let camera = match self.state.cameras.get(&view.camera_id) {
+					Some(camera) => camera,
+					None => continue,
+				};
+				let scene_id = match self.state.get_scene_id(camera.node_id) {
+					Some(scene_id) => scene_id,
+					None => continue,
+				};
+				render_args.views.push(View {
+					camview: view.clone(),
+					scene_id,
+				});
+			}
+		}
+	}
+
+	pub fn get_window_render_args(&self, window_id: ArenaId<Window>) -> Option<&UIRenderArgs> {
+		let window = match self.state.windows.get(&window_id) {
+			Some(window) => window,
+			None => return None,
+		};
+
+		let ui_id = match window.ui {
+			Some(ui_id) => ui_id,
+			None => return None,
+		};
+
+		self.render_args.get(&ui_id)
+	}
+
+	pub fn render(&mut self, dt: f32) {
+		self.process_point_lights();
+		self.process_cameras();
+		self.process_meshes();
+		self.process_ui();
+
+		for (_, window) in &self.state.windows {
+			let args = match self.get_window_render_args(window.ui) {
+                Some(a) => a,
+                None => {
+					continue;
+                }
+            };
+
+			for v in &args.views {
+				
+			}
+		}
+	}
+
+    /*pub fn update_buffers(&mut self) {
         let mut new_textures = Vec::new();
         for (texture_id, texture) in &self.state.state.textures {
             if !self.textures.contains(&texture_id) {
@@ -131,19 +345,19 @@ where
         }
 
         if self.state.triangles.vertices.len() > 0 && self.state.triangles.vertices.dirty {
-    		self.vertices_buffer.write(&self.state.triangles.vertices.data());
+    		self.vertices_buffer.write(0, &self.state.triangles.vertices.data());
             self.state.triangles.vertices.dirty = false;
         }
         if self.state.triangles.indices.len() > 0 && self.state.triangles.indices.dirty {
-			self.index_buffer.write(&self.state.triangles.indices.data());
+			self.index_buffer.write(0, &self.state.triangles.indices.data());
             self.state.triangles.indices.dirty = false;
         }
         if self.state.triangles.tex_coords.len() > 0 && self.state.triangles.tex_coords.dirty {
-            self.tex_coords_buffer.write(&self.state.triangles.tex_coords.data());
+            self.tex_coords_buffer.write(0, &self.state.triangles.tex_coords.data());
             self.state.triangles.tex_coords.dirty = false;
         }
         if self.state.triangles.normals.len() > 0 && self.state.triangles.normals.dirty {
-            self.normal_buffer.write(&self.state.triangles.normals.data());
+            self.normal_buffer.write(0, &self.state.triangles.normals.data());
             self.state.triangles.normals.dirty = false;
         }
 
@@ -190,14 +404,14 @@ where
             if c.positions.len() > 0 {
                 let positions_data = bytemuck::cast_slice(&c.positions);
                 let positions_data_len = positions_data.len() as u64;
-				buffers.vertices_buffer.write(positions_data);
+				buffers.vertices_buffer.write(0, positions_data);
                 buffers.position_range = 0..positions_data_len;
             }
 
             if c.indices.len() > 0 {
                 let indices_data = bytemuck::cast_slice(&c.indices);
                 let indices_data_len = indices_data.len() as u64;
-				buffers.index_buffer.write(indices_data);
+				buffers.index_buffer.write(0, indices_data);
                 buffers.index_range = 0..indices_data_len;
                 buffers.indices_range = 0..c.indices.len() as u32;
             }
@@ -205,13 +419,13 @@ where
             if c.colors.len() > 0 {
                 let colors_data = bytemuck::cast_slice(&c.colors);
                 let colors_data_len = colors_data.len() as u64;
-				buffers.color_buffer.write(colors_data);
+				buffers.color_buffer.write(0, colors_data);
                 buffers.colors_range = 0..colors_data_len;
             }
         }
-    }
+    }*/
 
-    fn update_windows(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+    /*fn update_windows(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
         for (window_id, window) in self.state.state.windows.iter_mut() {
             match self
                 .windows
@@ -250,9 +464,9 @@ where
 
         self.windows
             .retain(|_, w| self.state.state.windows.contains(&w.window_id));
-    }
+    }*/
 
-    fn render_windows(&mut self) {
+    /*fn render_windows(&mut self) {
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -395,11 +609,7 @@ where
             window_ctx.renderer.render(args).unwrap();
         }
         self.queue.submit(std::iter::once(encoder.finish()));
-    }
-
-	pub fn process(&mut self, dt: f32) {
-
-	}
+    }*/
 }
 
 /*
@@ -643,3 +853,24 @@ where
     }
 }
 */
+
+
+#[cfg(test)]
+mod tests {
+	use crate::hardware::MockHardware;
+	use super::*;
+
+	#[test]
+	fn test() {
+		struct TestApp {
+
+		}
+
+		impl App for TestApp {
+
+		}
+
+		let hardware = MockHardware;
+		let engine = Engine::new(TestApp{}, hardware);
+	}
+}

@@ -3,18 +3,13 @@ use std::time::Duration;
 use glam::Quat;
 use glam::Vec3;
 use lyon::geom::euclid::default;
-use serde::Serialize;
-use winit::event::DeviceId;
-use winit::event::MouseScrollDelta;
-use winit::event::TouchPhase;
-use winit::keyboard::KeyCode;
 
 use crate::arena::Arena;
 use crate::arena::ArenaId;
 use crate::gltf::load_gltf;
 use crate::idgen::gen_id;
 use crate::State;
-use crate::UIElement;
+use crate::Element;
 use crate::Window;
 
 #[derive(Debug, Clone)]
@@ -24,27 +19,13 @@ pub enum MouseButton {
 	Middle,
 }
 
-impl From<winit::event::MouseButton> for MouseButton {
-	fn from(button: winit::event::MouseButton) -> Self {
-		match button {
-			winit::event::MouseButton::Left => Self::Left,
-			winit::event::MouseButton::Right => Self::Right,
-			winit::event::MouseButton::Middle => Self::Middle,
-			_ => panic!("Unknown mouse button"),
-		}
-	}
-}
-
 #[derive(Debug, Clone)]
 pub struct MouseWheelEvent {
-	pub device_id: DeviceId,
-	pub delta: MouseScrollDelta,
-	pub phase: TouchPhase,
+
 }
 
 #[derive(Debug, Clone)]
 pub struct CursorMovedEvent {
-	pub device_id: DeviceId,
 	pub dx: f32,
 	pub dy: f32,
 }
@@ -82,33 +63,6 @@ pub enum KeyboardKey {
 	Digit5,
 	Digit6,
 	Unknow
-}
-
-impl From<KeyCode> for KeyboardKey {
-	fn from(key: KeyCode) -> Self {
-		match key {
-			KeyCode::KeyW => Self::W,
-			KeyCode::KeyA => Self::A,
-			KeyCode::KeyS => Self::S,
-			KeyCode::KeyD => Self::D,
-			KeyCode::Space => Self::Space,
-			KeyCode::ShiftLeft => Self::ShiftLeft,
-			KeyCode::KeyF => Self::F,
-			KeyCode::KeyG => Self::G,
-			KeyCode::Digit1 => Self::Digit1,
-			KeyCode::Digit2 => Self::Digit2,
-			KeyCode::Digit3 => Self::Digit3,
-			KeyCode::Digit4 => Self::Digit3,
-			KeyCode::Digit5 => Self::Digit4,
-			KeyCode::Digit6 => Self::Digit6,
-			KeyCode::KeyR => Self::R,
-			KeyCode::KeyE => Self::E,
-			KeyCode::ControlLeft => Self::ControlLeft,
-			KeyCode::KeyZ => Self::Z,
-			KeyCode::KeyH => Self::H,
-			_ => Self::Unknow
-		}
-	}
 }
 
 #[derive(Debug, Clone)]
@@ -436,7 +390,7 @@ impl Node {
 #[derive(Debug, Clone)]
 pub struct UINode {
 	pub node_id: ArenaId<Node>,
-	pub ui_element_id: ArenaId<UIElement>,
+	pub ui_element_id: ArenaId<Element>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

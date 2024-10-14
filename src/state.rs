@@ -5,7 +5,7 @@ use crate::load_gltf;
 use crate::types::*;
 use crate::Arena;
 use crate::ArenaId;
-use crate::UIElement;
+use crate::Element;
 use crate::Window;
 
 #[derive(Debug, Clone, Default)]
@@ -15,7 +15,7 @@ pub struct State {
 	pub nodes: Arena<Node>,
 	pub cameras: Arena<Camera>,
 	pub windows: Arena<Window>,
-	pub ui_elements: Arena<UIElement>,
+	pub ui_elements: Arena<Element>,
 	pub ui_nodes: Arena<UINode>,
 	pub point_lights: Arena<PointLight>,
 	pub textures: Arena<Texture>,
@@ -32,6 +32,10 @@ impl State {
 	pub fn load_3d_model<P: AsRef<Path> + Clone>(&mut self, path: P) -> ArenaId<Model3D> {
 		let model = load_gltf(path, self);
 		self.models.insert(model)
+	}
+
+	pub fn new_mesh(&mut self, mesh: Mesh) -> ArenaId<Mesh> {
+		self.meshes.insert(mesh)
 	}
 
 	/// Deep clones node and its children

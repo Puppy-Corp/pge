@@ -1,6 +1,6 @@
 pub trait Hardware {
-    fn create_buffer(&self, name: &str) -> Buffer;
-    fn create_texture(&self, args: CreateTextureArgs) -> Texture;
+    fn create_buffer(&mut self, name: &str) -> Buffer;
+    fn create_texture(&self, args: CreateTextureArgs) -> HTexture;
     fn create_pipeline(&self, args: CreatePipelineArgs) -> Pipeline;
     fn create_bind_group(&self, args: CreateBindGroupArgs) -> BindGroup;
     fn get_mouse_position(&self) -> Point;
@@ -15,10 +15,24 @@ pub trait Hardware {
     fn create_render_pass(&self, args: CreateRenderPassArgs) -> RenderPass;
     fn begin_render_pass(&self, render_pass: &RenderPass);
     fn end_render_pass(&self);
-	fn create_window(&self) -> WindowHandle;
+	fn create_window(&self) -> Window;
 }
 
-pub struct WindowHandle {
+pub struct Queue {
+
+}
+
+pub struct Device {
+
+}
+
+impl Device { 
+	pub fn create_command_encoder(&self) -> CommandEncoder {
+		
+	}
+}
+
+pub struct Window {
 
 }
 
@@ -72,11 +86,25 @@ pub struct CreateRenderPassArgs {
 
 #[derive(Debug, Clone)]
 pub struct Buffer {
-    // Add fields for buffer properties, like size, usage, etc.
+    pub data: Vec<u8>,
+}
+
+impl Buffer {
+	pub fn write(&mut self, data: &[u8]) {
+		self.data.extend_from_slice(data);
+	}
+
+	pub fn len(&self) -> usize {
+		self.data.len()
+	}
+
+	pub fn clear(&mut self) {
+		self.data.clear();
+	}
 }
 
 #[derive(Debug, Clone)]
-pub struct Texture {
+pub struct HTexture {
     // Add fields for texture properties, like dimensions, format, etc.
 }
 
@@ -108,17 +136,17 @@ pub struct RenderPass {
     // Add fields for render pass properties, like attachments, load/store ops, etc.
 }
 
-pub struct MockHardwareInterface;
+pub struct MockHardware;
 
-impl Hardware for MockHardwareInterface {
-    fn create_buffer(&self, size: u64) -> Buffer {
-        println!("Mock: Creating buffer of size {}", size);
+impl Hardware for MockHardware {
+    fn create_buffer(&self, name: &str) -> Buffer {
+        println!("Mock: Creating buffer with name {}", name);
         Buffer {}
     }
 
-    fn create_texture(&self, args: CreateTextureArgs) -> Texture {
+    fn create_texture(&self, args: CreateTextureArgs) -> HTexture {
         println!("Mock: Creating texture with specified arguments");
-        Texture {}
+        HTexture {}
     }
 
     fn create_pipeline(&self, args: CreatePipelineArgs) -> Pipeline {
@@ -189,7 +217,7 @@ impl Hardware for MockHardwareInterface {
         println!("Mock: Ending render pass");
     }
 	
-	fn create_window(&self) -> WindowHandle {
+	fn create_window(&self) -> Window {
 		todo!()
 	}
 }

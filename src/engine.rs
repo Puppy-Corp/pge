@@ -5,7 +5,6 @@ use crate::hardware::Hardware;
 use crate::hardware::WgpuHardware;
 use crate::internal_types::EngineEvent;
 use crate::renderer::*;
-use crate::texture::create_texture_with_uniform_color;
 use crate::texture::load_image;
 use crate::types::*;
 use crate::wgpu_types::*;

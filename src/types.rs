@@ -9,7 +9,6 @@ use winit::keyboard::KeyCode;
 use crate::arena::Arena;
 use crate::arena::ArenaId;
 use crate::gltf::load_gltf;
-use crate::idgen::gen_id;
 use crate::GUIElement;
 use crate::Window;
 
@@ -597,7 +596,6 @@ pub struct AnimationSampler {
 
 #[derive(Debug, Clone)]
 pub struct Animation {
-	pub id: usize,
 	pub channels: Vec<AnimationChannel>,
 	pub samplers: Vec<AnimationSampler>,
 }
@@ -605,7 +603,6 @@ pub struct Animation {
 impl Animation {
 	pub fn new() -> Self {
 		Self {
-			id: gen_id(),
 			channels: vec![],
 			samplers: vec![],
 		}
@@ -667,7 +664,6 @@ impl Material {
 
 #[derive(Debug, Clone, Default)]
 pub struct PointLight {
-	pub id: usize,
 	pub color: [f32; 3],
 	pub intensity: f32,
 	pub node_id: Option<ArenaId<Node>>
@@ -676,7 +672,6 @@ pub struct PointLight {
 impl PointLight {
 	pub fn new() -> Self {
 		Self {
-			id: gen_id(),
 			color: [1.0, 1.0, 1.0],
 			intensity: 1.0,
 			node_id: None

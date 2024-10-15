@@ -2,7 +2,6 @@ pub mod engine;
 pub mod types;
 pub mod shapes;
 pub mod gui;
-mod idgen;
 
 mod wgpu_types;
 mod buffer;

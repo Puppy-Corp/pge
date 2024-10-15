@@ -1,4 +1,3 @@
-use crate::idgen::gen_id;
 use crate::ArenaId;
 use crate::Camera;
 use crate::FontHandle;

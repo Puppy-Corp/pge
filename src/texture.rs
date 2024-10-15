@@ -55,7 +55,7 @@ pub fn create_texture_with_uniform_color(
         usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
 		view_formats: Default::default(),
     });
-	let data: [u8; 4] = [255, 100, 50, 255]; // red
+	let data: [u8; 4] = [255, 100, 200, 255]; // red
 	queue.write_texture(
 		wgpu::ImageCopyTexture {
 			texture: &texture,

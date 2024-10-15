@@ -124,7 +124,7 @@ fn create_gui_pipeline(args: CreatePipelineArgs) -> wgpu::RenderPipeline {
 
 #[derive(Debug)]
 pub struct DrawCall<'a> {
-    pub texture_bind_group: &'a wgpu::BindGroup,
+    pub texture_bind_group: &'a hardware::Texture,
     pub vertices: Range<u64>,
     pub index_range: Range<u64>,
     pub normal_range: Range<u64>,
@@ -292,7 +292,7 @@ impl Renderer<'_> {
 
                 for call in &view.calls {
 					// log::info!("call: {:?}", call);
-                    render_pass.set_bind_group(2, &call.texture_bind_group, &[]);
+                    render_pass.set_bind_group(2, &call.texture_bind_group.bind_group(), &[]);
                     render_pass.set_vertex_buffer(0, view.vertices_buffer.slice(call.vertices.clone()));
                     render_pass.set_vertex_buffer(1, view.instance_buffer.full());
                     render_pass.set_vertex_buffer(2, view.normal_buffer.slice(call.normal_range.clone()));

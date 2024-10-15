@@ -91,9 +91,9 @@ struct Engine<'a, T> {
     last_on_process_time: Instant,
     last_physics_update_time: Instant,
     gui_buffers: HashMap<ArenaId<GUIElement>, GuiBuffers>,
-    texture_bind_groups: HashMap<ArenaId<Texture>, wgpu::BindGroup>,
+    texture_bind_groups: HashMap<ArenaId<Texture>, hardware::Texture>,
     camera_buffers: HashMap<ArenaId<Camera>, hardware::Buffer>,
-    default_texture: wgpu::BindGroup,
+    default_texture: hardware::Texture,
 	default_point_lights: hardware::Buffer,
     proxy: EventLoopProxy<EngineEvent>,
     scene_instance_buffers: HashMap<ArenaId<Scene>, hardware::Buffer>,
@@ -136,7 +136,8 @@ where
         let instance = Arc::new(instance);
         let mut hardware = WgpuHardware::new(device.clone(), queue.clone());
 
-        let default_texture = create_texture_with_uniform_color(&device, &queue);
+        let data: [u8; 4] = [255, 100, 200, 255]; // pink
+        let default_texture = hardware.create_texture("default_texture", &data);
 
         let vertices_buffer = hardware.create_buffer("vertices");
         let tex_coords_buffer = hardware.create_buffer("tex_coords");
@@ -526,70 +527,10 @@ where
                     "Texture data size mismatch"
                 );
 
-                let texture = self.device.create_texture(&wgpu::TextureDescriptor {
-                    label: Some("Loaded Image"),
-                    size: wgpu::Extent3d {
-                        width,
-                        height,
-                        depth_or_array_layers: 1,
-                    },
-                    mip_level_count: 1,
-                    sample_count: 1,
-                    dimension: wgpu::TextureDimension::D2,
-                    format: wgpu::TextureFormat::Rgba8UnormSrgb,
-                    usage: wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::TEXTURE_BINDING,
-                    view_formats: &[],
-                });
-
-                self.queue.write_texture(
-                    wgpu::ImageCopyTexture {
-                        texture: &texture,
-                        mip_level: 0,
-                        origin: wgpu::Origin3d::ZERO,
-                        aspect: wgpu::TextureAspect::All,
-                    },
-                    &data,
-                    wgpu::ImageDataLayout {
-                        offset: 0,
-                        bytes_per_row: Some(4 * width),
-                        rows_per_image: Some(height),
-                    },
-                    wgpu::Extent3d {
-                        width,
-                        height,
-                        depth_or_array_layers: 1,
-                    },
-                );
-
-                let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-                let sampler = self.device.create_sampler(&wgpu::SamplerDescriptor {
-                    address_mode_u: wgpu::AddressMode::ClampToEdge,
-                    address_mode_v: wgpu::AddressMode::ClampToEdge,
-                    address_mode_w: wgpu::AddressMode::ClampToEdge,
-                    mag_filter: wgpu::FilterMode::Linear,
-                    min_filter: wgpu::FilterMode::Linear,
-                    mipmap_filter: wgpu::FilterMode::Nearest,
-                    ..Default::default()
-                });
-
-                let texture_bind_group =
-                    self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                        layout: &TextureBuffer::create_bind_group_layout(&self.device),
-                        entries: &[
-                            wgpu::BindGroupEntry {
-                                binding: 0,
-                                resource: wgpu::BindingResource::TextureView(&texture_view),
-                            },
-                            wgpu::BindGroupEntry {
-                                binding: 1,
-                                resource: wgpu::BindingResource::Sampler(&sampler),
-                            },
-                        ],
-                        label: Some("texture_bind_group"),
-                    });
+                let texture = self.hardware.create_texture("Loaded Image", &data);
 
                 self.texture_bind_groups
-                    .insert(texture_id, texture_bind_group);
+                    .insert(texture_id, texture);
             }
         }
     }

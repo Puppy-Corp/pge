@@ -41,9 +41,9 @@ where
 }
 
 struct GuiBuffers {
-    vertices_buffer: Buffer<Vertices>,
-    index_buffer: Buffer<Indexes>,
-    color_buffer: Buffer<Colors>,
+    vertices_buffer: hardware::Buffer,
+    index_buffer: hardware::Buffer,
+    color_buffer: hardware::Buffer,
     position_range: Range<u64>,
     index_range: Range<u64>,
     colors_range: Range<u64>,
@@ -51,10 +51,10 @@ struct GuiBuffers {
 }
 
 impl GuiBuffers {
-    pub fn new(device: Arc<wgpu::Device>, queue: Arc<wgpu::Queue>) -> Self {
-        let vertices_buffer = Buffer::new("vertices".to_string(), device.clone(), queue.clone());
-		let index_buffer = Buffer::new("indices".to_string(), device.clone(), queue.clone());
-		let color_buffer = Buffer::new("colors".to_string(), device.clone(), queue.clone());
+    pub fn new(hardware: &mut WgpuHardware) -> Self {
+        let vertices_buffer = hardware.create_buffer("vertices");
+		let index_buffer = hardware.create_buffer("indices");
+		let color_buffer = hardware.create_buffer("colors");
         Self {
             vertices_buffer,
             index_buffer,
@@ -87,14 +87,14 @@ struct Engine<'a, T> {
     normal_buffer: hardware::Buffer,
     index_buffer: hardware::Buffer,
     windows: HashMap<WindowId, WindowContext<'a>>,
-    point_light_buffers: HashMap<ArenaId<Scene>, BindableBuffer<RawPointLight>>,
+    point_light_buffers: HashMap<ArenaId<Scene>, hardware::Buffer>,
     last_on_process_time: Instant,
     last_physics_update_time: Instant,
     gui_buffers: HashMap<ArenaId<GUIElement>, GuiBuffers>,
     texture_bind_groups: HashMap<ArenaId<Texture>, wgpu::BindGroup>,
     camera_buffers: HashMap<ArenaId<Camera>, hardware::Buffer>,
     default_texture: wgpu::BindGroup,
-	default_point_lights: BindableBuffer<RawPointLight>,
+	default_point_lights: hardware::Buffer,
     proxy: EventLoopProxy<EngineEvent>,
     scene_instance_buffers: HashMap<ArenaId<Scene>, hardware::Buffer>,
 	textures: HashSet<ArenaId<Texture>>,
@@ -143,7 +143,7 @@ where
         let normal_buffer = hardware.create_buffer("normals");
         let index_buffer = hardware.create_buffer("indices");
 
-		let default_point_lights = BindableBuffer::new("default_point_lights".to_string(), device.clone(), queue.clone());
+		let default_point_lights = hardware.create_buffer("default_point_lights");
 
         Self {
             app,
@@ -247,7 +247,7 @@ where
 			//log::info!("[{:?}] writing point light buffer len: {}", id.index(), b.len());
 
             let buff = self.point_light_buffers.entry(*id)
-                .or_insert(BindableBuffer::new("point_light_buffer".to_string(), self.device.clone(), self.queue.clone()));
+                .or_insert(self.hardware.create_buffer("point_light_buffer"));
 
             buff.write(&b.data());
         }
@@ -275,22 +275,18 @@ where
             let buffers = self
                 .gui_buffers
                 .entry(*i)
-                .or_insert(GuiBuffers::new(self.device.clone(), self.queue.clone()));
+                .or_insert(GuiBuffers::new(&mut self.hardware));
 
             if c.positions.len() > 0 {
                 let positions_data = bytemuck::cast_slice(&c.positions);
                 let positions_data_len = positions_data.len() as u64;
 				buffers.vertices_buffer.write(positions_data);
-                // self.queue
-                //     .write_buffer(&buffers.vertices_buffer, 0, positions_data);
                 buffers.position_range = 0..positions_data_len;
             }
 
             if c.indices.len() > 0 {
                 let indices_data = bytemuck::cast_slice(&c.indices);
                 let indices_data_len = indices_data.len() as u64;
-                // self.queue
-                //     .write_buffer(&buffers.index_buffer, 0, indices_data);
 				buffers.index_buffer.write(indices_data);
                 buffers.index_range = 0..indices_data_len;
                 buffers.indices_range = 0..c.indices.len() as u32;
@@ -299,8 +295,6 @@ where
             if c.colors.len() > 0 {
                 let colors_data = bytemuck::cast_slice(&c.colors);
                 let colors_data_len = colors_data.len() as u64;
-                // self.queue
-                //     .write_buffer(&buffers.color_buffer, 0, colors_data);
 				buffers.color_buffer.write(colors_data);
                 buffers.colors_range = 0..colors_data_len;
             }
@@ -484,9 +478,9 @@ where
 
             let args = RenderArgs {
                 encoder: &mut encoder,
-                positions_buffer: &gui_buffers.vertices_buffer.buffer(),
-                index_buffer: &gui_buffers.index_buffer.buffer(),
-                color_buffer: &gui_buffers.color_buffer.buffer(),
+                positions_buffer: &gui_buffers.vertices_buffer,
+                index_buffer: &gui_buffers.index_buffer,
+                color_buffer: &gui_buffers.color_buffer,
                 views: &views,
                 index_range: gui_buffers.index_range.clone(),
                 indices_range: gui_buffers.indices_range.clone(),

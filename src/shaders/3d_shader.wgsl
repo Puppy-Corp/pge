@@ -23,7 +23,7 @@ struct Camera {
     model: mat4x4<f32>,
 }
 @group(0) @binding(0)
-var<uniform> camera: Camera;
+var<storage, read> camera: Camera;
 
 struct PointLight {
 	color: vec3<f32>,

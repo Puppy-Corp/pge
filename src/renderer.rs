@@ -152,9 +152,9 @@ pub struct Render3DView<'a> {
 #[derive(Debug)]
 pub struct RenderArgs<'a> {
     pub encoder: &'a mut wgpu::CommandEncoder,
-    pub positions_buffer: &'a wgpu::Buffer,
-    pub index_buffer: &'a wgpu::Buffer,
-    pub color_buffer: &'a wgpu::Buffer,
+    pub positions_buffer: &'a hardware::Buffer,
+    pub index_buffer: &'a hardware::Buffer,
+    pub color_buffer: &'a hardware::Buffer,
     pub views: &'a [Render3DView<'a>],
     pub position_range: Range<u64>,
     pub index_range: Range<u64>,

@@ -194,9 +194,9 @@ impl BindableBufferRecipe for RawCamera {
             label: Some("Camera Bind Group Layout"),
             entries: &[wgpu::BindGroupLayoutEntry {
                 binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX,
+                visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
                 ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
+                    ty: wgpu::BufferBindingType::Storage { read_only: true },
                     has_dynamic_offset: false,
                     min_binding_size: None,
                 },
@@ -384,7 +384,7 @@ impl BindableBufferRecipe for RawPointLight {
 			label: Some("Point Light Bind Group Layout"),
 			entries: &[wgpu::BindGroupLayoutEntry {
 				binding: 0,
-				visibility: wgpu::ShaderStages::FRAGMENT,
+				visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
 				ty: wgpu::BindingType::Buffer {
 					ty: wgpu::BufferBindingType::Storage { read_only: true },
 					has_dynamic_offset: false,

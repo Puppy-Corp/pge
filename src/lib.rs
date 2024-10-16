@@ -9,7 +9,7 @@ mod internal_types;
 mod tests;
 mod compositor;
 mod utility;
-mod renderer;
+//mod renderer;
 mod physics;
 mod spatial_grid;
 mod engine_state;

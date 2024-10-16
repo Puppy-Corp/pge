@@ -2,9 +2,9 @@ use crate::buffer::*;
 use crate::engine_state::EngineState;
 use crate::hardware;
 use crate::hardware::Hardware;
+use crate::hardware::RenderEncoder;
 use crate::hardware::WgpuHardware;
 use crate::internal_types::EngineEvent;
-use crate::renderer::*;
 use crate::texture::load_image;
 use crate::types::*;
 use crate::wgpu_types::*;
@@ -69,8 +69,9 @@ impl GuiBuffers {
 #[derive(Debug)]
 struct WindowContext<'a> {
     window_id: ArenaId<Window>,
-    renderer: Renderer<'a>,
     wininit_window: Arc<winit::window::Window>,
+    pipeline: Arc<hardware::Pipeline>,
+    surface: Arc<wgpu::Surface<'a>>,
 }
 
 struct Engine<'a, T> {
@@ -133,7 +134,7 @@ where
         let queue = Arc::new(queue);
         let adapter = Arc::new(adapter);
         let instance = Arc::new(instance);
-        let mut hardware = WgpuHardware::new(device.clone(), queue.clone());
+        let mut hardware = WgpuHardware::new(instance.clone(), device.clone(), queue.clone(), adapter.clone());
 
         let data: [u8; 4] = [255, 100, 200, 255]; // pink
         let default_texture = hardware.create_texture("default_texture", &data);
@@ -318,20 +319,14 @@ where
                         winit::window::Window::default_attributes().with_title(&window.title);
                     let wininit_window = event_loop.create_window(window_attributes).unwrap();
                     let wininit_window = Arc::new(wininit_window);
-                    let renderer = Renderer::new(NewRendererArgs {
-                        window: wininit_window.clone(),
-                        instance: self.instance.clone(),
-                        adapter: self.adapter.clone(),
-                        queue: self.queue.clone(),
-                        device: self.device.clone(),
-                    })
-                    .unwrap();
-
+                    let surface = Arc::new(self.instance.create_surface(wininit_window.clone()).unwrap());
+                    let pipeline = self.hardware.create_pipeline("pipeline", surface.clone(), wininit_window.inner_size());
                     let wininit_window_id = wininit_window.id();
                     let window_ctx = WindowContext {
+                        surface,
                         window_id: window_id,
                         wininit_window,
-                        renderer,
+                        pipeline,
                     };
                     self.windows.insert(wininit_window_id, window_ctx);
                 }
@@ -343,13 +338,9 @@ where
     }
 
     fn render(&mut self) {
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Render Encoder"),
-            });
-
+       
         for (_, window_ctx) in self.windows.iter_mut() {
+            let mut encoder = RenderEncoder::new();
             let args = match self.state.get_window_render_args(window_ctx.window_id) {
                 Some(a) => a,
                 None => {
@@ -358,15 +349,7 @@ where
                 }
             };
 
-            let gui_buffers = match self.gui_buffers.get(&args.ui) {
-                Some(b) => b,
-                None => {
-                    //panic!("Gui buffers not found");
-					continue;
-                }
-            };
-
-            let mut views = Vec::new();
+            let pass = encoder.begin_render_pass();
             for v in &args.views {
                 let camera_buffer = match self.camera_buffers.get(&v.camview.camera_id) {
                     Some(b) => b,
@@ -383,67 +366,6 @@ where
                     }
                 };
 
-                let calls: Vec<_> = calls
-                    .iter()
-                    .map(|d| {
-                        let texture_bind_group = match d.texture {
-                            Some(t) => {
-								match self
-                                .texture_bind_groups
-                                .get(&t) {
-									Some(t) => {
-										t
-									},
-									None => &self.default_texture,
-								}
-							}
-                            None => &self.default_texture,
-                        };
-
-                        if d.indices.start == d.indices.end {
-							log::info!("call {:?}", d);
-                            panic!("Index range is empty");
-                        }
-
-                        if d.indices_range.start == d.indices_range.end {
-							log::info!("call {:?}", d);
-                            panic!("Indices range is empty");
-                        }
-
-                        if d.normals.start == d.normals.end {
-							log::info!("call {:?}", d);
-                            panic!("Normal range is empty");
-                        }
-
-                        if d.instances.start == d.instances.end {
-							log::info!("call {:?}", d);
-                            panic!("Instances range is empty");
-                        }
-
-                        if d.vertices.start == d.vertices.end {
-							log::info!("call {:?}", d);
-                            panic!("vertices range is empty");
-                        }
-
-                        if d.tex_coords.start == d.tex_coords.end {
-							log::info!("call {:?}", d);
-                            panic!("Tex coords range is empty");
-                        }
-
-						// log::info!("call {:?}", d);
-
-                        DrawCall {
-                            index_range: d.indices.clone(),
-                            indices_range: d.indices_range.clone(),
-                            normal_range: d.normals.clone(),
-                            instances_range: d.instances.clone(),
-                            vertices: d.vertices.clone(),
-                            tex_coords_range: d.tex_coords.clone(),
-                            texture_bind_group,
-                        }
-                    })
-                    .collect();
-
                 let instance_buffer = match self.scene_instance_buffers.get(&v.scene_id) {
                     Some(b) => b,
                     None => {
@@ -459,38 +381,37 @@ where
 					}
                 };
 
-                let a = Render3DView {
-                    x: v.camview.x,
-                    y: v.camview.y,
-                    w: v.camview.w,
-                    h: v.camview.h,
-                    calls,
-                    camera_bind_group: &camera_buffer.bind_group(),
-                    point_light_bind_group: &point_light_buffer.bind_group(),
-                    index_buffer: &self.index_buffer,
-                    instance_buffer: &instance_buffer,
-                    normal_buffer: &self.normal_buffer,
-                    tex_coords_buffer: &self.tex_coords_buffer,
-                    vertices_buffer: &self.vertices_buffer,
-                };
-                views.push(a);
+                pass.set_pipeline(window_ctx.pipeline.clone());
+                pass.bind_buffer(0, camera_buffer.clone());
+                pass.bind_buffer(1, point_light_buffer.clone());
+
+                for call in calls {
+                    let texture_bind_group = match call.texture {
+                        Some(t) => {
+                            match self
+                            .texture_bind_groups
+                            .get(&t) {
+                                Some(t) => {
+                                    t
+                                },
+                                None => &self.default_texture,
+                            }
+                        }
+                        None => &self.default_texture,
+                    };
+                    pass.bind_texture(2, texture_bind_group.clone());
+                    pass.set_vertex_buffer(0, self.vertices_buffer.slice(call.vertices.clone()));
+                    pass.set_vertex_buffer(1, instance_buffer.full());
+                    pass.set_vertex_buffer(2, self.normal_buffer.slice(call.normals.clone()));
+                    pass.set_vertex_buffer(3, self.tex_coords_buffer.slice(call.tex_coords.clone()));
+                    pass.set_index_buffer(self.index_buffer.slice(call.indices.clone()));
+                    let indices = call.indices.clone();
+                    let instances = call.instances.clone();
+                    pass.draw_indexed(call.indices_range.clone(), instances.start as u32..instances.end as u32);
+                }
             }
-
-            let args = RenderArgs {
-                encoder: &mut encoder,
-                positions_buffer: &gui_buffers.vertices_buffer,
-                index_buffer: &gui_buffers.index_buffer,
-                color_buffer: &gui_buffers.color_buffer,
-                views: &views,
-                index_range: gui_buffers.index_range.clone(),
-                indices_range: gui_buffers.indices_range.clone(),
-                position_range: gui_buffers.position_range.clone(),
-                color_range: gui_buffers.colors_range.clone(),
-            };
-
-            window_ctx.renderer.render(args).unwrap();
+            self.hardware.submit(encoder, window_ctx.surface.clone());
         }
-        self.queue.submit(std::iter::once(encoder.finish()));
     }
 }
 

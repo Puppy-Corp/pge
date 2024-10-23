@@ -1,7 +1,7 @@
 use std::hash::Hash;
 use std::marker::PhantomData;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct ArenaId<T> {
     index: usize,
     _phantom: PhantomData<T>,
@@ -20,7 +20,16 @@ impl<T> ArenaId<T> {
 	}
 }
 
-impl<T: Clone> Copy for ArenaId<T> {}
+impl<T> Clone for ArenaId<T> {
+    fn clone(&self) -> Self {
+        Self {
+            index: self.index,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<T: Copy> Copy for ArenaId<T> {}
 
 impl<T> PartialEq for ArenaId<T> {
     fn eq(&self, other: &Self) -> bool {

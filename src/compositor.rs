@@ -302,7 +302,7 @@ impl Lineariser {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct UICompositor {
+pub struct Compositor {
 	lineariser: Lineariser,
 	pub positions: Vec<[f32; 3]>,
 	pub indices: Vec<u16>,
@@ -310,7 +310,7 @@ pub struct UICompositor {
 	pub views: Vec<CamView>
 }
 
-impl UICompositor {
+impl Compositor {
 	pub fn new() -> Self {
 		Self {
 			lineariser: Lineariser::new(),

@@ -11,12 +11,20 @@ use crate::wgpu_types::RawPointLight;
 use crate::wgpu_types::TexCoords;
 use crate::wgpu_types::TextureBuffer;
 use crate::wgpu_types::Vertices;
+use crate::ArenaId;
+use crate::Window;
 
 pub trait Hardware {
     fn create_buffer(&mut self, name: &str) -> Buffer;
     fn create_texture(&mut self, name: &str, data: &[u8]) -> Texture;
-    fn create_pipeline(&mut self, name: &str, surface: Arc<wgpu::Surface>, size: PhysicalSize<u32>) -> Arc<Pipeline>;
-    fn submit(&mut self, encoder: RenderEncoder, surface: Arc<wgpu::Surface>);
+    fn create_pipeline(&mut self, name: &str) -> ArenaId<Pipeline>;
+    fn submit(&mut self, encoder: RenderEncoder, surface: &Surface);
+    fn create_window(&mut self, window_id: ArenaId<Window>, window: &Window) -> ArenaId<Window>;
+    fn destroy_window(&mut self, window_id: ArenaId<Window>);
+}
+
+pub struct Surface {
+
 }
 
 #[derive(Debug, Clone)]
@@ -47,6 +55,14 @@ impl Buffer {
 
     pub fn write(&self, data: &[u8]) {
         self.queue.write_buffer(&self.buffer, 0, data);
+    }
+
+    pub fn len(&self) -> u64 {
+        self.buffer.size()
+    }
+
+    pub fn capacity(&self) -> u64 {
+        self.buffer.size()
     }
 }
 
@@ -142,7 +158,7 @@ impl RenderPass {
         self.subpasses.push(subpass);
     }
 
-    pub fn set_pipeline(&mut self, pipeline: Arc<Pipeline>) {
+    pub fn set_pipeline(&mut self, pipeline: ArenaId<Pipeline>) {
         self.pipeline = Some(pipeline);
     }
 }
@@ -175,6 +191,7 @@ impl WgpuHardware {
 }
 
 impl Hardware for WgpuHardware {
+    
     fn create_buffer(&mut self, name: &str) -> Buffer {
         let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some(name),

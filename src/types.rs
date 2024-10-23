@@ -701,6 +701,11 @@ pub struct Model3D {
 }
 
 #[derive(Debug, Clone, Default)]
+pub struct Keyboard {
+	pub pressed: Vec<KeyboardKey>,
+}
+
+#[derive(Debug, Clone, Default)]
 pub struct State {
 	pub scenes: Arena<Scene>,
 	pub meshes: Arena<Mesh>,
@@ -714,6 +719,7 @@ pub struct State {
 	pub models: Arena<Model3D>,
 	pub animations: Arena<Animation>,
 	pub materials: Arena<Material>,
+	pub keyboard: Option<Keyboard>,
 }
 
 impl State {
@@ -728,7 +734,7 @@ impl State {
 		let mut new_node = node.clone();
 		new_node.parent = NodeParent::Orphan;
 		let new_node_id = self.nodes.insert(new_node);
-		let mut stack = vec![(node_id, new_node_id)];
+		let mut stack = vec![(node_id, new_node_id.clone())];
 		while let Some((orig_id, new_parent_id)) = stack.pop() {
 			let children: Vec<_> = self.nodes.iter()
 				.filter_map(|(id, n)| if n.parent == NodeParent::Node(orig_id) { Some(id) } else { None })
@@ -759,6 +765,18 @@ impl State {
 		log::info!("point light count: {:?}", self.point_lights.len());
 		log::info!("texture count: {:?}", self.textures.len());
 		log::info!("raycast count: {:?}", self.raycasts.len());
+	}
+
+	pub fn get_mesh_nodes(&self, mesh_id: ArenaId<Mesh>) -> Vec<ArenaId<Node>> {
+		todo!()
+	}
+
+	pub fn get_node_transformation(&self, node_id: ArenaId<Node>) -> Mat4 {
+		todo!()
+	}
+
+	pub fn get_node_scene(&self, node_id: ArenaId<Node>) -> ArenaId<Scene> {
+		todo!()
 	}
 
 	// pub fn clone_node(&mut self, node_id: ArenaId<Node>) -> ArenaId<Node> {

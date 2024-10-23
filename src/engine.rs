@@ -1,13 +1,16 @@
-use crate::buffer::*;
+use crate::compositor::Compositor;
+use crate::engine_state::DrawCall;
 use crate::engine_state::EngineState;
+use crate::engine_state::UIRenderArgs;
+use crate::engine_state::View;
 use crate::hardware;
 use crate::hardware::Hardware;
 use crate::hardware::RenderEncoder;
-use crate::hardware::WgpuHardware;
-use crate::internal_types::EngineEvent;
-use crate::texture::load_image;
 use crate::types::*;
-use crate::wgpu_types::*;
+use crate::wgpu_types::RawCamera;
+use crate::wgpu_types::RawInstance;
+use crate::wgpu_types::RawPointLight;
+use crate::Arena;
 use crate::ArenaId;
 use crate::GUIElement;
 use crate::Window;
@@ -15,21 +18,10 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::ops::Range;
 use std::sync::Arc;
-use std::time::Duration;
 use std::time::Instant;
 use glam::Mat4;
-use wgpu::Backends;
-use wgpu::Features;
-use winit::application::ApplicationHandler;
-use winit::dpi::PhysicalPosition;
-use winit::event::WindowEvent;
-use winit::event_loop::ControlFlow;
-use winit::event_loop::EventLoop;
-use winit::event_loop::EventLoopProxy;
-use winit::keyboard::KeyCode;
-use winit::window::WindowId;
 
-pub async fn run<T>(app: T) -> anyhow::Result<()>
+/*pub async fn run<T>(app: T) -> anyhow::Result<()>
 where
     T: App,
 {
@@ -37,7 +29,7 @@ where
     let proxy = event_loop.create_proxy();
     let mut engine = Engine::new(app, proxy).await;
     Ok(event_loop.run_app(&mut engine)?)
-}
+}*/
 
 struct GuiBuffers {
     vertices_buffer: hardware::Buffer,
@@ -50,7 +42,7 @@ struct GuiBuffers {
 }
 
 impl GuiBuffers {
-    pub fn new(hardware: &mut WgpuHardware) -> Self {
+    pub fn new(hardware: &mut impl Hardware) -> Self {
         let vertices_buffer = hardware.create_buffer("vertices");
 		let index_buffer = hardware.create_buffer("indices");
 		let color_buffer = hardware.create_buffer("colors");
@@ -74,68 +66,36 @@ struct WindowContext<'a> {
     surface: Arc<wgpu::Surface<'a>>,
 }
 
-struct Engine<'a, T> {
-    app: T,
-    state: EngineState,
-    hardware: WgpuHardware,
-    adapter: Arc<wgpu::Adapter>,
-    instance: Arc<wgpu::Instance>,
-    queue: Arc<wgpu::Queue>,
-    device: Arc<wgpu::Device>,
+pub struct Engine<A, H> {
+    app: A,
+    prev_state: State,
+    state: State,
+    hardware: H,
     vertices_buffer: hardware::Buffer,
     tex_coords_buffer: hardware::Buffer,
     normal_buffer: hardware::Buffer,
     index_buffer: hardware::Buffer,
-    windows: HashMap<WindowId, WindowContext<'a>>,
     point_light_buffers: HashMap<ArenaId<Scene>, hardware::Buffer>,
-    last_on_process_time: Instant,
-    last_physics_update_time: Instant,
     gui_buffers: HashMap<ArenaId<GUIElement>, GuiBuffers>,
     texture_bind_groups: HashMap<ArenaId<Texture>, hardware::Texture>,
     camera_buffers: HashMap<ArenaId<Camera>, hardware::Buffer>,
     default_texture: hardware::Texture,
 	default_point_lights: hardware::Buffer,
-    proxy: EventLoopProxy<EngineEvent>,
     scene_instance_buffers: HashMap<ArenaId<Scene>, hardware::Buffer>,
+    scene_draw_calls: HashMap<ArenaId<Scene>, Vec<DrawCall>>,
 	textures: HashSet<ArenaId<Texture>>,
+    surfaces: Arena<hardware::Surface>,
+    pipeline: ArenaId<hardware::Pipeline>,
+    ui_compositors: HashMap<ArenaId<GUIElement>, Compositor>,
+    ui_render_args: HashMap<ArenaId<GUIElement>, UIRenderArgs>,
 }
 
-impl<'a, T> Engine<'a, T>
+impl<A, H> Engine<A, H>
 where
-    T: App,
+    A: App,
+    H: Hardware,
 {
-    pub async fn new(app: T, proxy: EventLoopProxy<EngineEvent>) -> Self {
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::default());
-        let adapters = instance.enumerate_adapters(Backends::all());
-        for adapter in adapters {
-            println!("Adapter: {:?}", adapter.get_info());
-        }
-        let adapter = instance
-            .request_adapter(&wgpu::RequestAdapterOptions::default())
-            .await
-            .expect("Failed to find an appropriate adapter");
-        let (device, queue) = adapter
-            .request_device(
-                &wgpu::DeviceDescriptor {
-                    required_features: Features::VERTEX_WRITABLE_STORAGE,
-                    required_limits: wgpu::Limits {
-                        max_uniform_buffer_binding_size: 20_000_000,
-                        max_buffer_size: 100_000_000,
-                        ..Default::default()
-                    },
-                    ..Default::default()
-                },
-                None,
-            )
-            .await
-            .expect("Failed to create device");
-
-        let device = Arc::new(device);
-        let queue = Arc::new(queue);
-        let adapter = Arc::new(adapter);
-        let instance = Arc::new(instance);
-        let mut hardware = WgpuHardware::new(instance.clone(), device.clone(), queue.clone(), adapter.clone());
-
+    pub fn new(mut app: A, mut hardware: H) -> Self {
         let data: [u8; 4] = [255, 100, 200, 255]; // pink
         let default_texture = hardware.create_texture("default_texture", &data);
 
@@ -146,149 +106,172 @@ where
 
 		let default_point_lights = hardware.create_buffer("default_point_lights");
 
+        let mut state = EngineState::new();
+        app.on_create(&mut state.state);
+
+        let pipeline = hardware.create_pipeline("pipeline");
+
         Self {
             app,
-            state: EngineState::new(),
+            state,
             hardware,
-            adapter,
-            instance,
-            queue,
-            device,
             vertices_buffer,
             tex_coords_buffer,
             normal_buffer,
             index_buffer,
-            windows: HashMap::new(),
             point_light_buffers: HashMap::new(),
-            last_on_process_time: Instant::now(),
-            last_physics_update_time: Instant::now(),
             gui_buffers: HashMap::new(),
             texture_bind_groups: HashMap::new(),
             camera_buffers: HashMap::new(),
             default_texture,
-            proxy,
             scene_instance_buffers: HashMap::new(),
 			default_point_lights,
 			textures: HashSet::new(),
+            surfaces: Arena::new(),
+            pipeline,
+            ui_compositors: HashMap::new(),
+            scene_draw_calls: HashMap::new(),
+            ui_render_args: HashMap::new(),
         }
     }
 
+    fn process_meshes(&mut self) {
+		for (_, s) in &mut self.scene_draw_calls {
+			s.clear();
+		}
+        
+		for (mesh_id, mesh) in &self.state.meshes {
+			for primitive in &mesh.primitives {
+				if primitive.topology == PrimitiveTopology::TriangleList {
+					if primitive.vertices.len() == 0 || primitive.indices.len() == 0 {
+						continue;
+					}
 
-    pub fn update_buffers(&mut self) {
-        let mut new_textures = Vec::new();
-        for (texture_id, texture) in &self.state.state.textures {
-            if !self.textures.contains(&texture_id) {
-                new_textures.push((texture_id, texture.clone()));
-                load_image(self.proxy.clone(), texture.source.clone(), texture_id)
-            }
-        }
-        for t in new_textures {
-            self.textures.insert(t.0);
-        }
+					let vertices_start = self.vertices_buffer.len();
+                    self.vertices_buffer.write(bytemuck::cast_slice(&primitive.vertices));
+					let vertices_end = self.vertices_buffer.len();
 
-		// let vertices: [[f32; 3]; 4] = [[0.0, 0.5, 0.0], [-0.5, -0.5, 0.0], [0.5, -0.5, 0.0], [0.0, 0.0, 0.0]];
-		// let indices: [u16; 4] = [0, 1, 2, 0];
+					let normals_start = self.normal_buffer.len();
+					self.normal_buffer.write(bytemuck::cast_slice(&primitive.normals));
+					let normals_end = self.normal_buffer.len();
 
+					let indices_start = self.index_buffer.len();
+					self.index_buffer.write(bytemuck::cast_slice(&primitive.indices));
+					let indices_end = self.index_buffer.len();
 
-		// let mesh = cube(0.5);
-		// println!("indices len: {}", mesh.primitives[0].indices.len());
-		// let vertices_data = bytemuck::cast_slice(&mesh.primitives[0].vertices);
-		// println!("vertices_data len: {}", vertices_data.len());
-		// println!("vertices_data: {:?}", vertices_data);
-		// let indices_data = bytemuck::cast_slice(&mesh.primitives[0].indices);
-		// println!("indices_data len: {}", indices_data.len());
-		// println!("indices_data: {:?}", indices_data);
-		// // self.queue.write_buffer(&self.vertices_buffer2, 0, vertices_data);
-		// // self.queue.write_buffer(&self.index_buffer2, 0, indices_data);
-		// self.vertices_buffer.write(vertices_data);
-		// self.index_buffer.write(indices_data);
+					let tex_coords_start = self.tex_coords_buffer.len();
+					if primitive.tex_coords.len() > 0 {
+                        self.tex_coords_buffer.write(bytemuck::cast_slice(&primitive.tex_coords));
+					} else {
+						let tex_coords = vec![[0.0, 0.0]; primitive.vertices.len()];
+						self.tex_coords_buffer.write(bytemuck::cast_slice(&tex_coords));
+					}
+					let tex_coords_end = self.tex_coords_buffer.len();
 
-        if self.state.triangles.vertices.len() > 0 && self.state.triangles.vertices.dirty {
-            //log::info!("writing triangle vertices len: {}", self.state.triangles.vertices.len());
-    		self.vertices_buffer.write(&self.state.triangles.vertices.data());
-            self.state.triangles.vertices.dirty = false;
-        }
-        if self.state.triangles.indices.len() > 0 && self.state.triangles.indices.dirty {
-            //log::info!("writing triangle indices len: {}", self.state.triangles.indices.len());
-			self.index_buffer.write(&self.state.triangles.indices.data());
-            self.state.triangles.indices.dirty = false;
-        }
-        if self.state.triangles.tex_coords.len() > 0 && self.state.triangles.tex_coords.dirty {
-            log::info!("writing triangle tex coords len: {}", self.state.triangles.tex_coords.len());
-            self.tex_coords_buffer
-                .write(&self.state.triangles.tex_coords.data());
-            self.state.triangles.tex_coords.dirty = false;
-        }
-        if self.state.triangles.normals.len() > 0 && self.state.triangles.normals.dirty {
-            //log::info!("writing triangle normals len: {}", self.state.triangles.normals.len());
-            self.normal_buffer.write(&self.state.triangles.normals.data());
-            self.state.triangles.normals.dirty = false;
-        }
+					let node_ids = self.state.get_mesh_nodes(mesh_id);
 
-        for (index, b) in &mut self.state.scene_instance_buffers {
-            if !b.dirty {
-                continue;
-            }
-			b.dirty = false;
+					let mut checkpoints: HashMap<ArenaId<Scene>, Range<u32>> = HashMap::new();
+					
 
-			//log::info!("[{:?}] writing instance buffer len: {}", index, b.len());
+					for node_id in node_ids {
+                        let transformation = self.state.get_node_transformation(node_id);
+						let instance = RawInstance {
+							model: transformation.to_cols_array_2d(),
+						};
+                        let scene_id = self.state.get_node_scene(node_id);
 
-            let buff = self.scene_instance_buffers.entry(*index).or_insert(
-                self.hardware.create_buffer("scene_instance_buffer"),
-            );
+						let buffer = self
+							.scene_instance_buffers
+							.entry(scene_id)
+							.or_insert(self.hardware.create_buffer("instances"));
 
-            buff.write(&b.data());
-        }
-        for (id, b) in &mut self.state.scene_point_lights {
-            if !b.dirty {
-                continue;
-            }
-			b.dirty = false;
+						let instance_start = buffer.len() as u32 / std::mem::size_of::<RawInstance>() as u32;
+						buffer.write(bytemuck::bytes_of(&instance));
+						let instance_end = buffer.len() as u32 / std::mem::size_of::<RawInstance>() as u32;
 
-			//log::info!("[{:?}] writing point light buffer len: {}", id.index(), b.len());
+						let checkpoint = checkpoints
+							.entry(scene_id)
+							.or_insert(instance_start..instance_end);
+						checkpoint.end = instance_end;
+					}
 
-            let buff = self.point_light_buffers.entry(*id)
-                .or_insert(self.hardware.create_buffer("point_light_buffer"));
+					for (scene_id, instances) in checkpoints {
+						let draw_calls =
+							self.scene_draw_calls.entry(scene_id).or_insert(Vec::new());
 
-            buff.write(&b.data());
-        }
+						// log::info!("draw_calls: {:?}", draw_calls.len());
 
-        for (id, b) in &mut self.state.camera_buffers {
-            if !b.dirty {
-                continue;
-            }
-			b.dirty = false;
+						draw_calls.push(DrawCall {
+							texture: mesh.texture,
+							vertices: vertices_start..vertices_end,
+							indices: indices_start..indices_end,
+							normals: normals_start..normals_end,
+							tex_coords: tex_coords_start..tex_coords_end,
+							instances,
+							indices_range: 0..primitive.indices.len() as u32,
+						});
+					}
+				}
+			}
+		}
+    }
 
-            //log::info!("[{:?}] writing camera buffer len: {}", id.index(), b.len());
+    fn process_cameras(&mut self) {
+		for (cam_id, cam) in &self.state.cameras {
+			let transformation = self.state.get_node_transformation(cam.node_id);
+			let model = glam::Mat4::perspective_lh(cam.fovy, cam.aspect, cam.znear, cam.zfar)
+				* transformation.inverse();
 
-			let data = Mat4::IDENTITY.to_cols_array();
+			let cam = RawCamera {
+				model: model.to_cols_array_2d(),
+			};
+			let buffer = self
+				.camera_buffers
+				.entry(cam_id)
+				.or_insert(self.hardware.create_buffer("camera_buffer"));
+			buffer.write(bytemuck::bytes_of(&cam));
+		}
+	}
 
-            let buff = self
-                .camera_buffers
-                .entry(*id)
-                .or_insert(self.hardware.create_buffer("camera_buffer"));
+    fn process_point_lights(&mut self) {
+		for (light_id, light) in &self.state.point_lights {
+            let node_id = match light.node_id {
+                Some(id) => id,
+                None => continue,
+            };
+            let scene_id = self.state.get_node_scene(node_id);
+            let transformation = self.state.get_node_transformation(node_id);
+			let pos = transformation.w_axis.truncate().into();
+			let light = RawPointLight::new(light.color, light.intensity, pos);
 
-            buff.write(&b.data());
-			//buff.write(bytemuck::cast_slice(&data));
-        }
+			self.point_light_buffers.entry(scene_id).or_insert(self.hardware.create_buffer("pointlight"))
+                .write(bytemuck::bytes_of(&light));
+		}
+	}
 
-		for (i, c) in &self.state.ui_compositors {
+    fn process_ui(&mut self) {
+		for (ui_id, gui) in &self.state.guis {
+			let c = self
+				.ui_compositors
+				.entry(ui_id.clone())
+				.or_insert(Compositor::new());
+			c.process(gui);
             let buffers = self
                 .gui_buffers
-                .entry(*i)
+                .entry(ui_id.clone())
                 .or_insert(GuiBuffers::new(&mut self.hardware));
 
             if c.positions.len() > 0 {
                 let positions_data = bytemuck::cast_slice(&c.positions);
                 let positions_data_len = positions_data.len() as u64;
-				buffers.vertices_buffer.write(positions_data);
+                buffers.vertices_buffer.write(positions_data);
                 buffers.position_range = 0..positions_data_len;
             }
 
             if c.indices.len() > 0 {
                 let indices_data = bytemuck::cast_slice(&c.indices);
                 let indices_data_len = indices_data.len() as u64;
-				buffers.index_buffer.write(indices_data);
+                buffers.index_buffer.write(indices_data);
                 buffers.index_range = 0..indices_data_len;
                 buffers.indices_range = 0..c.indices.len() as u32;
             }
@@ -296,52 +279,119 @@ where
             if c.colors.len() > 0 {
                 let colors_data = bytemuck::cast_slice(&c.colors);
                 let colors_data_len = colors_data.len() as u64;
-				buffers.color_buffer.write(colors_data);
+                buffers.color_buffer.write(colors_data);
                 buffers.colors_range = 0..colors_data_len;
             }
-        }
-    }
+			let render_args = self.ui_render_args.entry(ui_id.clone()).or_insert(UIRenderArgs {
+				ui: ui_id.clone(),
+				views: Vec::new(),
+			});
+			render_args.views.clear();
+			for view in &c.views {
+				let camera = match self.state.cameras.get(&view.camera_id) {
+					Some(camera) => camera,
+					None => continue,
+				};
+
+				let node_id = match &camera.node_id {
+					Some(node_id) => node_id,
+					None => continue,
+				};
+                let scene_id = self.state.get_node_scene(node_id.clone());
+
+				render_args.views.push(View {
+					camview: view.clone(),
+					scene_id,
+				});
+			}
+		}
+	}
+
+    fn get_window_render_args(&self, window_id: ArenaId<Window>) -> Option<&UIRenderArgs> {
+		let window = match self.state.windows.get(&window_id) {
+			Some(window) => window,
+			None => return None,
+		};
+
+		let ui_id = match &window.ui {
+			Some(ui_id) => ui_id,
+			None => return None,
+		};
+
+		self.ui_render_args.get(&ui_id)
+	}
+
+	fn get_camera_draw_calls(&self, camera_id: ArenaId<Camera>) -> Option<&Vec<DrawCall>> {
+		let camera = self.state.cameras.get(&camera_id)?;
+		let scene_id = match &camera.node_id {
+			Some(node_id) => self.state.get_node_scene(node_id.clone()),
+			None => return None,
+		};
+		self.scene_draw_calls.get(&scene_id)
+	}
 
     fn update_windows(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
-        for (window_id, window) in self.state.state.windows.iter_mut() {
-            match self
-                .windows
-                .values()
-                .find(|window| window.window_id == window_id)
-            {
-                Some(w) => {
-                    if w.wininit_window.title() != window.title {
-                        w.wininit_window.set_title(&window.title);
-                    }
-                }
-                None => {
-                    let window_attributes =
-                        winit::window::Window::default_attributes().with_title(&window.title);
-                    let wininit_window = event_loop.create_window(window_attributes).unwrap();
-                    let wininit_window = Arc::new(wininit_window);
-                    let surface = Arc::new(self.instance.create_surface(wininit_window.clone()).unwrap());
-                    let pipeline = self.hardware.create_pipeline("pipeline", surface.clone(), wininit_window.inner_size());
-                    let wininit_window_id = wininit_window.id();
-                    let window_ctx = WindowContext {
-                        surface,
-                        window_id: window_id,
-                        wininit_window,
-                        pipeline,
-                    };
-                    self.windows.insert(wininit_window_id, window_ctx);
-                }
+        for (window_id, window) in self.state.windows.iter_mut() {
+            if let None = self.prev_state.windows.get(&window_id) {
+                self.hardware.create_window(window_id, &window);
             }
         }
 
-        self.windows
-            .retain(|_, w| self.state.state.windows.contains(&w.window_id));
+        for (window_id, _) in self.prev_state.windows.iter() {
+            if !self.state.windows.contains(&window_id) {
+                self.hardware.destroy_window(window_id);
+            }
+        }
+
+        /*match self
+        .windows
+        .values()
+        .find(|window| window.window_id == window_id)
+    {
+        Some(w) => {
+            if w.wininit_window.title() != window.title {
+                w.wininit_window.set_title(&window.title);
+            }
+        }
+        None => {
+            let window_attributes =
+                winit::window::Window::default_attributes().with_title(&window.title);
+            let wininit_window = event_loop.create_window(window_attributes).unwrap();
+            let wininit_window = Arc::new(wininit_window);
+            let surface = Arc::new(self.instance.create_surface(wininit_window.clone()).unwrap());
+            let pipeline = self.hardware.create_pipeline("pipeline", surface.clone(), wininit_window.inner_size());
+            let wininit_window_id = wininit_window.id();
+            let window_ctx = WindowContext {
+                surface,
+                window_id: window_id,
+                wininit_window,
+                pipeline,
+                };
+                self.windows.insert(wininit_window_id, window_ctx);
+            }
+        }*/
     }
 
-    fn render(&mut self) {
-       
-        for (_, window_ctx) in self.windows.iter_mut() {
+    pub fn on_mouse_button_event(&mut self, window_id: ArenaId<Window>, button: MouseButton, state: bool) {
+
+    }
+
+    pub fn on_cursor_moved(&mut self, window_id: ArenaId<Window>, dx: f32, dy: f32) {
+
+    }
+
+    pub fn on_keyboard_input(&mut self, window_id: ArenaId<Window>, event: KeyboardKey, state: bool) {
+
+    }
+
+    fn does_window_exist(&self, arena_id: ArenaId<Window>) -> bool {
+        false
+    }
+
+    pub fn render(&mut self, dt: f32) {
+        for (_, surface) in &self.surfaces {
             let mut encoder = RenderEncoder::new();
-            let args = match self.state.get_window_render_args(window_ctx.window_id) {
+            let args = match self.get_window_render_args(window_id) {
                 Some(a) => a,
                 None => {
                     //log::error!("Window render args not found");
@@ -358,7 +408,7 @@ where
                     }
                 };
 
-                let calls = match self.state.get_camera_draw_calls(v.camview.camera_id) {
+                let calls = match self.get_camera_draw_calls(v.camview.camera_id) {
                     Some(c) => c,
                     None => {
                         //panic!("Draw calls not found");
@@ -381,7 +431,7 @@ where
 					}
                 };
 
-                pass.set_pipeline(window_ctx.pipeline.clone());
+                pass.set_pipeline(self.pipeline.clone());
                 pass.bind_buffer(0, camera_buffer.clone());
                 pass.bind_buffer(1, point_light_buffer.clone());
 
@@ -410,195 +460,12 @@ where
                     pass.draw_indexed(call.indices_range.clone(), instances.start as u32..instances.end as u32);
                 }
             }
-            self.hardware.submit(encoder, window_ctx.surface.clone());
+            self.hardware.submit(encoder, surface);
         }
-    }
-}
 
-impl<'a, T> ApplicationHandler<EngineEvent> for Engine<'a, T>
-where
-    T: App,
-{
-    fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
-		log::info!("calling on_create");
-        self.app.on_create(&mut self.state.state);
-		log::info!("on_create done");
-        self.state.process(0.0);
-        self.update_windows(event_loop);
-    }
+        for (window_id, window) in self.state.state.windows.iter() {
 
-    fn user_event(&mut self, event_loop: &winit::event_loop::ActiveEventLoop, event: EngineEvent) {
-        match event {
-            EngineEvent::ImageLoaded {
-                texture_id,
-                width,
-                height,
-                data,
-            } => {
-                log::info!(
-                    "Image loading: texture_id={:?}, width={}, height={}",
-                    texture_id,
-                    width,
-                    height
-                );
-                assert_eq!(
-                    data.len(),
-                    (width * height * 4) as usize,
-                    "Texture data size mismatch"
-                );
 
-                let texture = self.hardware.create_texture("Loaded Image", &data);
-
-                self.texture_bind_groups
-                    .insert(texture_id, texture);
-            }
-        }
-    }
-
-    fn about_to_wait(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
-        let timer = Instant::now();
-        let timer = timer.checked_add(Duration::from_millis(500)).unwrap();
-        event_loop.set_control_flow(ControlFlow::WaitUntil(
-            Instant::now() + Duration::from_millis(16),
-        ));
-
-		self.update_windows(event_loop);
-        let dt = self.last_on_process_time.elapsed().as_secs_f32();
-        self.last_on_process_time = Instant::now();
-        self.app.on_process(&mut self.state.state, dt);
-        self.state.process(dt);
-        self.update_buffers();
-        self.render();
-    }
-
-    fn window_event(
-        &mut self,
-        event_loop: &winit::event_loop::ActiveEventLoop,
-        window_id: winit::window::WindowId,
-        event: winit::event::WindowEvent,
-    ) {
-        // println!("window event");
-
-        match event {
-            WindowEvent::CloseRequested => {
-                event_loop.exit();
-            }
-            WindowEvent::RedrawRequested => {
-                println!("redraw requested for window {:?}", window_id);
-                match self.windows.get(&window_id) {
-                    Some(window) => {
-                        // let renderer = &window.renderer;
-                        // let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                        // 	label: Some("Render Encoder")
-                        // });
-                        // let args = RenderArgs {
-                        // 	encoder: &mut encoder,
-                        // 	camera_bind_group: &self.camera_buffer.bind_group(),
-                        // 	node_bind_group: &self.node_buffer.bind_group(),
-                        // 	positions_buffer: &self.position_buffer.buffer(),
-                        // 	index_buffer: &self.index_buffer.buffer(),
-                        // 	instance_buffer: &self.instance_buffer.buffer(),
-                        // 	instructions: &self.draw_instructions
-                        // };
-                        // match renderer.render(args) {
-                        // 	Ok(_) => {}
-                        // 	Err(err) => {
-                        // 		log::error!("Error rendering: {:?} window {:?}", err, window_id);
-                        // 	}
-                        // }
-                        // self.queue.submit(std::iter::once(encoder.finish()));
-                    }
-                    None => {
-                        log::error!("Window not found: {:?}", window_id);
-                    }
-                }
-            }
-            WindowEvent::CursorMoved {
-                device_id,
-                position,
-            } => {
-                if let Some(window_ctx) = self.windows.get(&window_id) {
-                    let size = &window_ctx.wininit_window.inner_size();
-                    let middle_x = size.width as f64 / 2.0;
-                    let middle_y = size.height as f64 / 2.0;
-                    let dx = position.x - middle_x;
-                    let dy = position.y - middle_y;
-                    let dx = dx as f32;
-                    let dy = dy as f32;
-                    self.app
-                        .on_mouse_input(MouseEvent::Moved { dx, dy }, &mut self.state.state);
-
-                    if let Some(window) = self.state.state.windows.get(&window_ctx.window_id) {
-                        if window.lock_cursor {
-                            window_ctx
-                                .wininit_window
-                                .set_cursor_position(PhysicalPosition::new(middle_x, middle_y))
-                                .unwrap();
-							window_ctx.wininit_window.set_cursor_visible(false);
-                        }
-                    }
-                }
-            }
-            WindowEvent::MouseInput {
-                device_id,
-                state,
-                button,
-            } => match state {
-                winit::event::ElementState::Pressed => self.app.on_mouse_input(
-                    MouseEvent::Pressed {
-                        button: MouseButton::from(button),
-                    },
-                    &mut self.state.state,
-                ),
-                winit::event::ElementState::Released => self.app.on_mouse_input(
-                    MouseEvent::Released {
-                        button: MouseButton::from(button),
-                    },
-                    &mut self.state.state,
-                ),
-            },
-            WindowEvent::KeyboardInput {
-                device_id,
-                event,
-                is_synthetic,
-            } => match event {
-                winit::event::KeyEvent {
-                    state,
-                    location,
-                    physical_key,
-                    repeat,
-                    ..
-                } => {
-                    if !repeat {
-                        match physical_key {
-                            winit::keyboard::PhysicalKey::Code(code) => {
-                                if KeyCode::Escape == code {
-                                    event_loop.exit();
-                                }
-
-                                match state {
-                                    winit::event::ElementState::Pressed => {
-                                        self.app.on_keyboard_input(
-                                            KeyboardKey::from(code),
-                                            KeyAction::Pressed,
-                                            &mut self.state.state,
-                                        )
-                                    }
-                                    winit::event::ElementState::Released => {
-                                        self.app.on_keyboard_input(
-                                            KeyboardKey::from(code),
-                                            KeyAction::Released,
-                                            &mut self.state.state,
-                                        )
-                                    }
-                                }
-                            }
-                            winit::keyboard::PhysicalKey::Unidentified(_) => {}
-                        }
-                    }
-                }
-            },
-            _ => {}
         }
     }
 }

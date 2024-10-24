@@ -1,9 +1,6 @@
 use std::path::Path;
-use wgpu::Origin3d;
 use winit::event_loop::EventLoopProxy;
-
 use crate::internal_types::EngineEvent;
-use crate::wgpu_types::TextureBuffer;
 use crate::ArenaId;
 use crate::Texture;
 

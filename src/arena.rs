@@ -29,7 +29,7 @@ impl<T> Clone for ArenaId<T> {
     }
 }
 
-impl<T: Copy> Copy for ArenaId<T> {}
+impl<T> Copy for ArenaId<T> {}
 
 impl<T> PartialEq for ArenaId<T> {
     fn eq(&self, other: &Self) -> bool {

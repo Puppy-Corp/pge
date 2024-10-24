@@ -1,15 +1,9 @@
 use crate::compositor::Compositor;
-use crate::engine_state::DrawCall;
-use crate::engine_state::EngineState;
-use crate::engine_state::UIRenderArgs;
-use crate::engine_state::View;
 use crate::hardware;
 use crate::hardware::Hardware;
 use crate::hardware::RenderEncoder;
+use crate::internal_types::*;
 use crate::types::*;
-use crate::wgpu_types::RawCamera;
-use crate::wgpu_types::RawInstance;
-use crate::wgpu_types::RawPointLight;
 use crate::Arena;
 use crate::ArenaId;
 use crate::GUIElement;
@@ -18,18 +12,29 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::ops::Range;
 use std::sync::Arc;
-use std::time::Instant;
-use glam::Mat4;
 
-/*pub async fn run<T>(app: T) -> anyhow::Result<()>
-where
-    T: App,
-{
-    let event_loop: EventLoop<EngineEvent> = EventLoop::<EngineEvent>::with_user_event().build()?;
-    let proxy = event_loop.create_proxy();
-    let mut engine = Engine::new(app, proxy).await;
-    Ok(event_loop.run_app(&mut engine)?)
-}*/
+#[derive(Debug, Clone)]
+pub struct DrawCall {
+	pub texture: Option<ArenaId<Texture>>,
+	pub vertices: Range<u64>,
+	pub indices: Range<u64>,
+	pub normals: Range<u64>,
+	pub tex_coords: Range<u64>,
+	pub instances: Range<u32>,
+	pub indices_range: Range<u32>,
+}
+
+#[derive(Debug, Clone)]
+pub struct View {
+	pub camview: CamView,
+	pub scene_id: ArenaId<Scene>,
+}
+
+#[derive(Debug, Clone)]
+pub struct UIRenderArgs {
+	pub ui: ArenaId<GUIElement>,
+	pub views: Vec<View>,
+}
 
 struct GuiBuffers {
     vertices_buffer: hardware::Buffer,
@@ -58,14 +63,6 @@ impl GuiBuffers {
     }
 }
 
-#[derive(Debug)]
-struct WindowContext<'a> {
-    window_id: ArenaId<Window>,
-    wininit_window: Arc<winit::window::Window>,
-    pipeline: Arc<hardware::Pipeline>,
-    surface: Arc<wgpu::Surface<'a>>,
-}
-
 pub struct Engine<A, H> {
     app: A,
     prev_state: State,
@@ -77,9 +74,8 @@ pub struct Engine<A, H> {
     index_buffer: hardware::Buffer,
     point_light_buffers: HashMap<ArenaId<Scene>, hardware::Buffer>,
     gui_buffers: HashMap<ArenaId<GUIElement>, GuiBuffers>,
-    texture_bind_groups: HashMap<ArenaId<Texture>, hardware::Texture>,
     camera_buffers: HashMap<ArenaId<Camera>, hardware::Buffer>,
-    default_texture: hardware::Texture,
+    default_texture: ArenaId<Texture>,
 	default_point_lights: hardware::Buffer,
     scene_instance_buffers: HashMap<ArenaId<Scene>, hardware::Buffer>,
     scene_draw_calls: HashMap<ArenaId<Scene>, Vec<DrawCall>>,
@@ -106,14 +102,15 @@ where
 
 		let default_point_lights = hardware.create_buffer("default_point_lights");
 
-        let mut state = EngineState::new();
-        app.on_create(&mut state.state);
+        let mut state = State::default();
+        app.on_create(&mut state);
 
         let pipeline = hardware.create_pipeline("pipeline");
 
         Self {
             app,
             state,
+            prev_state: State::default(),
             hardware,
             vertices_buffer,
             tex_coords_buffer,
@@ -121,7 +118,6 @@ where
             index_buffer,
             point_light_buffers: HashMap::new(),
             gui_buffers: HashMap::new(),
-            texture_bind_groups: HashMap::new(),
             camera_buffers: HashMap::new(),
             default_texture,
             scene_instance_buffers: HashMap::new(),
@@ -218,7 +214,11 @@ where
 
     fn process_cameras(&mut self) {
 		for (cam_id, cam) in &self.state.cameras {
-			let transformation = self.state.get_node_transformation(cam.node_id);
+			let node_id = match cam.node_id {
+				Some(id) => id,
+				None => continue,
+			};
+			let transformation = self.state.get_node_transformation(node_id);
 			let model = glam::Mat4::perspective_lh(cam.fovy, cam.aspect, cam.znear, cam.zfar)
 				* transformation.inverse();
 
@@ -330,7 +330,7 @@ where
 		self.scene_draw_calls.get(&scene_id)
 	}
 
-    fn update_windows(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+    fn update_windows(&mut self) {
         for (window_id, window) in self.state.windows.iter_mut() {
             if let None = self.prev_state.windows.get(&window_id) {
                 self.hardware.create_window(window_id, &window);
@@ -389,7 +389,7 @@ where
     }
 
     pub fn render(&mut self, dt: f32) {
-        for (_, surface) in &self.surfaces {
+        for (window_id, _) in &self.state.windows {
             let mut encoder = RenderEncoder::new();
             let args = match self.get_window_render_args(window_id) {
                 Some(a) => a,
@@ -436,20 +436,11 @@ where
                 pass.bind_buffer(1, point_light_buffer.clone());
 
                 for call in calls {
-                    let texture_bind_group = match call.texture {
-                        Some(t) => {
-                            match self
-                            .texture_bind_groups
-                            .get(&t) {
-                                Some(t) => {
-                                    t
-                                },
-                                None => &self.default_texture,
-                            }
-                        }
-                        None => &self.default_texture,
+                    let texture = match call.texture {
+                        Some(t) => t,
+                        None => self.default_texture,
                     };
-                    pass.bind_texture(2, texture_bind_group.clone());
+                    pass.bind_texture(2, texture);
                     pass.set_vertex_buffer(0, self.vertices_buffer.slice(call.vertices.clone()));
                     pass.set_vertex_buffer(1, instance_buffer.full());
                     pass.set_vertex_buffer(2, self.normal_buffer.slice(call.normals.clone()));
@@ -460,12 +451,7 @@ where
                     pass.draw_indexed(call.indices_range.clone(), instances.start as u32..instances.end as u32);
                 }
             }
-            self.hardware.submit(encoder, surface);
-        }
-
-        for (window_id, window) in self.state.state.windows.iter() {
-
-
+            self.hardware.render(encoder, window_id);
         }
     }
 }

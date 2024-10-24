@@ -1,9 +1,3 @@
-use wgpu::Color;
-
-pub trait BufferRecipe {
-    fn create_buffer(device: &wgpu::Device, size: u64) -> wgpu::Buffer;
-}
-
 pub trait BindableBufferRecipe {
     fn create_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout;
     fn create_bind_group(
@@ -75,31 +69,6 @@ impl Vertices {
     }
 }
 
-impl BufferRecipe for Vertices {
-	fn create_buffer(device: &wgpu::Device, size: u64) -> wgpu::Buffer {
-		device.create_buffer(&wgpu::BufferDescriptor {
-			label: Some("Position Buffer"),
-			size,
-			usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC,
-			mapped_at_creation: false,
-		})
-	}
-}
-
-
-pub struct Indexes {}
-
-impl BufferRecipe for Indexes {
-	fn create_buffer(device: &wgpu::Device, size: u64) -> wgpu::Buffer {
-		device.create_buffer(&wgpu::BufferDescriptor {
-			label: Some("Index Buffer"),
-			size,
-			usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC,
-			mapped_at_creation: false,
-		})
-	}
-}
-
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Normals {
@@ -118,17 +87,6 @@ impl Normals {
             }],
         }
     }
-}
-
-impl BufferRecipe for Normals {
-	fn create_buffer(device: &wgpu::Device, size: u64) -> wgpu::Buffer {
-		device.create_buffer(&wgpu::BufferDescriptor {
-			label: Some("Normal Buffer"),
-			size,
-			usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC,
-			mapped_at_creation: false,
-		})
-	}
 }
 
 #[repr(C)]
@@ -151,17 +109,6 @@ impl TexCoords {
     }
 }
 
-impl BufferRecipe for TexCoords {
-	fn create_buffer(device: &wgpu::Device, size: u64) -> wgpu::Buffer {
-		device.create_buffer(&wgpu::BufferDescriptor {
-			label: Some("TexCoords Buffer"),
-			size,
-			usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC,
-			mapped_at_creation: false,
-		})
-	}
-}
-
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 struct MaterialUniform {
@@ -175,17 +122,6 @@ struct MaterialUniform {
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct RawCamera {
     pub model: [[f32; 4]; 4],
-}
-
-impl BufferRecipe for RawCamera {
-    fn create_buffer(device: &wgpu::Device, size: u64) -> wgpu::Buffer {
-        device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Camera Buffer"),
-            size: std::mem::size_of::<RawCamera>() as u64,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        })
-    }
 }
 
 impl BindableBufferRecipe for RawCamera {
@@ -267,74 +203,6 @@ impl RawInstance {
     }
 }
 
-impl BufferRecipe for RawInstance {
-	fn create_buffer(device: &wgpu::Device, size: u64) -> wgpu::Buffer {
-		device.create_buffer(&wgpu::BufferDescriptor {
-			label: Some("Instance Buffer"),
-			size,
-			usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC,
-			mapped_at_creation: false,
-		})
-	}
-}
-
-#[repr(C)]
-#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-struct DirectionalLight {
-    direction: [f32; 3],
-    intensity: f32,
-    color: [f32; 3],
-    padding: f32, // Align to 16 bytes
-}
-
-#[repr(C)]
-#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-struct SpotLight {
-    position: [f32; 3],
-    direction: [f32; 3],
-    intensity: f32,
-    color: [f32; 3],
-    range: f32,
-    inner_cone_angle: f32,
-    outer_cone_angle: f32,
-    padding: [f32; 2], // Align to 16 bytes
-}
-
-#[repr(C)]
-#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-struct AmbientLight {
-    color: [f32; 3],
-    intensity: f32,
-}
-
-#[repr(C)]
-#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-struct RectangularAreaLight {
-    position: [f32; 3],
-    direction: [f32; 3],
-    width: f32,
-    height: f32,
-    color: [f32; 3],
-    intensity: f32,
-}
-
-const MAX_POINT_LIGHTS: usize = 10;
-const MAX_SPOT_LIGHTS: usize = 5;
-const MAX_DIRECTIONAL_LIGHTS: usize = 2;
-
-#[repr(C)]
-#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-struct LightUniform {
-    ambient_light: AmbientLight,
-    num_point_lights: u32,
-    num_spot_lights: u32,
-    num_directional_lights: u32,
-    padding: u32, // Alignment
-    point_lights: [RawPointLight; MAX_POINT_LIGHTS],
-    spot_lights: [SpotLight; MAX_SPOT_LIGHTS],
-    directional_lights: [DirectionalLight; MAX_DIRECTIONAL_LIGHTS],
-}
-
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Keyframe {
@@ -365,17 +233,6 @@ impl RawPointLight {
 			_padding3: 0.0,
 		}
 	}
-}
-
-impl BufferRecipe for RawPointLight {
-    fn create_buffer(device: &wgpu::Device, size: u64) -> wgpu::Buffer {
-        device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Point Light Buffer"),
-            size,
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        })
-    }
 }
 
 impl BindableBufferRecipe for RawPointLight {
@@ -430,16 +287,5 @@ impl Colors {
 				}
 			]
 		}
-	}
-}
-
-impl BufferRecipe for Colors {
-	fn create_buffer(device: &wgpu::Device, size: u64) -> wgpu::Buffer {
-		device.create_buffer(&wgpu::BufferDescriptor {
-			label: Some("Color Buffer"),
-			size,
-			usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-			mapped_at_creation: false,
-		})
 	}
 }

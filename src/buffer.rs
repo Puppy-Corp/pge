@@ -1,108 +1,67 @@
-#[derive(Debug, Clone, Default)]
-pub struct DirtyBuffer {
-    pub name: String,
-    data: Vec<u8>,
-    pub dirty: bool,
-    offset: usize,
+use std::ops::Range;
+
+use crate::hardware::BufferHandle;
+use crate::hardware::Hardware;
+
+#[derive(Debug, Clone)]
+pub struct BufferSlice {
+    pub handle: BufferHandle,
+    pub range: Range<u64>,
 }
 
-impl DirtyBuffer {
-    /// Creates a new DirtyBuffer with the given name.
-    pub fn new(name: &str) -> Self {
+#[derive(Debug, Clone)]
+pub struct Buffer {
+    pub handle: BufferHandle,
+    data: Vec<u8>,
+    offset: u64,
+}
+
+impl Buffer {
+    pub fn new(handle: BufferHandle) -> Self {
         Self {
-            name: name.to_string(),
+            handle,
             data: Vec::new(),
-            dirty: false,
             offset: 0,
         }
     }
 
-    /// Returns the current length of valid data in the buffer.
-    pub fn len(&self) -> usize {
-        self.offset
+    pub fn slice(&self, range: Range<u64>) -> BufferSlice {
+        BufferSlice {
+            handle: self.handle,
+            range,
+        }
     }
 
-    /// Extends the buffer with data from the given slice.
-    /// Marks the buffer as dirty if any changes are made.
-    pub fn extend_from_slice(&mut self, slice: &[u8]) {
-        if self.offset + slice.len() > self.data.len() {
-            log::info!(
-                "[{}] data is bigger offset: {} slice.len: {} data.len: {}",
-                self.name,
-                self.offset,
-                slice.len(),
-                self.data.len()
-            );
-            self.data.resize(self.offset + slice.len(), 0);
-            self.dirty = true;
+    pub fn full(&self) -> BufferSlice {
+        BufferSlice {
+            handle: self.handle,
+            range: 0..self.data.len() as u64,
         }
-
-        let current_slice = &self.data[self.offset..self.offset + slice.len()];
-        if current_slice != slice {
-            self.data[self.offset..self.offset + slice.len()].copy_from_slice(slice);
-            self.dirty = true;
-        }
-        self.offset += slice.len();
     }
-
-    /// Resets the offset to zero without modifying the underlying data.
-    pub fn reset_offset(&mut self) {
+    
+    pub fn begin(&mut self) {
         self.offset = 0;
     }
 
-    /// Clears the buffer, removing all data and marking it as dirty.
-    pub fn clear(&mut self) {
-        self.data.clear();
-        self.dirty = true;
-        self.offset = 0;
+    pub fn write(&mut self, data: &[u8]) {
+        let end = self.offset + data.len() as u64;
+        if end > self.data.len() as u64 {
+            self.data.resize(end as usize, 0);
+        }
+        self.data[self.offset as usize..end as usize].copy_from_slice(data);
+        self.offset = end;
     }
 
-    /// Returns a slice of the valid data in the buffer.
-    pub fn data(&self) -> &[u8] {
-        &self.data[..self.offset]
+    pub fn len(&self) -> u64 {
+        self.data.len() as u64
     }
-}
 
-#[cfg(test)]
-mod tests {
-	use super::*;
+    pub fn capacity(&self) -> u64 {
+        self.data.capacity() as u64
+    }
 
-	#[test]
-	fn test_new_buffer() {
-		let buffer = DirtyBuffer::new("test");
-		assert_eq!(buffer.data, Vec::<u8>::new());
-		assert_eq!(buffer.dirty, false);
-		assert_eq!(buffer.offset, 0);
-	}
-
-	#[test]
-	fn test_clear_buffer() {
-		let mut buffer = DirtyBuffer::new("test");
-		buffer.extend_from_slice(&[1, 2, 3]);
-		buffer.clear();
-		assert_eq!(buffer.data, Vec::<u8>::new());
-		assert_eq!(buffer.dirty, true);
-		assert_eq!(buffer.offset, 0);
-	}
-
-	#[test]
-	fn test_extend_from_slice() {
-		let mut buffer = DirtyBuffer::new("test");
-		buffer.extend_from_slice(&[1, 2, 3]);
-		assert_eq!(buffer.data, vec![1, 2, 3]);
-		assert_eq!(buffer.dirty, true);
-		assert_eq!(buffer.offset, 3);
-	}
-
-	#[test]
-	fn test_extend_from_slice_no_change() {
-		let mut buffer = DirtyBuffer::new("test");
-		buffer.extend_from_slice(&[1, 2, 3]);
-		buffer.reset_offset();
-		buffer.dirty = false;
-		buffer.extend_from_slice(&[1, 2, 3]);
-		assert_eq!(buffer.data, vec![1, 2, 3]);
-		assert_eq!(buffer.dirty, false);
-		assert_eq!(buffer.offset, 3);
+	pub fn flush(&mut self, hardware: &mut impl Hardware) {
+		hardware.write_buffer(self.handle, &self.data);
+		self.offset = 0;
 	}
 }

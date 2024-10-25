@@ -16,7 +16,7 @@ impl PressedKeys {
 	pub fn new() -> Self {
 		Self {
 			forward: false,
-			backward: false,
+			backward: true,
 			left: false,
 			right: false,
 		}
@@ -596,5 +596,5 @@ impl pge::App for FpsShooter {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
 	simple_logger::init_with_level(log::Level::Info)?;
-	Ok(pge::run(FpsShooter::new()).await?)
+	Ok(pge::run(FpsShooter::new())?)
 }

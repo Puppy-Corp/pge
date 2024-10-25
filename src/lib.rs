@@ -28,10 +28,13 @@ pub use glam::*;
 pub use log::*;
 pub use gltf::load_gltf;
 
-
+#[cfg(not(feature = "wgpu_winit"))]
 pub fn run<T>(app: T) -> anyhow::Result<()>
 where
     T: App,
 {
     todo!()
 }
+
+#[cfg(feature = "wgpu_winit")]
+pub use crate::wgpu::run;

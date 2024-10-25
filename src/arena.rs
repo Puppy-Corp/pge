@@ -41,7 +41,7 @@ impl<T> Eq for ArenaId<T> {}
 
 impl<T> Hash for ArenaId<T> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.index.hash(state);
+        state.write_usize(self.index);
     }
 }
 

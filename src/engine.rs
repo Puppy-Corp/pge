@@ -51,9 +51,9 @@ struct GuiBuffers {
 
 impl GuiBuffers {
     pub fn new(hardware: &mut impl Hardware) -> Self {
-        let vertices_buffer = Buffer::new(hardware.create_buffer("vertices"));
-		let index_buffer = Buffer::new(hardware.create_buffer("indices"));
-		let color_buffer = Buffer::new(hardware.create_buffer("colors"));
+        let vertices_buffer = Buffer::new(hardware.create_buffer("gui_vertices"));
+		let index_buffer = Buffer::new(hardware.create_buffer("gui_indices"));
+		let color_buffer = Buffer::new(hardware.create_buffer("gui_colors"));
         Self {
             vertices_buffer,
             index_buffer,
@@ -186,25 +186,8 @@ where
 							None => continue,
 						};
 
-						log::info!("scene_id: {:?}", scene_id);
-
-						/*if let Some(buffer) = self.scene_instance_buffers.get_mut(&scene_id) {
-							log::info!("buffer found {:?}", buffer.handle.id);
-						}
-
-						let buffer = self
-							.scene_instance_buffers
-							.entry(scene_id)
-							.or_insert(Buffer::new(self.hardware.create_buffer("instances")));*/
-
-						if let None = self.scene_instance_buffers.get_mut(&scene_id) {
-							let buffer = Buffer::new(self.hardware.create_buffer(&format!("instances_{:?}", scene_id)));
-							self.scene_instance_buffers.insert(scene_id, buffer);
-						}
-
-						let buffer = self.scene_instance_buffers.get_mut(&scene_id).unwrap();
-
-						log::info!("buffer: {:?}", buffer.handle.id);
+						let buffer = self.scene_instance_buffers.entry(scene_id)
+							.or_insert_with(|| Buffer::new(self.hardware.create_buffer(&format!("instances_{:?}", scene_id))));
 
 						let instance_start = buffer.len() as u32 / std::mem::size_of::<RawInstance>() as u32;
 						buffer.write(bytemuck::bytes_of(&instance));
@@ -258,17 +241,10 @@ where
 				model: model.to_cols_array_2d(),
 			};
 
-			if let None = self.camera_buffers.get_mut(&cam_id) {
-				let buffer = Buffer::new(self.hardware.create_buffer(&format!("camera_buffer_{:?}", cam_id)));
-				self.camera_buffers.insert(cam_id, buffer);
-			}
-
-			let buffer = self.camera_buffers.get_mut(&cam_id).unwrap();
-
-			/*let buffer = self
+			let buffer = self
 				.camera_buffers
 				.entry(cam_id)
-				.or_insert(Buffer::new(self.hardware.create_buffer("camera_buffer"))); FIX hash behaviour*/
+				.or_insert_with(|| Buffer::new(self.hardware.create_buffer(&format!("camera_buffer_{:?}", cam_id))));
 			buffer.write(bytemuck::bytes_of(&cam));
 		}
 		for (_, buffer) in &mut self.camera_buffers {
@@ -287,8 +263,10 @@ where
 			let pos = transformation.w_axis.truncate().into();
 			let light = RawPointLight::new(light.color, light.intensity, pos);
 
-			self.point_light_buffers.entry(scene_id).or_insert(Buffer::new(self.hardware.create_buffer("pointlight")))
-                .write(bytemuck::bytes_of(&light));
+			self.point_light_buffers.entry(scene_id).or_insert_with(|| {
+				log::info!("Creating new point light buffer for scene ID: {:?}", scene_id);
+				Buffer::new(self.hardware.create_buffer("pointlight"))
+			}).write(bytemuck::bytes_of(&light));
 		}
 		for (_, buffer) in &mut self.point_light_buffers {
 			buffer.flush(&mut self.hardware);
@@ -297,15 +275,22 @@ where
 
     fn process_ui(&mut self) {
 		for (ui_id, gui) in &self.state.guis {
-			let c = self
+			let c: &mut Compositor = self
 				.ui_compositors
 				.entry(ui_id.clone())
-				.or_insert(Compositor::new());
+				.or_insert_with(|| {
+					log::info!("Creating new Compositor for UI ID: {:?}", ui_id); // Debug print
+					Compositor::new()
+				});
 			c.process(gui);
-            let buffers = self
-                .gui_buffers
-                .entry(ui_id.clone())
-                .or_insert(GuiBuffers::new(&mut self.hardware));
+	
+			let buffers = self
+				.gui_buffers
+				.entry(ui_id)
+				.or_insert_with(|| {
+					log::info!("Creating new GuiBuffers for UI ID: {:?}", ui_id); // Debug print
+					GuiBuffers::new(&mut self.hardware)
+				});
 
             if c.positions.len() > 0 {
                 let positions_data = bytemuck::cast_slice(&c.positions);

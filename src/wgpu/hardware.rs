@@ -360,11 +360,8 @@ where
 								return;
 							}
 							if buffer.range.start == buffer.range.end {
-								log::info!("Skipping vertex buffer {:?} with range {:?}", buffer.handle.id, buffer.range);
 								return;
 							}
-
-							log::info!("Setting vertex buffer {:?} with range {:?}", buffer.handle.id, buffer.range);
 							wgpu_pass.set_vertex_buffer(*slot, buffer_ctx.buffer.slice(buffer.range.clone()));
 						}
 						if let Some(slice) = &subpass.index_buffer {
@@ -514,7 +511,6 @@ where
 					buffer_ctx.written = false;
 					return;
 				}
-				log::info!("Writing buffer {:?} with size {:?}", buffer.id, data.len());
 				buffer_ctx.written = true;
 				self.queue.write_buffer(&buffer_ctx.buffer, 0, &data);
 			}

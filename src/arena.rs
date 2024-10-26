@@ -41,7 +41,7 @@ impl<T> Eq for ArenaId<T> {}
 
 impl<T> Hash for ArenaId<T> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        state.write_usize(self.index);
+        self.index.hash(state);
     }
 }
 
@@ -231,6 +231,7 @@ impl<T> IntoIterator for Arena<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
 
     #[derive(Debug, PartialEq)]
     struct Person {
@@ -386,5 +387,70 @@ mod tests {
             (ArenaId::new(0), &Person { name: "Charlie".to_string() }),
             (ArenaId::new(1), &Person { name: "Bob".to_string() }),
         ]);
+    }
+
+    #[test]
+    fn test_arena_id_as_hashmap_key() {
+        let mut map = HashMap::new();
+        let id1 = ArenaId::<i32>::new(1);
+        let id2 = ArenaId::<i32>::new(1);
+        let id3 = ArenaId::<i32>::new(2);
+
+        map.insert(id1, "value1");
+        assert_eq!(map.get(&id2), Some(&"value1"));
+        assert_eq!(map.get(&id3), None);
+
+        assert_eq!(map.entry(id2).or_insert("value2"), &"value1");
+        assert_eq!(map.len(), 1);
+
+        assert_eq!(map.entry(id3).or_insert("value3"), &"value3");
+        assert_eq!(map.len(), 2);
+    }
+
+	#[derive(Debug, PartialEq)]
+    struct TestStruct {
+        name: String,
+        value: i32,
+    }
+
+    #[test]
+    fn test_arena_with_struct() {
+        let mut arena = Arena::new();
+        let mut id_map = HashMap::new();
+
+        // Insert items into the arena and store their IDs in the HashMap
+        let id1 = arena.insert(TestStruct { name: "Item 1".to_string(), value: 10 });
+        let id2 = arena.insert(TestStruct { name: "Item 2".to_string(), value: 20 });
+        let id3 = arena.insert(TestStruct { name: "Item 3".to_string(), value: 30 });
+
+        id_map.insert(id1, "First");
+        id_map.insert(id2, "Second");
+        id_map.insert(id3, "Third");
+
+        // Test retrieving items from the arena
+        assert_eq!(arena.get(&id1), Some(&TestStruct { name: "Item 1".to_string(), value: 10 }));
+        assert_eq!(arena.get(&id2), Some(&TestStruct { name: "Item 2".to_string(), value: 20 }));
+        assert_eq!(arena.get(&id3), Some(&TestStruct { name: "Item 3".to_string(), value: 30 }));
+
+        // Test using ArenaId as HashMap key
+        assert_eq!(id_map.get(&id1), Some(&"First"));
+        assert_eq!(id_map.get(&id2), Some(&"Second"));
+        assert_eq!(id_map.get(&id3), Some(&"Third"));
+
+        // Test modifying an item in the arena
+        if let Some(item) = arena.get_mut(&id2) {
+            item.value = 25;
+        }
+        assert_eq!(arena.get(&id2), Some(&TestStruct { name: "Item 2".to_string(), value: 25 }));
+
+        // Test that ArenaId with the same index works correctly as a key
+        let same_as_id2 = ArenaId::<TestStruct>::new(id2.index());
+        assert_eq!(id_map.get(&same_as_id2), Some(&"Second"));
+
+        // Test entry API of HashMap with ArenaId
+        assert_eq!(id_map.entry(id2.clone()).or_insert("New"), &"Second");
+        assert_eq!(id_map.entry(ArenaId::<TestStruct>::new(100)).or_insert("New"), &"New");
+
+        assert_eq!(id_map.len(), 4);
     }
 }

@@ -15,6 +15,7 @@ mod gltf;
 mod arena;
 mod log;
 mod hardware;
+mod state;
 #[cfg(feature = "wgpu_winit")]
 mod wgpu;
 pub mod text;
@@ -24,6 +25,7 @@ pub use gui::*;
 pub use arena::*;
 pub use glam::*;
 pub use log::*;
+pub use state::*;
 pub use gltf::load_gltf;
 
 #[cfg(not(feature = "wgpu_winit"))]

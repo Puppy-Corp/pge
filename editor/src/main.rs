@@ -4,7 +4,6 @@ use std::time::Duration;
 use args::Command;
 use clap::Parser;
 use pge::*;
-use tokio::time::sleep;
 mod args;
 
 struct PgeEditor {
@@ -95,8 +94,7 @@ impl pge::App for PgeEditor {
 	}
 }
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
+fn main() {
     pge::init_logging();
 
 	let mut editor = PgeEditor::new();
@@ -111,5 +109,5 @@ async fn main() -> anyhow::Result<()> {
 		}
 	}
 
-	Ok(pge::run(editor).await?)
+	pge::run(editor).unwrap();
 }

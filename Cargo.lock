@@ -1997,12 +1997,9 @@ dependencies = [
 name = "pge_editor"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "clap",
- "glam",
  "log",
  "pge",
- "tokio",
 ]
 
 [[package]]

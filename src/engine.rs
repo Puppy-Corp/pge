@@ -11,6 +11,7 @@ use crate::hardware::WindowHandle;
 use crate::internal_types::*;
 use crate::physics::PhysicsSystem;
 use crate::spatial_grid::SpatialGrid;
+use crate::state::State;
 use crate::types::*;
 use crate::Arena;
 use crate::ArenaId;

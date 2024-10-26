@@ -4,10 +4,10 @@ use glam::Vec3;
 
 use crate::debug::ChangePrinter;
 use crate::spatial_grid::SpatialGrid;
+use crate::state::State;
 use crate::ArenaId;
 use crate::Node;
 use crate::PhycisObjectType;
-use crate::State;
 use crate::AABB;
 
 pub struct PhycisTiming {

@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::process;
 use std::sync::Arc;
 use std::thread::sleep;
 use std::time::Duration;
@@ -117,7 +118,7 @@ where
 				name,
 				window_id,
 			} => {
-				let window_attributes = winit::window::Window::default_attributes().with_title(&name);
+				let window_attributes = winit::window::Window::default_attributes().with_title(&name).with_fullscreen(Some(winit::window::Fullscreen::Borderless(None)));
 				let wininit_window = event_loop.create_window(window_attributes).unwrap();
 				let wininit_window = Arc::new(wininit_window);
 				let surface = Arc::new(self.instance.create_surface(wininit_window.clone()).unwrap());
@@ -650,6 +651,9 @@ where
 									KeyCode::Digit4 => KeyboardKey::Digit4,
 									KeyCode::Digit5 => KeyboardKey::Digit5,
 									KeyCode::Digit6 => KeyboardKey::Digit6,
+									KeyCode::Escape => {
+										process::exit(0);
+									}
 									_ => return,
 								};
 								let action = if state.is_pressed() {

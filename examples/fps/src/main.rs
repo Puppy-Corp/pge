@@ -77,8 +77,8 @@ impl Orc {
 	// }
 
 	pub fn on_process(&mut self, state: &mut State) {
-		let node = state.nodes.get_mut(&self.node).unwrap();
-		node.translation += glam::Vec3::new(0.0, 0.0, 1.0);
+		//let node = state.nodes.get_mut(&self.node).unwrap();
+		//node.translation += glam::Vec3::new(0.0, 0.0, 1.0);
 
 		// if let Some(node_id) = self.node_id {
 		// 	if let Some(node) = state.nodes.get_mut(&node_id) {

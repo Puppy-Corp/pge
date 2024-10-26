@@ -1,5 +1,3 @@
-use glam::Vec3;
-
 use crate::buffer::Buffer;
 use crate::compositor::Compositor;
 use crate::hardware;
@@ -83,6 +81,11 @@ struct WindowContext {
 	pipeline: PipelineHandle,
 }
 
+struct NodeComputedMetadata {
+	model: glam::Mat4,
+	scene_id: ArenaId<Scene>,
+}
+
 pub struct Engine<A, H> {
     app: A,
     state: State,
@@ -105,7 +108,8 @@ pub struct Engine<A, H> {
     ui_render_args: HashMap<ArenaId<GUIElement>, UIRenderArgs>,
 	windows: Vec<WindowContext>,
 	scene_collections: HashMap<ArenaId<Scene>, SceneCollection>,
-	node_transformations: HashMap<ArenaId<Node>, glam::Mat4>,
+	nodes: HashMap<ArenaId<Node>, NodeComputedMetadata>,
+	mesh_nodes: HashMap<ArenaId<Mesh>, Vec<ArenaId<Node>>>,
 }
 
 impl<A, H> Engine<A, H>
@@ -149,48 +153,112 @@ where
             ui_render_args: HashMap::new(),
 			windows: Vec::new(),
 			scene_collections: HashMap::new(),
-			node_transformations: HashMap::new(),
+			nodes: HashMap::new(),
+			mesh_nodes: HashMap::new(),
         }
     }
 
 	fn process_nodes(&mut self) {
-		for (node_id, node) in &self.state.nodes {
-			let model = self.state.get_node_transformation(node_id);
-			let modify = match self.node_transformations.get(&node_id) {
-				Some(old) => {
-					if *old != model {
-						self.node_transformations.insert(node_id, model);
-						true
-					} else {
-						false
-					}
-				}
-				None => {
-					self.node_transformations.insert(node_id, model);
-					true
-				}
-			};
+		let mut processed_nodes: HashSet<ArenaId<Node>> = HashSet::new();
+		for (_, nodes) in &mut self.mesh_nodes {
+			nodes.clear();
+		}
 
-			if !modify {
+		for (node_id, node) in &self.state.nodes {
+			if processed_nodes.contains(&node_id) {
 				continue;
 			}
 
-			let collision_shape = match &node.collision_shape {
-				Some(c) => c,
-				None => continue,
-			};
-			let translation: Vec3 = model.w_axis.truncate().into();
-			let aabb = collision_shape.aabb(translation);
-			let scene_id = match self.state.get_node_scene(node_id) {
-				Some(id) => id,
-				None => continue,
-			};
-			let collection = self.scene_collections.entry(scene_id)
-				.or_insert_with(|| SceneCollection {
-					grid: SpatialGrid::new(5.0),
-					physics_system: PhysicsSystem::new(),
-				});
-			collection.grid.set_node(node_id, aabb);
+			let mut stack = vec![node_id];
+
+			while let Some(node_id) = stack.last() {
+				let node_id = *node_id;
+
+				let node = match self.state.nodes.get(&node_id) {
+					Some(node) => node,
+					None => {
+						panic!("Node with ID {:?} not found", node_id);
+					},
+				};
+	
+				let node_metadata = match node.parent {
+					NodeParent::Node(parent_node_id) => {
+						match processed_nodes.contains(&parent_node_id) {
+							true => {
+								let parent = match self.nodes.get(&parent_node_id) {
+									Some(model) => model,
+									None => {
+										stack.push(parent_node_id);
+										continue;
+									}
+								};
+
+								let model = node.model_matrix();
+								let model = parent.model * model;
+
+								NodeComputedMetadata {
+									model,
+									scene_id: parent.scene_id,
+								}
+							}
+							false => {
+								stack.push(parent_node_id);
+								continue;
+							}
+						}
+					}
+					NodeParent::Scene(scene_id) => {
+						let model = node.model_matrix();
+						NodeComputedMetadata { scene_id, model }
+					}
+					NodeParent::Orphan => {
+						processed_nodes.insert(node_id);
+						break;
+					}
+				};
+
+				if let Some(collision_shape) = &node.collision_shape {
+					let modify = match self.nodes.get(&node_id) {
+						Some(old) => {
+							if old.model != node_metadata.model {
+								true
+							} else {
+								false
+							}
+						}
+						None => {
+							true
+						}
+					};
+
+					if modify {
+						let aabb = collision_shape.aabb(node.translation);
+
+						let collection = self.scene_collections.entry(node_metadata.scene_id).or_insert(SceneCollection {
+							grid: SpatialGrid::new(5.0),
+							physics_system: PhysicsSystem::new(),
+						});
+
+						collection.grid.set_node(node_id, aabb);
+					}
+				}
+
+				self.nodes.insert(node_id, node_metadata);
+
+				if let Some(mesh_id) = node.mesh {
+					self.mesh_nodes
+						.entry(mesh_id)
+						.or_insert(Vec::new())
+						.push(node_id);
+				}
+
+				stack.pop();
+				processed_nodes.insert(node_id);
+			}
+		}
+
+		for (_, c) in &mut self.scene_collections {
+			c.grid.retain_nodes(|node_id| processed_nodes.contains(&node_id));
 		}
 	}
 
@@ -226,31 +294,30 @@ where
 						self.tex_coords_buffer.write(bytemuck::cast_slice(&tex_coords));
 					}
 					let tex_coords_end = self.tex_coords_buffer.len();
-
-					let node_ids = self.state.get_mesh_nodes(mesh_id);
+					let node_ids = match self.mesh_nodes.get(&mesh_id) {
+						Some(ids) => ids,
+						None => continue,
+					};
 
 					let mut checkpoints: HashMap<ArenaId<Scene>, Range<u32>> = HashMap::new();
-					
 
 					for node_id in node_ids {
-                        let transformation = self.state.get_node_transformation(node_id);
-						let instance = RawInstance {
-							model: transformation.to_cols_array_2d(),
-						};
-                        let scene_id = match self.state.get_node_scene(node_id) {
-							Some(id) => id,
+						let node = match self.nodes.get(node_id) {
+							Some(node) => node,
 							None => continue,
 						};
-
-						let buffer = self.scene_instance_buffers.entry(scene_id)
-							.or_insert_with(|| Buffer::new(self.hardware.create_buffer(&format!("instances_{:?}", scene_id.index()))));
+						let instance = RawInstance {
+							model: node.model.to_cols_array_2d(),
+						};
+						let buffer = self.scene_instance_buffers.entry(node.scene_id)
+							.or_insert_with(|| Buffer::new(self.hardware.create_buffer(&format!("instances_{:?}", node.scene_id.index()))));
 
 						let instance_start = buffer.len() as u32 / std::mem::size_of::<RawInstance>() as u32;
 						buffer.write(bytemuck::bytes_of(&instance));
 						let instance_end = buffer.len() as u32 / std::mem::size_of::<RawInstance>() as u32;
 
 						let checkpoint = checkpoints
-							.entry(scene_id)
+							.entry(node.scene_id)
 							.or_insert(instance_start..instance_end);
 						checkpoint.end = instance_end;
 					}
@@ -286,10 +353,12 @@ where
 				Some(id) => id,
 				None => continue,
 			};
-			let transformation = self.state.get_node_transformation(node_id);
-			let pos: [f32; 3] = transformation.w_axis.truncate().into();
+			let node = match self.nodes.get(&node_id) {
+				Some(node) => node,
+				None => continue,
+			};
 			let model = glam::Mat4::perspective_lh(cam.fovy, cam.aspect, cam.znear, cam.zfar)
-				* transformation.inverse();
+				* node.model.inverse();
 
 			let cam = RawCamera {
 				model: model.to_cols_array_2d(),
@@ -306,14 +375,18 @@ where
 	}
 
     fn process_point_lights(&mut self) {
-		for (light_id, light) in &self.state.point_lights {
+		for (_, light) in &self.state.point_lights {
             let node_id = match light.node_id {
                 Some(id) => id,
                 None => continue,
             };
-            let scene_id = self.state.get_node_scene(node_id).unwrap();
-            let transformation = self.state.get_node_transformation(node_id);
-			let pos = transformation.w_axis.truncate().into();
+			let node = match self.nodes.get(&node_id) {
+				Some(node) => node,
+				None => continue,
+			};
+			let scene_id = node.scene_id;
+			let model = node.model;
+			let pos = model.w_axis.truncate().into();
 			let light = RawPointLight::new(light.color, light.intensity, pos);
 
 			self.point_light_buffers.entry(scene_id).or_insert_with(|| {
@@ -376,16 +449,17 @@ where
 					Some(camera) => camera,
 					None => continue,
 				};
-
 				let node_id = match &camera.node_id {
 					Some(node_id) => node_id,
 					None => continue,
 				};
-                let scene_id = self.state.get_node_scene(node_id.clone()).unwrap();
-
+				let node = match self.nodes.get(node_id) {
+					Some(node) => node,
+					None => continue,
+				};
 				render_args.views.push(View {
 					camview: view.clone(),
-					scene_id,
+					scene_id: node.scene_id,
 				});
 			}
 		}
@@ -414,7 +488,13 @@ where
 	fn get_camera_draw_calls(&self, camera_id: ArenaId<Camera>) -> Option<&Vec<DrawCall>> {
 		let camera = self.state.cameras.get(&camera_id)?;
 		let scene_id = match &camera.node_id {
-			Some(node_id) => self.state.get_node_scene(node_id.clone()).unwrap(),
+			Some(node_id) => {
+				let node = match self.nodes.get(node_id) {
+					Some(node) => node,
+					None => return None,
+				};
+				node.scene_id
+			}
 			None => return None,
 		};
 		self.scene_draw_calls.get(&scene_id)
@@ -512,7 +592,6 @@ where
     }
 
     pub fn render(&mut self, dt: f32) {
-		self.state.prepare_cache();
 		self.process_nodes();
 		self.process_meshes();
 		self.process_cameras();

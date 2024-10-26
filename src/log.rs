@@ -3,6 +3,7 @@ use log::Level;
 use log::Metadata;
 use log::Record;
 use log::SetLoggerError;
+use std::thread;
 
 struct SimpleLogger;
 
@@ -20,7 +21,8 @@ impl log::Log for SimpleLogger {
                 Level::Debug => "DEBUG".blue(),
                 Level::Trace => "TRACE".magenta(),
             };
-            println!("{} - {}", level, record.args());
+            let thread_id = thread::current().id();
+            println!("[{}] [{:?}] - {}", level, thread_id, record.args());
         }
     }
 

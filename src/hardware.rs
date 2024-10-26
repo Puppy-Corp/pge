@@ -5,13 +5,13 @@ use crate::ArenaId;
 use crate::Window;
 
 pub trait Hardware {
-    fn create_buffer(&mut self, name: &str) -> BufferHandle;
-    fn create_texture(&mut self, name: &str, data: &[u8]) -> TextureHandle;
-    fn create_pipeline(&mut self, name: &str, window: WindowHandle) -> PipelineHandle;
-    fn render(&mut self, encoder: RenderEncoder, window: WindowHandle);
-    fn create_window(&mut self, window: &Window) -> WindowHandle;
-    fn destroy_window(&mut self, handle: WindowHandle);
-	fn write_buffer(&mut self, buffer: BufferHandle, data: &[u8]);
+    fn create_buffer(&mut self, name: &str) -> BufferHandle { unimplemented!() }
+    fn create_texture(&mut self, name: &str, data: &[u8]) -> TextureHandle { unimplemented!() }
+    fn create_pipeline(&mut self, name: &str, window: WindowHandle) -> PipelineHandle { unimplemented!() }
+    fn render(&mut self, encoder: RenderEncoder, window: WindowHandle) { unimplemented!() }
+    fn create_window(&mut self, window: &Window) -> WindowHandle { unimplemented!() }
+    fn destroy_window(&mut self, handle: WindowHandle) { unimplemented!() }
+	fn write_buffer(&mut self, buffer: BufferHandle, data: &[u8]) { unimplemented!() }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -28,7 +28,7 @@ pub struct Surface {
 
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BufferHandle {
     pub id: u32,
 }
@@ -54,7 +54,7 @@ impl RenderEncoder {
     }
 }   
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct RenderPass {
     pub subpasses: Vec<Subpass>,
     pub vertex_buffers: Vec<(u32, BufferSlice)>,
@@ -67,8 +67,8 @@ pub struct RenderPass {
 }
 
 impl RenderPass {
-    pub fn bind_buffer(&mut self, slot: u32, buffer: Buffer) {
-        self.buffers.push((slot, buffer.handle));
+    pub fn bind_buffer(&mut self, slot: u32, handle: BufferHandle) {
+        self.buffers.push((slot, handle));
     }
 
     pub fn bind_texture(&mut self, slot: u32, texture: TextureHandle) {
@@ -102,6 +102,7 @@ impl RenderPass {
     }
 }
 
+#[derive(Default, Debug)]
 pub struct Subpass {
     pub vertex_buffers: Vec<(u32, BufferSlice)>,
     pub index_buffer: Option<BufferSlice>,

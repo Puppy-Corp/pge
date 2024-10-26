@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::thread::sleep;
 use std::time::Duration;
 use std::time::Instant;
 use futures::executor::block_on;
@@ -103,11 +104,7 @@ where
 	H: Hardware,
 {
 	fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
-		/*log::info!("calling on_create");
-		self.app.on_create(&mut self.state.state);
-		log::info!("on_create done");
-		self.state.process(0.0);
-		self.update_windows(event_loop);*/
+		event_loop.set_control_flow(ControlFlow::Wait);
 	}
 
 	fn user_event(&mut self, event_loop: &winit::event_loop::ActiveEventLoop, event: UserEvent) {
@@ -202,7 +199,6 @@ where
 				let layouts = &[&camera_bind_group_layout, &point_light_bind_group_layout, &texture_layout];
 				let buffers = &[Vertices::desc(), RawInstance::desc(), Normals::desc(), tex_coords_layout];
 				let shader_source = wgpu::ShaderSource::Wgsl(include_str!("../shaders/3d_shader.wgsl").into());
-				log::info!("Creating pipeline for shader: {:?}", shader_source);
 			
 				let shader = self.device.create_shader_module(wgpu::ShaderModuleDescriptor {
 					label: Some("Shader"),
@@ -277,7 +273,7 @@ where
 				let window_ctx = match self.windows.iter().find(|window| window.window_id == window.window_id) {
 					Some(window) => window,
 					None => {
-						log::error!("Window not found: {:?}", window);
+						log::error!("Window not found: {:?} => RETURN", window);
 						return;
 					}
 				};
@@ -291,7 +287,7 @@ where
 					let pipeline_ctx = match self.pipelines.iter().find(|pipeline| pipeline.id == pipeline.id) {
 						Some(pipeline) => pipeline,
 						None => {
-							log::error!("Pipeline not found: {:?}", pipeline);
+							log::error!("Pipeline not found: {:?} => RETURN", pipeline);
 							return;
 						}
 					};
@@ -322,14 +318,12 @@ where
 					});
 		
 					wgpu_pass.set_pipeline(&pipeline_ctx.pipeline);
-		
-		
 					for subpass in &pass.subpasses {
 						for (slot, texture) in &pass.textures {
-							let texture_ctx = match self.textures.iter().find(|texture| texture.id == texture.id) {
+							let texture_ctx = match self.textures.iter().find(|t| t.id == texture.id) {
 								Some(texture) => texture,
 								None => {
-									log::error!("Texture not found: {:?}", texture);
+									log::error!("Texture not found: {:?} => RETURN", texture);
 									return;
 								}
 							};
@@ -339,11 +333,12 @@ where
 							let buffer_ctx = match self.buffers.iter().find(|b| b.id == buffer.id) {
 								Some(buffer) => buffer,
 								None => {
-									log::error!("Buffer not found: {:?}", buffer);
+									log::error!("Buffer not found: {:?} => RETURN", buffer);
 									return;
 								}
 							};
 							if !buffer_ctx.written {
+								log::error!("BUFFER NOT WRITTEN: {:?} => RETURN", buffer);
 								return;
 							}
 							wgpu_pass.set_bind_group(*slot, &buffer_ctx.bind_group, &[]);
@@ -352,15 +347,17 @@ where
 							let buffer_ctx = match self.buffers.iter().find(|b| b.id == buffer.handle.id) {
 								Some(buffer) => buffer,
 								None => {
-									log::error!("Buffer not found: {:?}", buffer);
+									log::error!("Buffer not found: {:?} => RETURN", buffer);
 									return;
 								}
 							};
 							if !buffer_ctx.written {
+								log::error!("BUFFER NOT WRITTEN: {:?} => RETURN", buffer);
 								return;
 							}
 							if buffer.range.start == buffer.range.end {
-								return;
+								log::error!("BUFFER RANGE IS ZERO: {:?} => RETURN", buffer);
+								continue;
 							}
 							wgpu_pass.set_vertex_buffer(*slot, buffer_ctx.buffer.slice(buffer.range.clone()));
 						}
@@ -368,12 +365,17 @@ where
 							let buffer_ctx = match self.buffers.iter().find(|b| b.id == slice.handle.id) {
 								Some(buffer) => buffer,
 								None => {
-									log::error!("Buffer not found: {:?}", slice.handle);
+									log::error!("Buffer not found: {:?} => RETURN", slice.handle);
 									return;
 								}
 							};
 							if !buffer_ctx.written {
+								log::error!("BUFFER NOT WRITTEN: {:?} => RETURN", slice.handle);
 								return;
+							}
+							if slice.range.start == slice.range.end {
+								log::error!("BUFFER RANGE IS ZERO: {:?} => RETURN", slice.handle);
+								continue;
 							}
 							wgpu_pass.set_index_buffer(buffer_ctx.buffer.slice(slice.range.clone()), wgpu::IndexFormat::Uint16);
 						}
@@ -423,7 +425,8 @@ where
 				});
 		
 				self.buffers.push(BufferContext {
-					id: buffer_id,	
+					id: buffer_id,
+					name,
 					buffer,
 					bind_group,
 					written: false,
@@ -517,13 +520,22 @@ where
 		}
 	}
 
-	fn about_to_wait(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
-		let timer = Instant::now();
-		let timer = timer.checked_add(Duration::from_millis(500)).unwrap();
+	/*fn about_to_wait(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
 		event_loop.set_control_flow(ControlFlow::WaitUntil(
-			Instant::now() + Duration::from_millis(16),
+			Instant::now() + Duration::from_millis(3000),
 		));
+		//sleep(Duration::from_millis(3000));
 		let dt = self.last_on_process_time.elapsed().as_secs_f32();
+		self.last_on_process_time = Instant::now();
+		let timer = Instant::now();
+		self.engine.render(dt);
+	}*/
+
+	fn about_to_wait(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+		let dt = self.last_on_process_time.elapsed().as_secs_f32();
+		if dt < 0.016 {
+			return
+		}
 		self.last_on_process_time = Instant::now();
 		self.engine.render(dt);
 	}
@@ -534,8 +546,6 @@ where
 		window_id: winit::window::WindowId,
 		event: winit::event::WindowEvent,
 	) {
-		// println!("window event");
-
 		let window_ctx = match self.windows.iter_mut().find(|window| window.winit_id == window_id) {
 			Some(window) => window,
 			None => {
@@ -672,6 +682,7 @@ pub fn run(app: impl App) -> anyhow::Result<()> {
 
 struct BufferContext {
 	id: u32,
+	name: String,
 	buffer: wgpu::Buffer,
 	bind_group: wgpu::BindGroup,
 	written: bool,

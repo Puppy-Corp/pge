@@ -7,6 +7,8 @@ use crate::hardware::RenderEncoder;
 use crate::hardware::TextureHandle;
 use crate::hardware::WindowHandle;
 use crate::internal_types::*;
+use crate::physics::PhysicsSystem;
+use crate::spatial_grid::SpatialGrid;
 use crate::types::*;
 use crate::Arena;
 use crate::ArenaId;
@@ -66,6 +68,12 @@ impl GuiBuffers {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct SceneCollection {
+	grid: SpatialGrid,
+	physics_system: PhysicsSystem,
+}
+
 struct WindowContext {
 	window_id: ArenaId<Window>,
 	window: WindowHandle,
@@ -74,8 +82,8 @@ struct WindowContext {
 
 pub struct Engine<A, H> {
     app: A,
-    prev_state: State,
     state: State,
+	grids: HashMap<ArenaId<Scene>, SpatialGrid>,
     hardware: H,
     vertices_buffer: Buffer,
     tex_coords_buffer: Buffer,
@@ -93,6 +101,7 @@ pub struct Engine<A, H> {
     ui_compositors: HashMap<ArenaId<GUIElement>, Compositor>,
     ui_render_args: HashMap<ArenaId<GUIElement>, UIRenderArgs>,
 	windows: Vec<WindowContext>,
+	scene_collections: HashMap<ArenaId<Scene>, SceneCollection>,
 }
 
 impl<A, H> Engine<A, H>
@@ -117,7 +126,7 @@ where
         Self {
             app,
             state,
-            prev_state: State::default(),
+			grids: HashMap::new(),
             hardware,
             vertices_buffer,
             tex_coords_buffer,
@@ -135,8 +144,29 @@ where
             scene_draw_calls: HashMap::new(),
             ui_render_args: HashMap::new(),
 			windows: Vec::new(),
+			scene_collections: HashMap::new(),
         }
     }
+
+	fn process_nodes(&mut self) {
+		for (node_id, node) in &self.state.nodes {
+			let collision_shape = match &node.collision_shape {
+				Some(c) => c,
+				None => continue,
+			};
+			let aabb = collision_shape.aabb(node.translation);
+			let scene_id = match self.state.get_node_scene(node_id) {
+				Some(id) => id,
+				None => continue,
+			};
+			let collection = self.scene_collections.entry(scene_id)
+				.or_insert_with(|| SceneCollection {
+					grid: SpatialGrid::new(5.0),
+					physics_system: PhysicsSystem::new(),
+				});
+			collection.grid.set_node(node_id, aabb);
+		}
+	}
 
     fn process_meshes(&mut self) {
 		for (_, s) in &mut self.scene_draw_calls {
@@ -187,7 +217,7 @@ where
 						};
 
 						let buffer = self.scene_instance_buffers.entry(scene_id)
-							.or_insert_with(|| Buffer::new(self.hardware.create_buffer(&format!("instances_{:?}", scene_id))));
+							.or_insert_with(|| Buffer::new(self.hardware.create_buffer(&format!("instances_{:?}", scene_id.index()))));
 
 						let instance_start = buffer.len() as u32 / std::mem::size_of::<RawInstance>() as u32;
 						buffer.write(bytemuck::bytes_of(&instance));
@@ -202,9 +232,6 @@ where
 					for (scene_id, instances) in checkpoints {
 						let draw_calls =
 							self.scene_draw_calls.entry(scene_id).or_insert(Vec::new());
-
-						// log::info!("draw_calls: {:?}", draw_calls.len());
-
 						draw_calls.push(DrawCall {
 							texture: None, // TODO: add texture
 							vertices: vertices_start..vertices_end,
@@ -234,17 +261,17 @@ where
 				None => continue,
 			};
 			let transformation = self.state.get_node_transformation(node_id);
+			let pos: [f32; 3] = transformation.w_axis.truncate().into();
 			let model = glam::Mat4::perspective_lh(cam.fovy, cam.aspect, cam.znear, cam.zfar)
 				* transformation.inverse();
 
 			let cam = RawCamera {
 				model: model.to_cols_array_2d(),
 			};
-
 			let buffer = self
 				.camera_buffers
 				.entry(cam_id)
-				.or_insert_with(|| Buffer::new(self.hardware.create_buffer(&format!("camera_buffer_{:?}", cam_id))));
+				.or_insert_with(|| Buffer::new(self.hardware.create_buffer(&format!("camera_buffer_{:?}", cam_id.index()))));
 			buffer.write(bytemuck::bytes_of(&cam));
 		}
 		for (_, buffer) in &mut self.camera_buffers {
@@ -381,40 +408,73 @@ where
 			});
         }
 
-        for (window_id, _) in self.prev_state.windows.iter() {
+        /*for (window_id, _) in self.prev_state.windows.iter() {
             if !self.state.windows.contains(&window_id) {
                 //self.hardware.destroy_window(window_id);
             }
-        }
-
-        /*match self
-        .windows
-        .values()
-        .find(|window| window.window_id == window_id)
-    {
-        Some(w) => {
-            if w.wininit_window.title() != window.title {
-                w.wininit_window.set_title(&window.title);
-            }
-        }
-        None => {
-            let window_attributes =
-                winit::window::Window::default_attributes().with_title(&window.title);
-            let wininit_window = event_loop.create_window(window_attributes).unwrap();
-            let wininit_window = Arc::new(wininit_window);
-            let surface = Arc::new(self.instance.create_surface(wininit_window.clone()).unwrap());
-            let pipeline = self.hardware.create_pipeline("pipeline", surface.clone(), wininit_window.inner_size());
-            let wininit_window_id = wininit_window.id();
-            let window_ctx = WindowContext {
-                surface,
-                window_id: window_id,
-                wininit_window,
-                pipeline,
-                };
-                self.windows.insert(wininit_window_id, window_ctx);
-            }
         }*/
     }
+
+	fn process_scenes(&mut self) {
+		for (scene_id, scene) in &self.state.scenes {
+			self.grids.entry(scene_id).or_insert_with(|| SpatialGrid::new(5.0));
+		}
+	}
+
+	fn process_physics(&mut self, dt: f32) {
+		// for (scene_id, scene) in &self.state.scenes {
+		// 	self.scene_collections.entry(scene_id).or_insert(SceneCollection {
+		// 		moved_nodes: Vec::new(),
+		// 		grid: SpatialGrid::new(5.0),
+		// 		physics_system: PhysicsSystem::new(),
+		// 	});
+		// }
+
+		for (_, c) in &mut self.scene_collections {
+			let timings = c
+				.physics_system
+				.physics_update(&mut self.state, &mut c.grid, dt);
+
+			for (_, ray_cast) in &mut self.state.raycasts {
+				ray_cast.intersects.clear();
+
+				let node = match self.state.nodes.get(&ray_cast.node_id) {
+					Some(node) => node,
+					None => continue,
+				};
+
+				let start = node.translation;
+				let end = start + node.rotation * glam::Vec3::new(0.0, 0.0, 1.0) * ray_cast.len;
+				let nodes = c.grid.get_line_ray_nodes(start, end);
+
+				let mut intersections = Vec::new();
+
+				for node_inx in nodes {
+					if node_inx == ray_cast.node_id {
+						continue;
+					}
+
+					let aabb = match c.grid.get_node_rect(node_inx) {
+						Some(aabb) => aabb,
+						None => continue,
+					};
+
+					if let Some((tmin, _tmax)) = aabb.intersect_ray(start, end) {
+						intersections.push((tmin, node_inx));
+					}
+				}
+
+				// Sort the intersections by tmin
+				intersections.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+
+				// Store the sorted node indices
+				ray_cast.intersects = intersections
+					.into_iter()
+					.map(|(_, node_inx)| node_inx)
+					.collect();
+			}
+		}
+	}
 
     pub fn on_mouse_button_event(&mut self, window: WindowHandle, button: MouseButton, state: bool) {
 
@@ -434,24 +494,27 @@ where
 
     pub fn render(&mut self, dt: f32) {
 		self.state.prepare_cache();
+		//self.process_nodes();
 		self.process_meshes();
 		self.process_cameras();
 		self.process_point_lights();
 		self.process_ui();
 		self.update_windows();
-		
+		//self.process_scenes();
+		//self.process_physics(dt);
+		self.app.on_process(&mut self.state, dt);
         for (window_id, _) in &self.state.windows {
 			let ctx = self.windows.iter().find(|w| w.window_id == window_id).unwrap();
             let mut encoder = RenderEncoder::new();
             let args = match self.get_window_render_args(window_id) {
                 Some(a) => a,
                 None => {
-                    //log::error!("Window render args not found");
-					continue;
+                    panic!("Window render args not found");
                 }
             };
 
             let pass = encoder.begin_render_pass();
+			pass.set_pipeline(ctx.pipeline);
             for v in &args.views {
                 let camera_buffer = match self.camera_buffers.get(&v.camview.camera_id) {
                     Some(b) => b,
@@ -478,14 +541,12 @@ where
                 let point_light_buffer = match self.point_light_buffers.get(&v.scene_id) {
                     Some(b) => b,
                     None => {
-						log::info!("point light buffer not found");
 						&self.default_point_lights
 					}
                 };
-
-                pass.set_pipeline(ctx.pipeline);
-                pass.bind_buffer(0, camera_buffer.clone());
-                pass.bind_buffer(1, point_light_buffer.clone());
+                
+                pass.bind_buffer(0, camera_buffer.handle);
+                pass.bind_buffer(1, point_light_buffer.handle);
 
                 for call in calls {
                     let texture = match call.texture {

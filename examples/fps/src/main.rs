@@ -455,7 +455,8 @@ impl pge::App for FpsShooter {
 		]);
 		let gui_id = state.guis.insert(gui);
 
-		state.windows.insert(window().title("FPS Shooter1").ui(gui_id).lock_cursor(true));
+		let window = window().title("FPS Shooter1").ui(gui_id).lock_cursor(true).width(1024).height(768);
+		state.windows.insert(window);
 	}
 
 	fn on_keyboard_input(&mut self, key: KeyboardKey, action: KeyAction, state: &mut State) {

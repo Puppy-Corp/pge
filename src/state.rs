@@ -156,7 +156,7 @@ impl State {
 	}
 
 	/// Gets node's final transformation matrix after all parent transformations
-	pub fn get_node_transformation(&self, node_id: ArenaId<Node>) -> glam::Mat4 {
+	pub fn get_node_final_transformation(&self, node_id: ArenaId<Node>) -> glam::Mat4 {
 		self.transformation_cache.get(&node_id).cloned().expect("Transformation cache not prepared for this node")
 	}
 
@@ -242,7 +242,7 @@ mod tests {
         let node_id = state.nodes.insert(node);
         state.prepare_cache();
         
-        let transform = state.get_node_transformation(node_id);
+        let transform = state.get_node_final_transformation(node_id);
         assert_eq!(transform.to_scale_rotation_translation().2, Vec3::new(1.0, 2.0, 3.0));
     }
 

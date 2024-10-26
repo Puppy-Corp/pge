@@ -40,6 +40,7 @@ pub struct Window {
 	pub title: String,
 	pub width: u32,
 	pub height: u32,
+	pub fullscreen: bool,
 	pub ui: Option<ArenaId<GUIElement>>,
 	pub lock_cursor: bool,
 }
@@ -50,6 +51,7 @@ impl Window {
 			title: "".to_string(),
 			width: 800,
 			height: 600,
+			fullscreen: false,
 			ui: None,
 			lock_cursor: false,
 		}
@@ -67,6 +69,21 @@ impl Window {
 
 	pub fn lock_cursor(mut self, lock: bool) -> Self {
 		self.lock_cursor = lock;
+		self
+	}
+
+	pub fn fullscreen(mut self, fullscreen: bool) -> Self {
+		self.fullscreen = fullscreen;
+		self
+	}
+
+	pub fn width(mut self, width: u32) -> Self {
+		self.width = width;
+		self
+	}	
+
+	pub fn height(mut self, height: u32) -> Self {
+		self.height = height;
 		self
 	}
 }

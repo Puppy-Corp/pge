@@ -28,10 +28,17 @@ use crate::KeyboardKey;
 use crate::MouseButton;
 use crate::Window;
 
+struct Size {
+	width: u32,
+	height: u32,
+}
+
 enum UserEvent{
 	CreateWindow {
 		window_id: u32,
 		name: String,
+		size: Option<Size>,
+		fullscreen: bool,
 	},
 	DestroyWindow {
 		window_id: u32,
@@ -117,8 +124,16 @@ where
 			UserEvent::CreateWindow {
 				name,
 				window_id,
+				size,
+				fullscreen,
 			} => {
-				let window_attributes = winit::window::Window::default_attributes().with_title(&name).with_fullscreen(Some(winit::window::Fullscreen::Borderless(None)));
+				let mut window_attributes = winit::window::Window::default_attributes().with_title(&name);
+				if fullscreen {
+					window_attributes.fullscreen = Some(winit::window::Fullscreen::Borderless(None));
+				}
+				if let Some(size) = size {
+					window_attributes.inner_size = Some(winit::dpi::Size::Physical(winit::dpi::PhysicalSize::new(size.width, size.height)));
+				}
 				let wininit_window = event_loop.create_window(window_attributes).unwrap();
 				let wininit_window = Arc::new(wininit_window);
 				let surface = Arc::new(self.instance.create_surface(wininit_window.clone()).unwrap());
@@ -785,6 +800,11 @@ impl Hardware for WgpuHardware {
 		self.proxy.send_event(UserEvent::CreateWindow {
 			window_id,
 			name: window.title.clone(),
+			size: Some(Size {
+				height: window.height,
+				width: window.width,
+			}),
+			fullscreen: window.fullscreen,
 		});
 		self.window_id += 1;
 		WindowHandle {

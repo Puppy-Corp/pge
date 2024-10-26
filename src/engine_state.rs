@@ -8,7 +8,7 @@ use glam::*;
 
 use crate::arena::ArenaId;
 use crate::buffer::DirtyBuffer;
-use crate::compositor::UICompositor;
+use crate::compositor::Compositor;
 use crate::cube;
 use crate::debug::ChangePrinter;
 use crate::gltf::load_gltf;
@@ -158,7 +158,7 @@ pub struct EngineState {
 	pub all_point_lights_data: Vec<u8>,
 	pub triangles: Gemometry,
 	_3d_models: HashMap<String, Model3D>,
-	pub ui_compositors: HashMap<ArenaId<GUIElement>, UICompositor>,
+	pub ui_compositors: HashMap<ArenaId<GUIElement>, Compositor>,
 	ui_render_args: HashMap<ArenaId<GUIElement>, UIRenderArgs>,
 	mesh_pointers: HashMap<ArenaId<Mesh>, MeshPointer>,
 	mesh_nodes: HashMap<ArenaId<Mesh>, Vec<ArenaId<Node>>>,
@@ -396,113 +396,6 @@ impl EngineState {
 		);
 	}
 
-	fn process_cameras(&mut self) {
-		for (_, buf) in &mut self.camera_buffers {
-			buf.reset_offset();
-		}
-
-		for (cam_id, cam) in &self.state.cameras {
-			let cam_node = match cam.node_id {
-				Some(id) => match self.nodes.get(&id) {
-					Some(node) => node,
-					None => continue,
-				},
-				None => continue,
-			};
-
-			// let model = glam::Mat4::perspective_lh(cam.fovy, cam.aspect, cam.znear, cam.zfar)
-			//     * cam_node.model;
-
-			//log::info!("cam_node: {:?}", cam_node);
-
-			//let can_model = Mat4::from_translation(Vec3::new(0.0, 0.0, 2.0));
-			let can_model = cam_node.model;
-
-			let model = glam::Mat4::perspective_lh(cam.fovy, cam.aspect, cam.znear, cam.zfar)
-				* can_model.inverse();
-
-			let cam = RawCamera {
-				model: model.to_cols_array_2d(),
-			};
-
-			match self.cameras.get(&cam_id) {
-				Some(camera) => {
-					self.cameras.insert(cam_id, *camera);
-				}
-				None => {
-					log::info!("can_node: {:?}", cam_node);
-					log::info!("model: {:?}", model);
-					log::info!("new camera cam_id: {:?} camera: {:?}", cam_id, cam);
-					self.cameras.insert(cam_id, cam);
-				}
-			}
-
-			let buffer = self
-				.camera_buffers
-				.entry(cam_id)
-				.or_insert(DirtyBuffer::new("cameras"));
-
-			let camdata = Mat4::IDENTITY;
-
-			buffer.extend_from_slice(bytemuck::bytes_of(&cam));
-			//buffer.extend_from_slice(bytemuck::bytes_of(&camdata.to_cols_array_2d()));
-		}
-
-		self.printer
-			.print(CAMERAS_SLOT, format!("cameras: {:?}", self.cameras));
-	}
-
-	fn process_point_lights(&mut self) {
-		for (_, s) in &mut self.scene_point_lights {
-			s.reset_offset();
-		}
-
-		for (light_id, light) in &self.state.point_lights {
-			//log::info!("light: {:?}", light);
-
-			let node = match light.node_id {
-				Some(id) => {
-					match self.nodes.get(&id) {
-						Some(node) => node,
-						None => {
-							log::warn!("Node with ID {:?} not found for light {:?}", id, light_id);
-							continue;
-						}
-					}
-				}
-				None => {
-					log::warn!("Light {:?} has no associated node ID", light_id);
-					continue;
-				}
-			};
-
-			// let light = RawPointLight {
-			// 	color: light.color.into(),
-			// 	intensity: light.intensity,
-			// 	position: node.model.w_axis.truncate().into(),
-
-			// };
-
-			let pos = node.model.w_axis.truncate().into();
-			let light = RawPointLight::new(light.color, light.intensity, pos);
-
-			match self.point_lights.get(&light_id) {
-				Some(old_light) => {
-					if old_light != &light {
-						//log::info!("point light modified {:?} {:?}", light_id, light);
-						self.point_lights.insert(light_id, light);
-					}
-				},
-				None => {
-					log::info!("new point light {:?} {:?}", light_id, light);
-					self.point_lights.insert(light_id, light);
-				}
-			}
-
-			self.scene_point_lights.entry(node.scene_id).or_insert(DirtyBuffer::new("pointlight")).extend_from_slice(bytes_of(&light));
-		}
-	}
-
 	fn process_scenes(&mut self) {
 		for (scene_id, scene) in &self.state.scenes {
 			self.grids.entry(scene_id).or_insert(SpatialGrid::new(5.0));
@@ -528,47 +421,7 @@ impl EngineState {
 		// }
 	}
 
-	fn process_ui(&mut self) {
-		for (ui_id, gui) in &self.state.guis {
-			let compositor = self
-				.ui_compositors
-				.entry(ui_id)
-				.or_insert(UICompositor::new());
-			compositor.process(gui);
-
-			let render_args = self.ui_render_args.entry(ui_id).or_insert(UIRenderArgs {
-				ui: ui_id,
-				views: Vec::new(),
-			});
-
-			render_args.views.clear();
-
-			for view in &compositor.views {
-				let camera = match self.state.cameras.get(&view.camera_id) {
-					Some(camera) => camera,
-					None => continue,
-				};
-
-				let camera_node = match camera.node_id {
-					Some(node_id) => match self.nodes.get(&node_id) {
-						Some(node) => node,
-						None => continue,
-					},
-					None => continue,
-				};
-
-				render_args.views.push(View {
-					camview: view.clone(),
-					scene_id: camera_node.scene_id,
-				});
-			}
-		}
-
-		self.printer.print(
-			UI_RENDER_ARGS_SLOT,
-			format!("ui_render_args: {:?}", self.ui_render_args),
-		);
-	}
+	
 
 	fn process_phycis(&mut self, dt: f32) {
 		// for (scene_id, scene) in &self.state.scenes {
@@ -665,32 +518,6 @@ impl EngineState {
 		self.process_ui();
 		self.process_scenes();
 		self.process_phycis(dt);
-	}
-
-	pub fn get_window_render_args(&self, window_id: ArenaId<Window>) -> Option<&UIRenderArgs> {
-		let window = match self.state.windows.get(&window_id) {
-			Some(window) => window,
-			None => return None,
-		};
-
-		let ui_id = match window.ui {
-			Some(ui_id) => ui_id,
-			None => return None,
-		};
-
-		self.ui_render_args.get(&ui_id)
-	}
-
-	pub fn get_camera_draw_calls(&self, camera_id: ArenaId<Camera>) -> Option<&Vec<DrawCall>> {
-		let camera = self.state.cameras.get(&camera_id)?;
-		let scene_id = match camera.node_id {
-			Some(node_id) => {
-				let node = self.nodes.get(&node_id)?;
-				node.scene_id
-			}
-			None => return None,
-		};
-		self.scene_draw_calls.get(&scene_id)
 	}
 }
 

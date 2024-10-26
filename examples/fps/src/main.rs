@@ -77,6 +77,9 @@ impl Orc {
 	// }
 
 	pub fn on_process(&mut self, state: &mut State) {
+		let node = state.nodes.get_mut(&self.node).unwrap();
+		node.translation += glam::Vec3::new(0.0, 0.0, 1.0);
+
 		// if let Some(node_id) = self.node_id {
 		// 	if let Some(node) = state.nodes.get_mut(&node_id) {
 		// 		// Do something with the node
@@ -394,7 +397,7 @@ impl pge::App for FpsShooter {
 
 		let mut player = Node::new();
 		player.name = Some("Player".to_string());
-		player.set_translation(0.0, 10.0, 10.0);
+		player.set_translation(0.0, 10.0, 0.0);
 		player.physics.typ = PhycisObjectType::Dynamic;
 		player.physics.mass = 70.0;
 		//player.looking_at(0.0, 0.0, 0.0);
@@ -562,6 +565,10 @@ impl pge::App for FpsShooter {
 	}
 
 	fn on_process(&mut self, state: &mut State, delta: f32) {
+		for orc in &mut self.orcs {
+			orc.on_process(state);
+		}
+
 		if let Some(index) = self.light_inx {
 			let light = state.nodes.get_mut(&index).unwrap();
 			self.light_circle_i += delta;
@@ -577,8 +584,11 @@ impl pge::App for FpsShooter {
 
 		if let Some(player_id) = self.player_id {
 			let player = state.nodes.get_mut(&player_id).unwrap();
-			player.physics.force = self.move_force;
-			player.physics.force += self.recoil_force;
+			/*player.physics.force = self.move_force;
+			player.physics.force += self.recoil_force;*/
+
+			//player.translation.x += 100.0;
+			//log::info!("player.translation.x: {:?}", player.translation.x);
 		}
 
 		self.bullets.retain(|bullet| {
@@ -596,5 +606,5 @@ impl pge::App for FpsShooter {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
 	simple_logger::init_with_level(log::Level::Info)?;
-	Ok(pge::run(FpsShooter::new()).await?)
+	Ok(pge::run(FpsShooter::new())?)
 }

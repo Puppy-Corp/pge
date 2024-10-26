@@ -1,108 +1,184 @@
-#[derive(Debug, Clone, Default)]
-pub struct DirtyBuffer {
-    pub name: String,
-    data: Vec<u8>,
-    pub dirty: bool,
-    offset: usize,
+use std::ops::Range;
+
+use crate::hardware::BufferHandle;
+use crate::hardware::Hardware;
+
+#[derive(Debug, Clone)]
+pub struct BufferSlice {
+    pub handle: BufferHandle,
+    pub range: Range<u64>,
 }
 
-impl DirtyBuffer {
-    /// Creates a new DirtyBuffer with the given name.
-    pub fn new(name: &str) -> Self {
+#[derive(Debug, Clone)]
+pub struct Buffer {
+    pub handle: BufferHandle,
+    data: Vec<u8>,
+    offset: u64,
+}
+
+impl Buffer {
+    pub fn new(handle: BufferHandle) -> Self {
         Self {
-            name: name.to_string(),
+            handle,
             data: Vec::new(),
-            dirty: false,
             offset: 0,
         }
     }
 
-    /// Returns the current length of valid data in the buffer.
-    pub fn len(&self) -> usize {
-        self.offset
+    pub fn slice(&self, range: Range<u64>) -> BufferSlice {
+        BufferSlice {
+            handle: self.handle,
+            range,
+        }
     }
 
-    /// Extends the buffer with data from the given slice.
-    /// Marks the buffer as dirty if any changes are made.
-    pub fn extend_from_slice(&mut self, slice: &[u8]) {
-        if self.offset + slice.len() > self.data.len() {
-            log::info!(
-                "[{}] data is bigger offset: {} slice.len: {} data.len: {}",
-                self.name,
-                self.offset,
-                slice.len(),
-                self.data.len()
-            );
-            self.data.resize(self.offset + slice.len(), 0);
-            self.dirty = true;
+    pub fn full(&self) -> BufferSlice {
+        BufferSlice {
+            handle: self.handle,
+            range: 0..self.data.capacity() as u64,
         }
-
-        let current_slice = &self.data[self.offset..self.offset + slice.len()];
-        if current_slice != slice {
-            self.data[self.offset..self.offset + slice.len()].copy_from_slice(slice);
-            self.dirty = true;
-        }
-        self.offset += slice.len();
     }
-
-    /// Resets the offset to zero without modifying the underlying data.
-    pub fn reset_offset(&mut self) {
+    
+    pub fn begin(&mut self) {
         self.offset = 0;
     }
 
-    /// Clears the buffer, removing all data and marking it as dirty.
-    pub fn clear(&mut self) {
+    pub fn write(&mut self, data: &[u8]) {
+        let end = self.offset + data.len() as u64;
+        if end > self.data.len() as u64 {
+            self.data.resize(end as usize, 0);
+        }
+        self.data[self.offset as usize..end as usize].copy_from_slice(data);
+        self.offset = end;
+    }
+
+    pub fn len(&self) -> u64 {
+        self.data.len() as u64
+    }
+
+    pub fn capacity(&self) -> u64 {
+        self.data.capacity() as u64
+    }
+
+    pub fn flush(&mut self, hardware: &mut impl Hardware) {
+        hardware.write_buffer(self.handle, &self.data);
+        self.offset = 0;
         self.data.clear();
-        self.dirty = true;
-        self.offset = 0;
-    }
-
-    /// Returns a slice of the valid data in the buffer.
-    pub fn data(&self) -> &[u8] {
-        &self.data[..self.offset]
     }
 }
 
 #[cfg(test)]
 mod tests {
-	use super::*;
+    use super::*;
+    use std::cell::RefCell;
 
-	#[test]
-	fn test_new_buffer() {
-		let buffer = DirtyBuffer::new("test");
-		assert_eq!(buffer.data, Vec::<u8>::new());
-		assert_eq!(buffer.dirty, false);
-		assert_eq!(buffer.offset, 0);
-	}
+    // Mock implementation of the Hardware trait for testing
+    struct MockHardware {
+        buffers_written: RefCell<Vec<(BufferHandle, Vec<u8>)>>,
+    }
 
-	#[test]
-	fn test_clear_buffer() {
-		let mut buffer = DirtyBuffer::new("test");
-		buffer.extend_from_slice(&[1, 2, 3]);
-		buffer.clear();
-		assert_eq!(buffer.data, Vec::<u8>::new());
-		assert_eq!(buffer.dirty, true);
-		assert_eq!(buffer.offset, 0);
-	}
+    impl MockHardware {
+        fn new() -> Self {
+            MockHardware {
+                buffers_written: RefCell::new(Vec::new()),
+            }
+        }
+    }
 
-	#[test]
-	fn test_extend_from_slice() {
-		let mut buffer = DirtyBuffer::new("test");
-		buffer.extend_from_slice(&[1, 2, 3]);
-		assert_eq!(buffer.data, vec![1, 2, 3]);
-		assert_eq!(buffer.dirty, true);
-		assert_eq!(buffer.offset, 3);
-	}
+    impl Hardware for MockHardware {
+        fn write_buffer(&mut self, handle: BufferHandle, data: &[u8]) {
+            self.buffers_written
+                .borrow_mut()
+                .push((handle, data.to_vec()));
+        }
+    }
 
-	#[test]
-	fn test_extend_from_slice_no_change() {
-		let mut buffer = DirtyBuffer::new("test");
-		buffer.extend_from_slice(&[1, 2, 3]);
-		buffer.reset_offset();
-		buffer.dirty = false;
-		buffer.extend_from_slice(&[1, 2, 3]);
-		assert_eq!(buffer.data, vec![1, 2, 3]);
-		assert_eq!(buffer.dirty, false);
-		assert_eq!(buffer.offset, 3);
-	}
+    #[test]
+    fn test_buffer_new() {
+        let handle = BufferHandle { id: 1 };
+        let buffer = Buffer::new(handle);
+        assert_eq!(buffer.handle, handle);
+        assert_eq!(buffer.data.len(), 0);
+        assert_eq!(buffer.offset, 0);
+    }
+
+    #[test]
+    fn test_buffer_write() {
+        let handle = BufferHandle { id: 2 };
+        let mut buffer = Buffer::new(handle);
+        let data = vec![1, 2, 3, 4];
+        buffer.write(&data);
+        assert_eq!(buffer.data, data);
+        assert_eq!(buffer.offset, 4);
+    }
+
+    #[test]
+    fn test_buffer_slice() {
+        let handle = BufferHandle { id: 3 };
+        let buffer = Buffer::new(handle);
+        let slice = buffer.slice(1..3);
+        assert_eq!(slice.handle, handle);
+        assert_eq!(slice.range, 1..3);
+    }
+
+    #[test]
+    fn test_buffer_full() {
+        let handle = BufferHandle { id: 4 };
+        let buffer = Buffer::new(handle);
+        let slice = buffer.full();
+        assert_eq!(slice.handle, handle);
+        assert_eq!(slice.range, 0..0);
+    }
+    #[test]
+    fn test_buffer_flush() {
+        let handle = BufferHandle { id: 5 };
+        let mut buffer = Buffer::new(handle);
+        let mut hardware = MockHardware::new();
+
+        buffer.write(&[10, 20, 30]);
+        buffer.flush(&mut hardware);
+
+        assert_eq!(buffer.offset, 0);
+        assert!(buffer.data.is_empty());
+
+		{
+			let written = hardware.buffers_written.borrow();
+			assert_eq!(written.len(), 1);
+			assert_eq!(written[0].0, handle);
+			assert_eq!(written[0].1, vec![10, 20, 30]);
+		}
+
+        // Try writing again after flush
+        buffer.write(&[40, 50, 60]);
+		assert_eq!(buffer.len(), 3);
+        buffer.flush(&mut hardware);
+
+        assert_eq!(buffer.offset, 0);
+        assert!(buffer.data.is_empty());
+
+        let written = hardware.buffers_written.borrow();
+        assert_eq!(written.len(), 2);
+        assert_eq!(written[1].0, handle);
+        assert_eq!(written[1].1, vec![40, 50, 60]);
+    }
+
+    #[test]
+    fn test_buffer_begin() {
+        let handle = BufferHandle { id: 6 };
+        let mut buffer = Buffer::new(handle);
+        buffer.write(&[5, 6, 7]);
+        buffer.begin();
+        assert_eq!(buffer.offset, 0);
+        // Data should remain unchanged until flushed
+        assert_eq!(buffer.data, vec![5, 6, 7]);
+    }
+
+    #[test]
+    fn test_buffer_len_capacity() {
+        let handle = BufferHandle { id: 7 };
+        let buffer = Buffer::new(handle);
+        assert_eq!(buffer.len(), 0);
+        // Capacity is implementation-defined, so we test that it's at least len
+        assert!(buffer.capacity() >= buffer.len());
+    }
 }

@@ -1,3 +1,5 @@
+use glam::Vec3;
+
 use crate::buffer::Buffer;
 use crate::compositor::Compositor;
 use crate::hardware;
@@ -102,6 +104,7 @@ pub struct Engine<A, H> {
     ui_render_args: HashMap<ArenaId<GUIElement>, UIRenderArgs>,
 	windows: Vec<WindowContext>,
 	scene_collections: HashMap<ArenaId<Scene>, SceneCollection>,
+	node_transformations: HashMap<ArenaId<Node>, glam::Mat4>,
 }
 
 impl<A, H> Engine<A, H>
@@ -145,16 +148,38 @@ where
             ui_render_args: HashMap::new(),
 			windows: Vec::new(),
 			scene_collections: HashMap::new(),
+			node_transformations: HashMap::new(),
         }
     }
 
 	fn process_nodes(&mut self) {
 		for (node_id, node) in &self.state.nodes {
+			let model = self.state.get_node_transformation(node_id);
+			let modify = match self.node_transformations.get(&node_id) {
+				Some(old) => {
+					if *old != model {
+						self.node_transformations.insert(node_id, model);
+						true
+					} else {
+						false
+					}
+				}
+				None => {
+					self.node_transformations.insert(node_id, model);
+					true
+				}
+			};
+
+			if !modify {
+				continue;
+			}
+
 			let collision_shape = match &node.collision_shape {
 				Some(c) => c,
 				None => continue,
 			};
-			let aabb = collision_shape.aabb(node.translation);
+			let translation: Vec3 = model.w_axis.truncate().into();
+			let aabb = collision_shape.aabb(translation);
 			let scene_id = match self.state.get_node_scene(node_id) {
 				Some(id) => id,
 				None => continue,
@@ -476,32 +501,25 @@ where
 		}
 	}
 
-    pub fn on_mouse_button_event(&mut self, window: WindowHandle, button: MouseButton, state: bool) {
-
+    pub fn on_mouse_input(&mut self, window: WindowHandle, event: MouseEvent) {
+		self.app.on_mouse_input(event, &mut self.state);
     }
 
-    pub fn on_cursor_moved(&mut self, window: WindowHandle, dx: f32, dy: f32) {
-
-    }
-
-    pub fn on_keyboard_input(&mut self, window_id: ArenaId<Window>, event: KeyboardKey, state: bool) {
-
-    }
-
-    fn does_window_exist(&self, arena_id: ArenaId<Window>) -> bool {
-        false
+    pub fn on_keyboard_input(&mut self, window: WindowHandle, key: KeyboardKey, action: KeyAction) {
+		log::info!("Keyboard input: {:?} {:?}", key, action);
+		self.app.on_keyboard_input(key, action, &mut self.state);
     }
 
     pub fn render(&mut self, dt: f32) {
 		self.state.prepare_cache();
-		//self.process_nodes();
+		self.process_nodes();
 		self.process_meshes();
 		self.process_cameras();
 		self.process_point_lights();
 		self.process_ui();
 		self.update_windows();
-		//self.process_scenes();
-		//self.process_physics(dt);
+		self.process_scenes();
+		self.process_physics(dt);
 		self.app.on_process(&mut self.state, dt);
         for (window_id, _) in &self.state.windows {
 			let ctx = self.windows.iter().find(|w| w.window_id == window_id).unwrap();

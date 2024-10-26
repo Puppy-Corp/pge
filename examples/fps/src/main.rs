@@ -584,11 +584,8 @@ impl pge::App for FpsShooter {
 
 		if let Some(player_id) = self.player_id {
 			let player = state.nodes.get_mut(&player_id).unwrap();
-			/*player.physics.force = self.move_force;
-			player.physics.force += self.recoil_force;*/
-
-			//player.translation.x += 100.0;
-			//log::info!("player.translation.x: {:?}", player.translation.x);
+			player.physics.force = self.move_force;
+			player.physics.force += self.recoil_force;
 		}
 
 		self.bullets.retain(|bullet| {

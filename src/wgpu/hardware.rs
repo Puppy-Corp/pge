@@ -5,9 +5,11 @@ use std::time::Duration;
 use std::time::Instant;
 use futures::executor::block_on;
 use winit::application::ApplicationHandler;
+use winit::dpi::PhysicalPosition;
 use winit::event::WindowEvent;
 use winit::event_loop::ControlFlow;
 use winit::event_loop::EventLoop;
+use winit::keyboard::KeyCode;
 
 use crate::engine::Engine;
 use crate::hardware::BufferHandle;
@@ -16,6 +18,8 @@ use crate::hardware::PipelineHandle;
 use crate::hardware::RenderEncoder;
 use crate::hardware::TextureHandle;
 use crate::hardware::WindowHandle;
+use crate::KeyAction;
+use crate::MouseEvent;
 use super::wgpu_types::*;
 use crate::App;
 use crate::ArenaId;
@@ -572,28 +576,42 @@ where
 				let dy = position.y - middle_y;
 				let dx = dx as f32;
 				let dy = dy as f32;
-				self.engine.on_cursor_moved(WindowHandle {
-					id: window_ctx.window_id,
-				}, dx, dy);
-
-				/*if let Some(window) = self.state.state.windows.get(&window_ctx.window_id) {
-					if window.lock_cursor {
-						window_ctx
-							.wininit_window
-							.set_cursor_position(PhysicalPosition::new(middle_x, middle_y))
-							.unwrap();
-						window_ctx.wininit_window.set_cursor_visible(false);
-					}
-				}*/
+				let event = MouseEvent::Moved {
+					dx,
+					dy,
+				};
+				self.engine.on_mouse_input(WindowHandle {id: window_ctx.window_id, }, event);
+				window_ctx
+					.wininit_window
+					.set_cursor_position(PhysicalPosition::new(middle_x, middle_y))
+					.unwrap();
+				window_ctx.wininit_window.set_cursor_visible(false);
 			}
 			WindowEvent::MouseInput {
 				device_id,
 				state,
 				button,
 			} => {
-				/*self.engine.on_mouse_button_event(WindowHandle {
+				let button = match button {
+					winit::event::MouseButton::Left => MouseButton::Left,
+					winit::event::MouseButton::Right => MouseButton::Right,
+					winit::event::MouseButton::Middle => MouseButton::Middle,
+					_ => return,
+				};
+
+				let event = if state.is_pressed() {
+					MouseEvent::Pressed {
+						button,
+					}
+				} else {
+					MouseEvent::Released {
+						button,
+					}
+				};
+
+				self.engine.on_mouse_input(WindowHandle {
 					id: window_ctx.window_id,
-				}, MouseButton::from(button), state.is_pressed());*/
+				}, event);
 			},
 			WindowEvent::KeyboardInput {
 				device_id,
@@ -608,30 +626,40 @@ where
 					..
 				} => {
 					if !repeat {
-						
 						match physical_key {
 							winit::keyboard::PhysicalKey::Code(code) => {
-								//self.engine.on_keyboard_input(window_ctx.window_id, KeyboardKey::from(code), state.is_pressed());
-								/*if KeyCode::Escape == code {
-									event_loop.exit();
-								}
-
-								match state {
-									winit::event::ElementState::Pressed => {
-										self.app.on_keyboard_input(
-											KeyboardKey::from(code),
-											KeyAction::Pressed,
-											&mut self.state.state,
-										)
-									}
-									winit::event::ElementState::Released => {
-										self.app.on_keyboard_input(
-											KeyboardKey::from(code),
-											KeyAction::Released,
-											&mut self.state.state,
-										)
-									}
-								}*/
+								let key = match code {
+									KeyCode::ArrowUp => KeyboardKey::Up,
+									KeyCode::ArrowDown => KeyboardKey::Down,
+									KeyCode::ArrowLeft => KeyboardKey::Left,
+									KeyCode::ArrowRight => KeyboardKey::Right,
+									KeyCode::KeyW => KeyboardKey::W,
+									KeyCode::KeyA => KeyboardKey::A,
+									KeyCode::KeyS => KeyboardKey::S,
+									KeyCode::KeyD => KeyboardKey::D,
+									KeyCode::KeyF => KeyboardKey::F,
+									KeyCode::KeyG => KeyboardKey::G,
+									KeyCode::KeyR => KeyboardKey::R,
+									KeyCode::KeyE => KeyboardKey::E,
+									KeyCode::ControlLeft => KeyboardKey::ControlLeft,
+									KeyCode::Space => KeyboardKey::Space,
+									KeyCode::ShiftLeft => KeyboardKey::ShiftLeft,
+									KeyCode::Digit1 => KeyboardKey::Digit1,
+									KeyCode::Digit2 => KeyboardKey::Digit2,
+									KeyCode::Digit3 => KeyboardKey::Digit3,
+									KeyCode::Digit4 => KeyboardKey::Digit4,
+									KeyCode::Digit5 => KeyboardKey::Digit5,
+									KeyCode::Digit6 => KeyboardKey::Digit6,
+									_ => return,
+								};
+								let action = if state.is_pressed() {
+									KeyAction::Pressed
+								} else {
+									KeyAction::Released
+								};
+								self.engine.on_keyboard_input(WindowHandle {
+									id: window_ctx.window_id,
+								}, key, action);
 							}
 							winit::keyboard::PhysicalKey::Unidentified(_) => {}
 						}

@@ -1,6 +1,7 @@
 use crate::buffer::Buffer;
 use crate::compositor::Compositor;
 use crate::hardware;
+use crate::hardware::BufferHandle;
 use crate::hardware::Hardware;
 use crate::hardware::PipelineHandle;
 use crate::hardware::RenderEncoder;
@@ -18,10 +19,12 @@ use crate::Window;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::ops::Range;
+use std::time::Duration;
+use std::time::Instant;
 
 #[derive(Debug, Clone)]
 pub struct DrawCall {
-	pub texture: Option<TextureHandle>,
+	pub material: Option<ArenaId<Material>>,
 	pub vertices: Range<u64>,
 	pub indices: Range<u64>,
 	pub normals: Range<u64>,
@@ -100,10 +103,11 @@ pub struct Engine<A, H> {
     camera_buffers: HashMap<ArenaId<Camera>, Buffer>,
     default_texture: TextureHandle,
 	default_point_lights: Buffer,
+	default_material: BufferHandle,
     scene_instance_buffers: HashMap<ArenaId<Scene>, Buffer>,
     scene_draw_calls: HashMap<ArenaId<Scene>, Vec<DrawCall>>,
-	textures: HashSet<ArenaId<Texture>>,
-    surfaces: Arena<hardware::Surface>,
+	textures: HashMap<ArenaId<Texture>, TextureHandle>,
+	materials: HashMap<ArenaId<Material>, BufferHandle>,
     ui_compositors: HashMap<ArenaId<GUIElement>, Compositor>,
     ui_render_args: HashMap<ArenaId<GUIElement>, UIRenderArgs>,
 	windows: Vec<WindowContext>,
@@ -119,7 +123,7 @@ where
 {
     pub fn new(mut app: A, mut hardware: H) -> Self {
         let data: [u8; 4] = [255, 100, 200, 255]; // pink
-        let default_texture = hardware.create_texture("default_texture", &data);
+        let default_texture = hardware.create_texture("default_texture", &data, 1, 1);
 
         let vertices_buffer = Buffer::new(hardware.create_buffer("vertices"));
         let tex_coords_buffer = Buffer::new(hardware.create_buffer("tex_coords"));
@@ -127,6 +131,10 @@ where
         let index_buffer = Buffer::new(hardware.create_buffer("indices"));
 
 		let default_point_lights = Buffer::new(hardware.create_buffer("default_point_lights"));
+        
+        let default_material_data = RawMaterial::default();
+        let default_material = hardware.create_buffer("default_material");
+        hardware.write_buffer(default_material, bytemuck::cast_slice(&[default_material_data]));
 
         let mut state = State::default();
         app.on_create(&mut state);
@@ -146,8 +154,9 @@ where
             default_texture,
             scene_instance_buffers: HashMap::new(),
 			default_point_lights,
-			textures: HashSet::new(),
-            surfaces: Arena::new(),
+			default_material,
+			textures: HashMap::new(),
+			materials: HashMap::new(),
             ui_compositors: HashMap::new(),
             scene_draw_calls: HashMap::new(),
             ui_render_args: HashMap::new(),
@@ -262,6 +271,67 @@ where
 		}
 	}
 
+	fn process_textures(&mut self) {
+		for (texture_id, texture) in &self.state.textures {
+			if self.textures.contains_key(&texture_id) {
+				continue;
+			}
+			let mut data = vec![255, 0, 0, 255];
+			let mut width = 1;
+			let mut height = 1;
+
+			match &texture.source {
+				TextureSource::File(path) => {
+					log::info!("Loading texture from file: {:?}", path);
+					match image::open(&path) {
+						Ok(img) => {
+							let img: image::ImageBuffer<image::Rgba<u8>, Vec<u8>> = img.to_rgba8();
+							let dim = img.dimensions();
+							data = img.into_raw();
+							log::info!("Image loaded: {}x{}", dim.0, dim.1);
+							width = dim.0 as u32;
+							height = dim.1 as u32;
+						}
+						Err(e) => {
+							log::error!("Failed to load image: {:?}", e);
+						}
+					}
+				}
+				TextureSource::Buffer(data) => {
+					width = data.len() as u32 / 4;
+					height = 1;
+				}
+				TextureSource::None => {
+					log::warn!("TextureSource::None encountered - using red texture");
+				}
+ 			};
+			let handle = self.hardware.create_texture(&texture.name, &data, width, height);
+			self.textures.insert(texture_id.clone(), handle);
+		}
+	}
+
+	fn process_materials(&mut self) {
+		for (material_id, material) in &self.state.materials {
+			if self.materials.contains_key(&material_id) {
+				continue;
+			}
+
+			let raw_material = RawMaterial {
+				base_color_factor: material.base_color_factor,
+				metallic_factor: material.metallic_factor,
+				roughness_factor: material.roughness_factor,
+				normal_texture_scale: material.normal_texture_scale,
+				occlusion_strength: material.occlusion_strength,
+				emissive_factor: material.emissive_factor,
+				_padding: 0.0,
+			};
+
+			let buffer = self.hardware.create_buffer(&format!("material_buffer_{:?}", material_id.index()));
+			self.hardware.write_buffer(buffer, bytemuck::bytes_of(&raw_material));
+			self.materials.insert(material_id.clone(), buffer);
+		}
+	}
+
     fn process_meshes(&mut self) {
 		for (_, s) in &mut self.scene_draw_calls {
 			s.clear();
@@ -323,10 +393,9 @@ where
 					}
 
 					for (scene_id, instances) in checkpoints {
-						let draw_calls =
-							self.scene_draw_calls.entry(scene_id).or_insert(Vec::new());
+						let draw_calls = self.scene_draw_calls.entry(scene_id).or_insert(Vec::new());
 						draw_calls.push(DrawCall {
-							texture: None, // TODO: add texture
+							material: primitive.material,
 							vertices: vertices_start..vertices_end,
 							indices: indices_start..indices_end,
 							normals: normals_start..normals_end,
@@ -592,6 +661,8 @@ where
     }
 
     pub fn render(&mut self, dt: f32) {
+		self.process_materials();
+		self.process_textures();
 		self.process_nodes();
 		self.process_meshes();
 		self.process_cameras();
@@ -647,11 +718,53 @@ where
                 pass.bind_buffer(1, point_light_buffer.handle);
 
                 for call in calls {
-                    let texture = match call.texture {
-                        Some(t) => t,
-                        None => self.default_texture
-                    };
-                    pass.bind_texture(2, self.default_texture);
+					let mut base_color_texture = self.default_texture;
+					let mut metallic_roughness_texture = self.default_texture;
+					let mut normal_texture = self.default_texture;
+					let mut occlusion_texture = self.default_texture;
+					let mut emissive_texture = self.default_texture;
+					let mut material = self.default_material;
+					
+					if let Some(material_id) = call.material {
+						if let Some(material_buffer) = self.state.materials.get(&material_id) {
+							if let Some(base_color_texture_id) = material_buffer.base_color_texture {
+								if let Some(t) = self.textures.get(&base_color_texture_id) {
+									base_color_texture = *t;
+								}
+							}
+							if let Some(metallic_roughness_texture_id) = material_buffer.metallic_roughness_texture {
+								if let Some(t) = self.textures.get(&metallic_roughness_texture_id) {
+									metallic_roughness_texture = *t;
+								}
+							}
+							if let Some(normal_texture_id) = material_buffer.normal_texture {
+								if let Some(t) = self.textures.get(&normal_texture_id) {
+									normal_texture = *t;
+								}
+							}
+							if let Some(occlusion_texture_id) = material_buffer.occlusion_texture {
+								if let Some(t) = self.textures.get(&occlusion_texture_id) {
+									occlusion_texture = *t;
+								}
+							}
+							if let Some(emissive_texture_id) = material_buffer.emissive_texture {
+								if let Some(t) = self.textures.get(&emissive_texture_id) {
+									emissive_texture = *t;
+								}
+							}
+						}
+
+						if let Some(m) = self.materials.get(&material_id) {
+							material = *m;
+						}
+					}
+
+					pass.bind_texture(2, base_color_texture);
+					pass.bind_texture(3, metallic_roughness_texture);
+					pass.bind_texture(4, normal_texture);
+					pass.bind_texture(5, occlusion_texture);
+					pass.bind_texture(6, emissive_texture);
+					pass.bind_buffer(7, material);
                     pass.set_vertex_buffer(0, self.vertices_buffer.slice(call.vertices.clone()));
                     pass.set_vertex_buffer(1, instance_buffer.full());
                     pass.set_vertex_buffer(2, self.normal_buffer.slice(call.normals.clone()));
@@ -663,6 +776,6 @@ where
                 }
             }
             self.hardware.render(encoder, ctx.window);
-        }
-    }
+		}
+	}
 }

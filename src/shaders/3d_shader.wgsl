@@ -35,6 +35,13 @@ struct PointLight {
 	_padding2: f32,
 };
 
+struct Material {
+	base_color_factor: vec4<f32>,
+	metallic_factor: f32,
+	roughness_factor: f32,
+	emissive_factor: vec3<f32>,
+};
+
 @group(1) @binding(0)
 var<storage, read> point_lights: array<PointLight>;
 
@@ -59,9 +66,32 @@ fn vs_main(input: VertexInput, instance: InstanceInput) -> VertexOutput {
 }
 
 @group(2) @binding(0)
-var t_diffuse: texture_2d<f32>;
+var base_color_texture: texture_2d<f32>;
 @group(2) @binding(1)
-var s_diffuse: sampler;
+var base_color_sampler: sampler;
+
+@group(3) @binding(0)
+var metallic_roughness_texture: texture_2d<f32>;
+@group(3) @binding(1)
+var metallic_roughness_sampler: sampler;
+
+@group(4) @binding(0)
+var normal_texture: texture_2d<f32>;
+@group(4) @binding(1)
+var normal_sampler: sampler;
+
+@group(5) @binding(0)
+var occlusion_texture: texture_2d<f32>;
+@group(5) @binding(1)
+var occlusion_sampler: sampler;
+
+@group(6) @binding(0)
+var emissive_texture: texture_2d<f32>;
+@group(6) @binding(1)
+var emissive_sampler: sampler;
+
+@group(7) @binding(0)
+var<storage, read> material: Material;
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
@@ -69,7 +99,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     var result = vec3<f32>(0.0, 0.0, 0.0);
 
     // Sample the texture at the given texture coordinates
-    let texture_color = textureSample(t_diffuse, s_diffuse, in.tex_coords);
+    let texture_color = textureSample(base_color_texture, base_color_sampler, in.tex_coords);
 
     for (var i = 0u; i < 2; i = i + 1u) {
         let point_light = point_lights[i];

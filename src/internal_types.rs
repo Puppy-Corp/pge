@@ -56,3 +56,29 @@ impl RawPointLight {
 		Self { color, intensity, position, _padding1: 0.0, _padding2: [0.0; 3], _padding3: 0.0 }
 	}
 }
+
+#[repr(C)]
+#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct RawMaterial {
+    pub base_color_factor: [f32; 4],  // 16 bytes
+    pub metallic_factor: f32,         // 4 bytes
+    pub roughness_factor: f32,        // 4 bytes
+    pub normal_texture_scale: f32,    // 4 bytes
+    pub occlusion_strength: f32,      // 4 bytes
+    pub emissive_factor: [f32; 3],    // 12 bytes
+    pub _padding: f32,                // 4 bytes to align to 16 bytes
+}
+
+impl Default for RawMaterial {
+	fn default() -> Self {
+		Self { 
+            base_color_factor: [0.8, 0.8, 0.8, 1.0], // Light gray
+            metallic_factor: 0.0,
+            roughness_factor: 0.5,
+            normal_texture_scale: 1.0,
+            occlusion_strength: 1.0,
+            emissive_factor: [0.0, 0.0, 0.0],
+            _padding: 0.0,
+		}
+	}
+}

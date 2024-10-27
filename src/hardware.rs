@@ -6,7 +6,7 @@ use crate::Window;
 
 pub trait Hardware {
     fn create_buffer(&mut self, name: &str) -> BufferHandle { unimplemented!() }
-    fn create_texture(&mut self, name: &str, data: &[u8]) -> TextureHandle { unimplemented!() }
+    fn create_texture(&mut self, name: &str, data: &[u8], width: u32, height: u32) -> TextureHandle { unimplemented!() }
     fn create_pipeline(&mut self, name: &str, window: WindowHandle) -> PipelineHandle { unimplemented!() }
     fn render(&mut self, encoder: RenderEncoder, window: WindowHandle) { unimplemented!() }
     fn create_window(&mut self, window: &Window) -> WindowHandle { unimplemented!() }
@@ -93,6 +93,7 @@ impl RenderPass {
             buffers: self.buffers.clone(),
             indices: self.indices.clone(),
             instances: self.instances.clone(),
+			textures: self.textures.clone(),
         };
         self.subpasses.push(subpass);
     }
@@ -110,6 +111,7 @@ pub struct Subpass {
     pub buffers: Vec<(u32, BufferHandle)>,
     pub indices: Option<Range<u32>>,
     pub instances: Option<Range<u32>>,
+	pub textures: Vec<(u32, TextureHandle)>,
 }
 
 #[derive(Debug, Clone, Copy)]

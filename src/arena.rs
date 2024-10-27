@@ -45,7 +45,7 @@ impl<T> Hash for ArenaId<T> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Arena<T> {
     items: Vec<Option<T>>,
     free_slots: Vec<usize>,

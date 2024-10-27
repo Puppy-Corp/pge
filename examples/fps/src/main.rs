@@ -369,9 +369,19 @@ impl pge::App for FpsShooter {
 
 		let texture = Texture::new("./assets/gandalf.jpg");
 	 	let texture_id = state.textures.insert(texture);
+		let material = Material {
+			name: Some("GANDALF".to_string()),
+			base_color_texture: Some(texture_id),
+			..Default::default()
+		};
+		let material_id = state.materials.insert(material);
+		let mut cube_mesh = cube(0.5);
+		cube_mesh.primitives[0].material = Some(material_id);
+		let mut plane_mesh = plane(1.0, 1.0);
+		plane_mesh.primitives[0].material = Some(material_id);
 
-		let cube_mesh = state.meshes.insert(cube(0.5).set_texture(texture_id));
-		let plane_mesh = state.meshes.insert(plane(1.0, 1.0).set_texture(texture_id));
+		let cube_mesh = state.meshes.insert(cube_mesh);
+		let plane_mesh = state.meshes.insert(plane_mesh);
 
 		let plane_size = 1000.0;
 

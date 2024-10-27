@@ -56,6 +56,8 @@ enum UserEvent{
 		texture_id: u32,
 		name: String,
 		data: Vec<u8>,
+		width: u32,
+		height: u32,
 	},
 	WriteBuffer {
 		buffer: BufferHandle,
@@ -204,7 +206,11 @@ where
 				
 				let camera_bind_group_layout = RawCamera::create_bind_group_layout(&self.device);
 				let point_light_bind_group_layout = RawPointLight::create_bind_group_layout(&self.device);
-				let texture_layout = TextureBuffer::create_bind_group_layout(&self.device);
+				let base_texture_bind_group_layout = TextureBuffer::create_bind_group_layout(&self.device);
+				let metallic_roughness_texture_bind_group_layout = TextureBuffer::create_bind_group_layout(&self.device);
+				let normal_texture_bind_group_layout = TextureBuffer::create_bind_group_layout(&self.device);
+				let occlusion_texture_bind_group_layout = TextureBuffer::create_bind_group_layout(&self.device);
+				let emissive_texture_bind_group_layout = TextureBuffer::create_bind_group_layout(&self.device);
 			
 				let tex_coords_layout = wgpu::VertexBufferLayout {
 					array_stride: std::mem::size_of::<TexCoords>() as wgpu::BufferAddress,
@@ -216,7 +222,15 @@ where
 					}],
 				};
 			
-				let layouts = &[&camera_bind_group_layout, &point_light_bind_group_layout, &texture_layout];
+				let layouts = &[
+					&camera_bind_group_layout, 
+					&point_light_bind_group_layout, 
+					&base_texture_bind_group_layout,
+					&metallic_roughness_texture_bind_group_layout,
+					&normal_texture_bind_group_layout,
+					&occlusion_texture_bind_group_layout,
+					&emissive_texture_bind_group_layout,
+				];
 				let buffers = &[Vertices::desc(), RawInstance::desc(), Normals::desc(), tex_coords_layout];
 				let shader_source = wgpu::ShaderSource::Wgsl(include_str!("../shaders/3d_shader.wgsl").into());
 			
@@ -339,9 +353,9 @@ where
 		
 					wgpu_pass.set_pipeline(&pipeline_ctx.pipeline);
 					for subpass in &pass.subpasses {
-						for (slot, texture) in &pass.textures {
+						for (slot, texture) in &subpass.textures {
 							let texture_ctx = match self.textures.iter().find(|t| t.id == texture.id) {
-								Some(texture) => texture,
+								Some(texture) => texture, 
 								None => {
 									log::error!("Texture not found: {:?} => RETURN", texture);
 									return;
@@ -456,10 +470,12 @@ where
 				texture_id,
 				name,
 				data,
+				width,
+				height,
 			} => {
 				let size = wgpu::Extent3d {
-					width: 1,
-					height: 1,
+					width,
+					height,
 					depth_or_array_layers: 1,
 				};
 				let texture = self.device.create_texture(&wgpu::TextureDescriptor {
@@ -482,8 +498,8 @@ where
 					&data,
 					wgpu::ImageDataLayout {
 						offset: 0,
-						bytes_per_row: Some(4),
-						rows_per_image: None,
+						bytes_per_row: Some(4 * width),
+						rows_per_image: Some(height),
 					},
 					size
 				);
@@ -706,6 +722,7 @@ pub fn run(app: impl App) -> anyhow::Result<()> {
 				required_limits: wgpu::Limits {
 					max_uniform_buffer_binding_size: 20_000_000,
 					max_buffer_size: 100_000_000,
+					max_bind_groups: 8,
 					..Default::default()
 				},
 			..Default::default()
@@ -782,12 +799,14 @@ impl Hardware for WgpuHardware {
 		}
 	}
 
-	fn create_texture(&mut self, name: &str, data: &[u8]) -> TextureHandle {
+	fn create_texture(&mut self, name: &str, data: &[u8], width: u32, height: u32) -> TextureHandle {
 		let texture_id = self.texture_id;
 		self.proxy.send_event(UserEvent::CreateTexture {
 			texture_id,
 			name: name.to_string(),
 			data: data.to_vec(),
+			width,
+			height,
 		});
 		self.texture_id += 1;
 		TextureHandle {

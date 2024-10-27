@@ -433,13 +433,14 @@ impl PrimitiveTopology {
 	}
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Primitive {
 	pub topology: PrimitiveTopology,
 	pub vertices: Vec<[f32; 3]>,
 	pub indices: Vec<u16>,
 	pub normals: Vec<[f32; 3]>,
-	pub tex_coords: Vec<[f32; 2]>,	
+	pub tex_coords: Vec<[f32; 2]>,
+	pub material: Option<ArenaId<Material>>,
 }
 
 impl Primitive {
@@ -450,6 +451,7 @@ impl Primitive {
 			indices: vec![],
 			normals: vec![],
 			tex_coords: vec![],
+			material: None,
 		}
 	}
 }
@@ -457,43 +459,22 @@ impl Primitive {
 #[derive(Debug, Clone)]
 pub struct MeshId;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct Mesh {
-	// pub id: usize,
 	pub name: Option<String>,
-	// pub material: Option<Material>,
-	// pub positions: Vec<[f32; 3]>,
-	// pub normals: Vec<[f32; 3]>,
-	// pub tex_coords: Vec<[f32; 2]>,
-	// pub colors: Vec<[f32; 4]>,
-	// pub indices: Vec<u16>,
-	pub texture: Option<ArenaId<Texture>>,
 	pub primitives: Vec<Primitive>,
 }
 
 impl Mesh {
 	pub fn new() -> Self {
 		Self {
-			// id: gen_id(),
 			name: None,
-			// material: None,
-			// positions: vec![],
-			// normals: vec![],
-			// tex_coords: vec![],
-			// colors: vec![],
-			// indices: vec![],
-			texture: None,
 			primitives: vec![],
 		}
 	}
 
 	pub fn set_name(mut self, name: &str) -> Self {
 		self.name = Some(name.to_string());
-		self
-	}
-
-	pub fn set_texture(mut self, texture: ArenaId<Texture>) -> Self {
-		self.texture = Some(texture);
 		self
 	}
 }
@@ -606,10 +587,23 @@ impl Animation {
 	}
 }
 
+#[derive(Debug, Clone)]
+pub enum TextureSource {
+	None,
+	File(String),
+	Buffer(Vec<u8>),
+}
+
+impl Default for TextureSource {
+	fn default() -> Self {
+		Self::None
+	}
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct Texture {
     pub name: String,
-    pub source: String, // URI to the texture image
+    pub source: TextureSource,
 }
 
 impl Texture {
@@ -618,45 +612,30 @@ impl Texture {
 
 		Self {
 			name: "".to_string(),
-			source: path.to_str().unwrap().to_string(),
+			source: TextureSource::File(path.to_str().unwrap().to_string()),
 		}
 	}
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct PbrMetallicRoughness {
-    pub base_color_factor: [f32; 4],
-    pub metallic_factor: f32,
-    pub roughness_factor: f32,
-    pub base_color_texture: Option<ArenaId<Texture>>, // Optional base color texture
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct Material {
     pub name: Option<String>,
-    pub pbr_metallic_roughness: PbrMetallicRoughness,
-    pub normal_texture: Option<ArenaId<Texture>>, // Optional normal texture
-    pub occlusion_texture: Option<ArenaId<Texture>>, // Optional occlusion texture
-    pub emissive_texture: Option<ArenaId<Texture>>, // Optional emissive texture
-    pub emissive_factor: [f32; 3],
-}
-
-impl Material {
-	pub fn new() -> Self {
-		Self {
-			name: None,
-			pbr_metallic_roughness: PbrMetallicRoughness {
-				base_color_factor: [1.0, 1.0, 1.0, 1.0],
-				metallic_factor: 1.0,
-				roughness_factor: 1.0,
-				base_color_texture: None,
-			},
-			normal_texture: None,
-			occlusion_texture: None,
-			emissive_texture: None,
-			emissive_factor: [1.0, 1.0, 1.0],
-		}
-	}
+	pub base_color_texture: Option<ArenaId<Texture>>,
+	pub base_color_tex_coords: Option<Vec<[f32; 2]>>,
+	pub base_color_factor: [f32; 4],
+	pub metallic_roughness_texture: Option<ArenaId<Texture>>,
+	pub metallic_roughness_tex_coords: Option<Vec<[f32; 2]>>,
+	pub metallic_factor: f32,
+	pub roughness_factor: f32,
+	pub normal_texture: Option<ArenaId<Texture>>,
+	pub normal_tex_coords: Option<Vec<[f32; 2]>>,
+	pub normal_texture_scale: f32,
+	pub occlusion_texture: Option<ArenaId<Texture>>,
+	pub occlusion_tex_coords: Option<Vec<[f32; 2]>>,
+	pub occlusion_strength: f32,
+	pub emissive_texture: Option<ArenaId<Texture>>,
+	pub emissive_tex_coords: Option<Vec<[f32; 2]>>,
+	pub emissive_factor: [f32; 3],
 }
 
 #[derive(Debug, Clone, Default)]

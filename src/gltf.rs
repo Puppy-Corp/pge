@@ -343,12 +343,12 @@ pub fn load_gltf<P: AsRef<Path>>(p: P, state: &mut State) -> Model3D {
 				}
 			};
 
-			mat.pbr_metallic_roughness.base_color_texture = Some(*pbr_texture_id);
+			mat.base_color_texture = Some(*pbr_texture_id);
 		}
 
-		mat.pbr_metallic_roughness.base_color_factor = pmr.base_color_factor();
-		mat.pbr_metallic_roughness.metallic_factor = pmr.metallic_factor();
-		mat.pbr_metallic_roughness.roughness_factor = pmr.roughness_factor();
+		mat.base_color_factor = pmr.base_color_factor();
+		mat.metallic_factor = pmr.metallic_factor();
+		mat.roughness_factor = pmr.roughness_factor();
 
 		state.materials.insert(mat);
 	}

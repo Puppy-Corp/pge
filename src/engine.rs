@@ -699,7 +699,13 @@ where
 		self.process_physics(dt);
 		self.app.on_process(&mut self.state, dt);
         for (window_id, _) in &self.state.windows {
-			let ctx = self.windows.iter().find(|w| w.window_id == window_id).unwrap();
+			let ctx = match self.windows.iter().find(|w| w.window_id == window_id) {
+				Some(ctx) => ctx,
+				None => {
+					log::error!("Window context not found: {:?}", window_id);
+					continue;
+				}
+			};
             let mut encoder = RenderEncoder::new();
             let args = match self.get_window_render_args(window_id) {
                 Some(a) => a,

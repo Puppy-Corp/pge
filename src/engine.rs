@@ -171,6 +171,7 @@ where
     }
 
 	fn process_nodes(&mut self) {
+		let timer = Instant::now();
 		let mut processed_nodes: HashSet<ArenaId<Node>> = HashSet::new();
 		for (_, nodes) in &mut self.mesh_nodes {
 			nodes.clear();
@@ -272,6 +273,10 @@ where
 		for (_, c) in &mut self.scene_collections {
 			c.grid.retain_nodes(|node_id| processed_nodes.contains(&node_id));
 		}
+		let elapsed = timer.elapsed();
+		if elapsed > Duration::from_millis(10) {
+			log::info!("Node processing took {:?}", elapsed);
+		}
 	}
 
 	fn process_textures(&mut self) {
@@ -337,6 +342,7 @@ where
 	}
 
     fn process_meshes(&mut self) {
+		let timer = Instant::now();
 		for (_, s) in &mut self.scene_draw_calls {
 			s.clear();
 		}
@@ -411,12 +417,20 @@ where
 				}
 			}
 		}
+		let flush_timer = Instant::now();
 		self.vertices_buffer.flush(&mut self.hardware);
 		self.tex_coords_buffer.flush(&mut self.hardware);
 		self.normal_buffer.flush(&mut self.hardware);
 		self.index_buffer.flush(&mut self.hardware);
 		for (_, buffer) in &mut self.scene_instance_buffers {
 			buffer.flush(&mut self.hardware);
+		}
+		if flush_timer.elapsed() > Duration::from_millis(10) {
+			log::info!("Flushing buffers took {:?}", flush_timer.elapsed());
+		}
+
+		if timer.elapsed() > Duration::from_millis(10) {
+			log::info!("Mesh processing took {:?}", timer.elapsed());
 		}
     }
 

@@ -1,8 +1,5 @@
-use std::collections::HashMap;
 use std::process;
 use std::sync::Arc;
-use std::thread::sleep;
-use std::time::Duration;
 use std::time::Instant;
 use futures::executor::block_on;
 use winit::application::ApplicationHandler;
@@ -23,7 +20,6 @@ use crate::KeyAction;
 use crate::MouseEvent;
 use super::wgpu_types::*;
 use crate::App;
-use crate::ArenaId;
 use crate::KeyboardKey;
 use crate::MouseButton;
 use crate::Window;
@@ -33,13 +29,16 @@ struct Size {
 	height: u32,
 }
 
+struct CreateWindow {
+	window_id: u32,
+	name: String,
+	size: Option<Size>,
+	fullscreen: bool,
+	lock_cursor: bool,
+}
+
 enum UserEvent{
-	CreateWindow {
-		window_id: u32,
-		name: String,
-		size: Option<Size>,
-		fullscreen: bool,
-	},
+	CreateWindow(CreateWindow),
 	DestroyWindow {
 		window_id: u32,
 	},
@@ -74,6 +73,7 @@ struct WindowContext<'a> {
 	wininit_window: Arc<winit::window::Window>,
 	window_id: u32,
 	surface: Arc<wgpu::Surface<'a>>,
+	lock_cursor: bool,
 }
 
 struct PipelineContext {
@@ -123,17 +123,12 @@ where
 
 	fn user_event(&mut self, event_loop: &winit::event_loop::ActiveEventLoop, event: UserEvent) {
 		match event {
-			UserEvent::CreateWindow {
-				name,
-				window_id,
-				size,
-				fullscreen,
-			} => {
-				let mut window_attributes = winit::window::Window::default_attributes().with_title(&name);
-				if fullscreen {
+			UserEvent::CreateWindow(args) => {
+				let mut window_attributes = winit::window::Window::default_attributes().with_title(&args.name);
+				if args.fullscreen {
 					window_attributes.fullscreen = Some(winit::window::Fullscreen::Borderless(None));
 				}
-				if let Some(size) = size {
+				if let Some(size) = args.size {
 					window_attributes.inner_size = Some(winit::dpi::Size::Physical(winit::dpi::PhysicalSize::new(size.width, size.height)));
 				}
 				let wininit_window = event_loop.create_window(window_attributes).unwrap();
@@ -143,8 +138,9 @@ where
 				let window_ctx = WindowContext {
 					winit_id: wininit_window_id,
 					surface,
-					window_id: window_id,
+					window_id: args.window_id,
 					wininit_window,
+					lock_cursor: args.lock_cursor,
 				};
 				self.windows.push(window_ctx);
 			}
@@ -627,11 +623,13 @@ where
 					dy,
 				};
 				self.engine.on_mouse_input(WindowHandle {id: window_ctx.window_id, }, event);
-				window_ctx
-					.wininit_window
-					.set_cursor_position(PhysicalPosition::new(middle_x, middle_y))
-					.unwrap();
-				window_ctx.wininit_window.set_cursor_visible(false);
+				if window_ctx.lock_cursor {
+					window_ctx
+						.wininit_window
+						.set_cursor_position(PhysicalPosition::new(middle_x, middle_y))
+						.unwrap();
+					window_ctx.wininit_window.set_cursor_visible(false);
+				}
 			}
 			WindowEvent::MouseInput {
 				device_id,
@@ -830,7 +828,7 @@ impl Hardware for WgpuHardware {
 
 	fn create_window(&mut self, window: &Window) -> WindowHandle {
 		let window_id = self.window_id;
-		self.proxy.send_event(UserEvent::CreateWindow {
+		let args = CreateWindow {
 			window_id,
 			name: window.title.clone(),
 			size: Some(Size {
@@ -838,7 +836,9 @@ impl Hardware for WgpuHardware {
 				width: window.width,
 			}),
 			fullscreen: window.fullscreen,
-		});
+			lock_cursor: window.lock_cursor,
+		};
+		self.proxy.send_event(UserEvent::CreateWindow(args));
 		self.window_id += 1;
 		WindowHandle {
 			id: window_id,

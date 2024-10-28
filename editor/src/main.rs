@@ -68,7 +68,7 @@ impl pge::App for PgeEditor {
 					let ui = camera_view(camera_id);
 					let ui_id = state.guis.insert(ui);
 
-					let window = Window::new().title(&name).ui(ui_id).lock_cursor(true);
+					let window = Window::new().title(&name).ui(ui_id);
 					state.windows.insert(window);
 				},
 			}

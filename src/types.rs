@@ -617,7 +617,7 @@ impl Texture {
 	}
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct Material {
     pub name: Option<String>,
 	pub base_color_texture: Option<ArenaId<Texture>>,
@@ -636,6 +636,30 @@ pub struct Material {
 	pub emissive_texture: Option<ArenaId<Texture>>,
 	pub emissive_tex_coords: Option<Vec<[f32; 2]>>,
 	pub emissive_factor: [f32; 3],
+}
+
+impl Default for Material {
+	fn default() -> Self {
+		Self {
+			name: None,
+			base_color_texture: None,
+			base_color_tex_coords: None,
+			base_color_factor: [1.0, 1.0, 1.0, 1.0],
+			metallic_roughness_texture: None,
+			metallic_roughness_tex_coords: None,
+			metallic_factor: 0.0,
+			roughness_factor: 1.0,
+			normal_texture: None,
+			normal_tex_coords: None,
+			normal_texture_scale: 1.0,
+			occlusion_texture: None,
+			occlusion_tex_coords: None,
+			occlusion_strength: 1.0,
+			emissive_texture: None,
+			emissive_tex_coords: None,
+			emissive_factor: [0.0, 0.0, 0.0],
+		}
+	}
 }
 
 #[derive(Debug, Clone, Default)]

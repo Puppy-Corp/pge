@@ -211,6 +211,19 @@ where
 				let normal_texture_bind_group_layout = TextureBuffer::create_bind_group_layout(&self.device);
 				let occlusion_texture_bind_group_layout = TextureBuffer::create_bind_group_layout(&self.device);
 				let emissive_texture_bind_group_layout = TextureBuffer::create_bind_group_layout(&self.device);
+				let material_bind_group_layout = self.device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+					label: Some("Material Bind Group Layout"),
+					entries: &[wgpu::BindGroupLayoutEntry {
+						binding: 0,
+						visibility: wgpu::ShaderStages::FRAGMENT | wgpu::ShaderStages::VERTEX,
+						ty: wgpu::BindingType::Buffer {
+							ty: wgpu::BufferBindingType::Storage { read_only: true },
+							has_dynamic_offset: false,
+							min_binding_size: None,
+						},
+						count: None,
+					}],
+				});
 			
 				let tex_coords_layout = wgpu::VertexBufferLayout {
 					array_stride: std::mem::size_of::<TexCoords>() as wgpu::BufferAddress,
@@ -230,6 +243,7 @@ where
 					&normal_texture_bind_group_layout,
 					&occlusion_texture_bind_group_layout,
 					&emissive_texture_bind_group_layout,
+					&material_bind_group_layout,
 				];
 				let buffers = &[Vertices::desc(), RawInstance::desc(), Normals::desc(), tex_coords_layout];
 				let shader_source = wgpu::ShaderSource::Wgsl(include_str!("../shaders/3d_shader.wgsl").into());

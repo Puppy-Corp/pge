@@ -6,6 +6,7 @@ use gltf::animation::util::MorphTargetWeights;
 use gltf::animation::util::ReadOutputs;
 use gltf::animation::util::Rotations;
 use gltf::buffer::Data;
+use gltf::image::Source;
 use crate::state::State;
 use crate::Animation;
 use crate::AnimationOutput;
@@ -28,6 +29,7 @@ use crate::Texture;
 struct ParserState {
 	node_map: HashMap<usize, ArenaId<Node>>,
 	texture_map: HashMap<usize, ArenaId<Texture>>,
+	material_map: HashMap<usize, ArenaId<Material>>,
 }
 
 impl ParserState {
@@ -35,6 +37,7 @@ impl ParserState {
 		ParserState {
 			node_map: HashMap::new(),
 			texture_map: HashMap::new(),
+			material_map: HashMap::new(),
 		}
 	}
 }
@@ -105,6 +108,12 @@ pub fn load_node(n: &gltf::Node, buffers: &[Data], state: &mut State, parser_sta
 
 				if reader.read_tangents().is_none() {
 					log::warn!("Primitive #{} is missing tangent data", p.index());
+				}
+
+				if let Some(material_index) = p.material().index() {
+					if let Some(material_id) = parser_state.material_map.get(&material_index) {
+						primitive.material = Some(*material_id);
+					}
 				}
 
 				mesh.primitives.push(primitive);
@@ -263,6 +272,121 @@ pub fn load_gltf<P: AsRef<Path>>(p: P, state: &mut State) -> Model3D {
 		},
 	};
 
+	for image in images {
+		log::info!("Image: {}x{}", image.width, image.height);
+	}
+
+	for animation in document.animations() {
+		load_animation(&animation, &buffers, state, &mut parser_state);
+	}
+
+	for texture in document.textures() {
+		log::info!("Texture: {}", texture.name().unwrap_or("Unnamed"));
+		let s = texture.source();
+		let source = s.source();
+		match source {
+			Source::View { view, mime_type } => {
+				log::info!("mime_type: {}", mime_type);
+			},
+			Source::Uri { uri, mime_type } => {
+				log::info!("uri: {}", uri);
+				log::info!("mime_type: {}", mime_type.unwrap_or("None"));
+			}
+		};
+		
+		let texture_id = state.textures.insert(Texture {
+			name: texture.name().unwrap_or_default().to_string(),
+			..Default::default()
+		});
+		parser_state.texture_map.insert(texture.index(), texture_id);
+	}
+
+	for gltf_material in document.materials() {
+		log::info!("Material: {}", gltf_material.name().unwrap_or("Unnamed"));
+		let material_index = match gltf_material.index() {
+			Some(index) => index,
+			None => {
+				log::warn!("Material has no index");
+				continue;
+			}
+		};
+		let pbr = gltf_material.pbr_metallic_roughness();
+
+		let mut material = Material {
+			name: gltf_material.name().map(|p| p.to_string()),
+			..Default::default()
+		};
+
+		if let Some(base_color_texture) = pbr.base_color_texture() {
+			log::info!("base_color_texture: {}", base_color_texture.texture().index());
+			let pbr_texture_id = match parser_state.texture_map.get(&base_color_texture.texture().index()) {
+				Some(id) => id,
+				None => {
+					continue;
+				}
+			};
+
+			material.base_color_texture = Some(*pbr_texture_id);
+		}
+		material.base_color_factor = pbr.base_color_factor();
+
+		if let Some(metallic_roughness_texture) = pbr.metallic_roughness_texture() {
+			log::info!("metallic_roughness_texture: {}", metallic_roughness_texture.texture().index());
+			let texture_id = match parser_state.texture_map.get(&metallic_roughness_texture.texture().index()) {
+				Some(id) => id,
+				None => {
+					continue;
+				}
+			};
+			material.metallic_roughness_texture = Some(*texture_id);
+		}
+		material.metallic_factor = pbr.metallic_factor();
+		material.roughness_factor = pbr.roughness_factor();
+
+		if let Some(normal_texture) = gltf_material.normal_texture() {
+			log::info!("normal_texture: {}", normal_texture.texture().index());
+			// normal_texture.tex_coord() TODO how to handle ?
+			let texture_id = match parser_state.texture_map.get(&normal_texture.texture().index()) {
+				Some(id) => id,
+				None => {
+					continue;
+				}
+			};
+			material.normal_texture = Some(*texture_id);
+			material.normal_texture_scale = normal_texture.scale();
+		}
+
+		if let Some(occlusion_texture) = gltf_material.occlusion_texture() {
+			log::info!("occlusion_texture: {}", occlusion_texture.texture().index());
+			let texture_id = match parser_state.texture_map.get(&occlusion_texture.texture().index()) {
+				Some(id) => id,
+				None => {
+					continue;
+				}
+			};
+			material.occlusion_texture = Some(*texture_id);
+			material.occlusion_strength = occlusion_texture.strength();
+		}
+
+		if let Some(emissive_texture) = gltf_material.emissive_texture() {
+			log::info!("emissive_texture: {}", emissive_texture.texture().index());
+			let texture_id = match parser_state.texture_map.get(&emissive_texture.texture().index()) {
+				Some(id) => id,
+				None => {
+					continue;
+				}
+			};
+			material.emissive_texture = Some(*texture_id);
+		}
+		material.emissive_factor = gltf_material.emissive_factor();
+		let material_id = state.materials.insert(material);
+		parser_state.material_map.insert(material_index, material_id);
+	}
+
+	for skin in document.skins() {
+		log::info!("Skin: {}", skin.name().unwrap_or("Unnamed"));
+	}
+
 	if let Some(s) = document.default_scene() {
 		log::info!("Default scene: {}", s.name().unwrap_or("Unnamed"));
 		let scene_id = load_scene(&s, &buffers, state, &mut parser_state);
@@ -273,88 +397,6 @@ pub fn load_gltf<P: AsRef<Path>>(p: P, state: &mut State) -> Model3D {
 		log::info!("Scene: {}", s.name().unwrap_or("Unnamed"));
 		let scene_id = load_scene(&s, &buffers, state, &mut parser_state);
 		model.scenes.push(scene_id);
-	}
-
-	for image in images {
-		log::info!("Image: {}x{}", image.width, image.height);
-	}
-
-	for animation in document.animations() {
-		load_animation(&animation, &buffers, state, &mut parser_state);
-	}
-
-	for texture in document.textures() {
-		let texture_id = state.textures.insert(Texture {
-			name: texture.name().unwrap_or_default().to_string(),
-			..Default::default()
-		});
-		parser_state.texture_map.insert(texture.index(), texture_id);
-	}
-
-	for m in document.materials() {
-		log::info!("Material: {}", m.name().unwrap_or("Unnamed"));
-		let pmr = m.pbr_metallic_roughness();
-		let normal = m.normal_texture();
-		let occlusion = m.occlusion_texture();
-		let emissive = m.emissive_texture();
-
-		let mut mat = Material {
-			name: m.name().map(|p| p.to_string()),
-			..Default::default()
-		};
-
-
-		if let Some(normal_texture) = normal {
-			// normal_texture.tex_coord() TODO how to handle ?
-			let texture_id = match parser_state.texture_map.get(&normal_texture.texture().index()) {
-				Some(id) => id,
-				None => {
-					continue;
-				}
-			};
-			mat.normal_texture = Some(*texture_id);
-		}
-
-		if let Some(occlusion_texture) = occlusion {
-			let texture_id = match parser_state.texture_map.get(&occlusion_texture.texture().index()) {
-				Some(id) => id,
-				None => {
-					continue;
-				}
-			};
-			mat.occlusion_texture = Some(*texture_id);
-		}
-
-		if let Some(emissive_texture) = emissive {
-			let texture_id = match parser_state.texture_map.get(&emissive_texture.texture().index()) {
-				Some(id) => id,
-				None => {
-					continue;
-				}
-			};
-			mat.emissive_texture = Some(*texture_id);
-		}
-
-		if let Some(base_color_texture) = pmr.base_color_texture() {
-			let pbr_texture_id = match parser_state.texture_map.get(&base_color_texture.texture().index()) {
-				Some(id) => id,
-				None => {
-					continue;
-				}
-			};
-
-			mat.base_color_texture = Some(*pbr_texture_id);
-		}
-
-		mat.base_color_factor = pmr.base_color_factor();
-		mat.metallic_factor = pmr.metallic_factor();
-		mat.roughness_factor = pmr.roughness_factor();
-
-		state.materials.insert(mat);
-	}
-
-	for skin in document.skins() {
-		log::info!("Skin: {}", skin.name().unwrap_or("Unnamed"));
 	}
 
 	model
@@ -373,5 +415,7 @@ mod tests {
 		let mut state = State::default();
 		load_gltf("./assets/orkki.glb", &mut state);
 		state.print_state();
+
+		log::info!("materials: {:#?}", state.materials);
 	}
 }

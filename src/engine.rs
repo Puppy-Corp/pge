@@ -122,7 +122,8 @@ where
     H: Hardware,
 {
     pub fn new(mut app: A, mut hardware: H) -> Self {
-        let data: [u8; 4] = [255, 100, 200, 255]; // pink
+        let data: [u8; 4] = [255, 255, 255, 255]; // white
+		//let data = [0, 0, 0, 0];
         let default_texture = hardware.create_texture("default_texture", &data, 1, 1);
 
         let vertices_buffer = Buffer::new(hardware.create_buffer("vertices"));
@@ -138,6 +139,8 @@ where
 
         let mut state = State::default();
         app.on_create(&mut state);
+
+		state.print_state();
 
         Self {
             app,
@@ -325,6 +328,7 @@ where
 				emissive_factor: material.emissive_factor,
 				_padding: 0.0,
 			};
+			log::info!("new material: {:?}", raw_material);
 
 			let buffer = self.hardware.create_buffer(&format!("material_buffer_{:?}", material_id.index()));
 			self.hardware.write_buffer(buffer, bytemuck::bytes_of(&raw_material));

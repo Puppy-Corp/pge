@@ -422,7 +422,7 @@ impl pge::App for FpsShooter {
 			// rotate 180 degrees
 			node.rotation = glam::Quat::from_euler(glam::EulerRot::YXZ, PI, 0.0, 0.0);
 			let node_id = state.nodes.insert(node);
-			let ak47_model_id = state.load_3d_model("./assets/ak47.glb");
+			let ak47_model_id = state.load_3d_model("./assets/akms.glb");
 			let model = state.models.get(&ak47_model_id).unwrap();
 			let ak47_scene_id = model.scenes[0];
 			for (_, node) in &mut state.nodes.iter_mut() {

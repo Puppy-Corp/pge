@@ -96,22 +96,34 @@ var<storage, read> material: Material;
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let light_color = vec3<f32>(1.0, 1.0, 1.0);
-    var result = vec3<f32>(0.0, 0.0, 0.0);
+    let view_dir = normalize(camera.model[3].xyz - in.world_position);
+    var diffuse = vec3<f32>(0.0, 0.0, 0.0);
+    var specular = vec3<f32>(0.0, 0.0, 0.0);
 
-    // Sample the texture at the given texture coordinates
     let texture_color = textureSample(base_color_texture, base_color_sampler, in.tex_coords);
+    let base_color = texture_color.rgb * material.base_color_factor.rgb;
+    let roughness = material.roughness_factor;
+    let metallic = material.metallic_factor;
 
     for (var i = 0u; i < 2; i = i + 1u) {
         let point_light = point_lights[i];
         let light_position = point_light.position;
-        let light_direction = normalize(light_position - in.world_position);
-        
-        let diffuse_strength = max(dot(in.normal, light_direction), 0.0);
-        let diffuse_color = light_color * diffuse_strength;
+        let light_dir = normalize(light_position - in.world_position);
+        let halfway_dir = normalize(light_dir + view_dir);
 
-        // Multiply diffuse color with the texture color and accumulate to the result
-        result = result + (diffuse_color * texture_color.rgb);
+        // Diffuse
+        let ndotl = max(dot(in.normal, light_dir), 0.0);
+        diffuse += ndotl * light_color;
+
+        // Blinn-Phong
+        let ndoth = max(dot(in.normal, halfway_dir), 0.0);
+        let spec = pow(ndoth, (1.0 - roughness) * 128.0); // Higher exponent for smoother surfaces
+        specular += spec * light_color;
     }
 
-    return vec4<f32>(result, 1.0);
+    // **Combine Diffuse and Specular with Material Properties**
+    // Adjust specular intensity based on metallic factor
+    let final_color = (diffuse * base_color) + (specular * mix(vec3<f32>(0.04), base_color, metallic));
+    // Incorporate the alpha component from base_color_factor
+    return vec4<f32>(final_color, material.base_color_factor.a);
 }

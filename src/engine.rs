@@ -114,6 +114,7 @@ pub struct Engine<A, H> {
 	scene_collections: HashMap<ArenaId<Scene>, SceneCollection>,
 	nodes: HashMap<ArenaId<Node>, NodeComputedMetadata>,
 	mesh_nodes: HashMap<ArenaId<Mesh>, Vec<ArenaId<Node>>>,
+	fps: u32
 }
 
 impl<A, H> Engine<A, H>
@@ -167,6 +168,7 @@ where
 			scene_collections: HashMap::new(),
 			nodes: HashMap::new(),
 			mesh_nodes: HashMap::new(),
+			fps: 0,
         }
     }
 
@@ -679,6 +681,12 @@ where
     }
 
     pub fn render(&mut self, dt: f32) {
+		let fps = (1.0 / dt) as u32;
+		if (fps as i32 - self.fps as i32).abs() > 5 {
+			log::info!("FPS: {}", fps);
+		}
+		self.fps = fps;
+
 		self.process_materials();
 		self.process_textures();
 		self.process_nodes();

@@ -13,7 +13,6 @@ pub struct BufferSlice {
 pub struct Buffer {
     pub handle: BufferHandle,
     data: Vec<u8>,
-    offset: u64,
 }
 
 impl Buffer {
@@ -21,7 +20,6 @@ impl Buffer {
         Self {
             handle,
             data: Vec::new(),
-            offset: 0,
         }
     }
 
@@ -38,18 +36,9 @@ impl Buffer {
             range: 0..self.data.capacity() as u64,
         }
     }
-    
-    pub fn begin(&mut self) {
-        self.offset = 0;
-    }
 
     pub fn write(&mut self, data: &[u8]) {
-        let end = self.offset + data.len() as u64;
-        if end > self.data.len() as u64 {
-            self.data.resize(end as usize, 0);
-        }
-        self.data[self.offset as usize..end as usize].copy_from_slice(data);
-        self.offset = end;
+		self.data.extend_from_slice(data);
     }
 
     pub fn len(&self) -> u64 {
@@ -62,7 +51,6 @@ impl Buffer {
 
     pub fn flush(&mut self, hardware: &mut impl Hardware) {
         hardware.write_buffer(self.handle, &self.data);
-        self.offset = 0;
         self.data.clear();
     }
 }

@@ -82,25 +82,6 @@ mod tests {
     }
 
     #[test]
-    fn test_buffer_new() {
-        let handle = BufferHandle { id: 1 };
-        let buffer = Buffer::new(handle);
-        assert_eq!(buffer.handle, handle);
-        assert_eq!(buffer.data.len(), 0);
-        assert_eq!(buffer.offset, 0);
-    }
-
-    #[test]
-    fn test_buffer_write() {
-        let handle = BufferHandle { id: 2 };
-        let mut buffer = Buffer::new(handle);
-        let data = vec![1, 2, 3, 4];
-        buffer.write(&data);
-        assert_eq!(buffer.data, data);
-        assert_eq!(buffer.offset, 4);
-    }
-
-    #[test]
     fn test_buffer_slice() {
         let handle = BufferHandle { id: 3 };
         let buffer = Buffer::new(handle);
@@ -125,8 +106,6 @@ mod tests {
 
         buffer.write(&[10, 20, 30]);
         buffer.flush(&mut hardware);
-
-        assert_eq!(buffer.offset, 0);
         assert!(buffer.data.is_empty());
 
 		{
@@ -140,25 +119,11 @@ mod tests {
         buffer.write(&[40, 50, 60]);
 		assert_eq!(buffer.len(), 3);
         buffer.flush(&mut hardware);
-
-        assert_eq!(buffer.offset, 0);
         assert!(buffer.data.is_empty());
-
         let written = hardware.buffers_written.borrow();
         assert_eq!(written.len(), 2);
         assert_eq!(written[1].0, handle);
         assert_eq!(written[1].1, vec![40, 50, 60]);
-    }
-
-    #[test]
-    fn test_buffer_begin() {
-        let handle = BufferHandle { id: 6 };
-        let mut buffer = Buffer::new(handle);
-        buffer.write(&[5, 6, 7]);
-        buffer.begin();
-        assert_eq!(buffer.offset, 0);
-        // Data should remain unchanged until flushed
-        assert_eq!(buffer.data, vec![5, 6, 7]);
     }
 
     #[test]

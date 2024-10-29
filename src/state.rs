@@ -3,6 +3,7 @@ use std::path::Path;
 use crate::load_gltf;
 use crate::arena::*;
 use crate::types::*;
+use crate::utility::get_scene_bounding_box;
 use crate::GUIElement;
 use crate::Window;
 
@@ -67,6 +68,10 @@ impl State {
         log::info!("texture count: {:?}", self.textures.len());
         log::info!("raycast count: {:?}", self.raycasts.len());
     }
+
+	pub fn get_scene_bounding_box(&self, scene_id: ArenaId<Scene>) -> AABB {
+		get_scene_bounding_box(scene_id, self)
+	}
 }
 
 #[cfg(test)]

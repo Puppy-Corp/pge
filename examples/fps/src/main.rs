@@ -329,7 +329,10 @@ impl pge::App for FpsShooter {
 		let model_id = state.load_3d_model("./assets/orkki.glb");
 		let ork_scene_id = {
 			let model = state.models.get(&model_id).unwrap();
-			model.scenes[0]
+			match model.default_scene {
+				Some(id) => id,
+				None => model.scenes[0],
+			}
 		};
 		let mut orc_base_node = Node::new();
 		orc_base_node.parent = NodeParent::Orphan;
@@ -469,7 +472,7 @@ impl pge::App for FpsShooter {
 		state.windows.insert(window);
 	}
 
-	fn on_keyboard_input(&mut self, key: KeyboardKey, action: KeyAction, state: &mut State) {
+	fn on_keyboard_input(&mut self, window_id: ArenaId<Window>, key: KeyboardKey, action: KeyAction, state: &mut State) {
 		match action {
 			KeyAction::Pressed => {
 				match key {
@@ -519,7 +522,7 @@ impl pge::App for FpsShooter {
 		// player.physics.force = player.rotation * dir * 300.0;
 	}
 
-	fn on_mouse_input(&mut self, event: MouseEvent, state: &mut State) {
+	fn on_mouse_input(&mut self, window_id: ArenaId<Window>, event: MouseEvent, state: &mut State) {
 		match event {
 			MouseEvent::Moved { dx, dy } => {
 				let player_inx = match self.player_id {

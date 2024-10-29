@@ -14,7 +14,7 @@ pub trait Hardware {
 	fn write_buffer(&mut self, buffer: BufferHandle, data: &[u8]) { unimplemented!() }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct WindowHandle {
     pub id: u32,
 }

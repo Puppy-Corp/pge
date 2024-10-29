@@ -350,6 +350,8 @@ pub struct Node {
 	pub scale: glam::Vec3,
 	pub physics: PhysicsProps,
 	pub collision_shape: Option<CollisionShape>,
+	pub global_transform: glam::Mat4,
+	pub scene_id: Option<ArenaId<Scene>>,
 }
 
 impl Default for Node {
@@ -363,6 +365,8 @@ impl Default for Node {
 			scale: glam::Vec3::splat(1.0),
 			physics: PhysicsProps::default(),
 			collision_shape: None,
+			global_transform: glam::Mat4::IDENTITY,
+			scene_id: None,
 		}
 	}
 }
@@ -402,7 +406,7 @@ impl Node {
         self.scale = glam::Vec3::new(x, y, z);
     }
 
-	pub fn model_matrix(&self) -> glam::Mat4 {
+	pub fn matrix(&self) -> glam::Mat4 {
 		let translation = glam::Mat4::from_translation(self.translation);
 		let rotation = glam::Mat4::from_quat(self.rotation);
 		let scale = glam::Mat4::from_scale(self.scale);
@@ -707,8 +711,8 @@ pub struct Keyboard {
 
 pub trait App {
 	fn on_create(&mut self, state: &mut State) {}
-	fn on_keyboard_input(&mut self, key: KeyboardKey, action: KeyAction, state: &mut State) {}
-	fn on_mouse_input(&mut self, event: MouseEvent, state: &mut State) {}
+	fn on_keyboard_input(&mut self, window_id: ArenaId<Window>, key: KeyboardKey, action: KeyAction, state: &mut State) {}
+	fn on_mouse_input(&mut self, window_id: ArenaId<Window>, event: MouseEvent, state: &mut State) {}
 	/// Run before rendering
 	fn on_process(&mut self, state: &mut State, delta: f32) {}
 	/// Run before physics properties are updated

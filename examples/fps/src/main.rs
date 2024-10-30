@@ -323,8 +323,8 @@ impl FpsShooter {
 impl pge::App for FpsShooter {
 	fn on_create(&mut self, state: &mut State) {
 		let scene = Scene::new();
-		let scene_id = state.scenes.insert(scene);
-		self.main_scene = Some(scene_id);
+		let main_scene_id = state.scenes.insert(scene);
+		self.main_scene = Some(main_scene_id);
 
 		let model_id = state.load_3d_model("./assets/orkki.glb");
 		let ork_scene_id = {
@@ -355,7 +355,7 @@ impl pge::App for FpsShooter {
 		for _ in 0..10 {
 			let node_id = state.clone_node(orc_base_node_id);
 			let node = state.nodes.get_mut(&node_id).unwrap();
-			node.parent = NodeParent::Scene(scene_id);
+			node.parent = NodeParent::Scene(main_scene_id);
 			node.physics.typ = PhycisObjectType::Dynamic;
 			node.physics.mass = 10.0;
 			node.collision_shape = Some(CollisionShape::Box { size: glam::Vec3::new(1.0, 3.0, 1.0) });
@@ -391,7 +391,7 @@ impl pge::App for FpsShooter {
 		let mut light_node = Node::new();
 		light_node.name = Some("Light".to_string());
 		light_node.set_translation(10.0, 10.0, 0.0);
-		light_node.parent = NodeParent::Scene(scene_id);
+		light_node.parent = NodeParent::Scene(main_scene_id);
 		let light_node_id = state.nodes.insert(light_node);
 		self.light_inx = Some(light_node_id);
 		let mut light = PointLight::new();
@@ -405,7 +405,7 @@ impl pge::App for FpsShooter {
 		plane_node.physics.typ = PhycisObjectType::Static;
 		plane_node.scale = glam::Vec3::new(plane_size, 1.0, plane_size);
 		plane_node.collision_shape = Some(CollisionShape::Box { size: glam::Vec3::new(plane_size, 0.1, plane_size) });
-		plane_node.parent = NodeParent::Scene(scene_id);
+		plane_node.parent = NodeParent::Scene(main_scene_id);
 		let plane_node_id = state.nodes.insert(plane_node);
 
 		let mut player = Node::new();
@@ -415,7 +415,7 @@ impl pge::App for FpsShooter {
 		player.physics.mass = 70.0;
 		//player.looking_at(0.0, 0.0, 0.0);
 		player.collision_shape = Some(CollisionShape::Box { size: glam::Vec3::new(1.0, 2.0, 1.0) });
-		player.parent = NodeParent::Scene(scene_id);
+		player.parent = NodeParent::Scene(main_scene_id);
 		let player_id = state.nodes.insert(player);
 
 		{
@@ -423,14 +423,19 @@ impl pge::App for FpsShooter {
 			node.parent = NodeParent::Node(player_id);
 			node.translation = glam::Vec3::new(0.3, -1.0, 1.0);
 			// rotate 180 degrees
-			node.rotation = glam::Quat::from_euler(glam::EulerRot::YXZ, PI, 0.0, 0.0);
+			node.rotation = glam::Quat::from_euler(glam::EulerRot::YXZ, PI * 1.5, 0.0, 0.0);
 			let node_id = state.nodes.insert(node);
 			let ak47_model_id = state.load_3d_model("./assets/ak47.glb");
 			let model = state.models.get(&ak47_model_id).unwrap();
-			let ak47_scene_id = model.scenes[0];
+			let ak47_scene_id = match model.default_scene {
+				Some(id) => id,
+				None => model.scenes[0],
+			};
+			
 			for (_, node) in &mut state.nodes.iter_mut() {
 				if node.parent == NodeParent::Scene(ak47_scene_id) {
 					node.parent = NodeParent::Node(node_id);
+					node.scale = glam::Vec3::new(60.0, 60.0, 60.0);
 				}
 			}
 		}
@@ -452,7 +457,7 @@ impl pge::App for FpsShooter {
 			cube_node.physics.typ = PhycisObjectType::Dynamic;
 			cube_node.physics.mass = 10.0;
 			cube_node.collision_shape = Some(CollisionShape::Box { size: glam::Vec3::new(1.0, 1.0, 1.0) });
-			cube_node.parent = NodeParent::Scene(scene_id);
+			cube_node.parent = NodeParent::Scene(main_scene_id);
 			let node_id = state.nodes.insert(cube_node);
 		}
 

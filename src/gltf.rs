@@ -25,6 +25,7 @@ use crate::AnimationTarget;
 use crate::AnimationTargetPath;
 use crate::Interpolation;
 use crate::Texture;
+use crate::TextureSource;
 
 struct ParserState {
 	node_map: HashMap<usize, ArenaId<Node>>,
@@ -284,20 +285,40 @@ pub fn load_gltf<P: AsRef<Path>>(p: P, state: &mut State) -> Model3D {
 		log::info!("Texture: {}", texture.name().unwrap_or("Unnamed"));
 		let s = texture.source();
 		let source = s.source();
-		match source {
+		let texture_id = match source {
 			Source::View { view, mime_type } => {
 				log::info!("mime_type: {}", mime_type);
+				// Retrieve the buffer associated with the view
+				let buffer = view.buffer();
+				let buffer_index = buffer.index();
+			
+				// Access the buffer data using the buffer index
+				let buffer_data = &buffers[buffer_index].0;
+			
+				// Calculate the start and end positions using byte_offset and byte_length
+				let start = view.offset() as usize;
+				let length = view.length() as usize;
+				let end = start + length;
+			
+				// Extract the image data slice from the buffer
+				let image_data = &buffer_data[start..end];
+				let image = image::load_from_memory_with_format(image_data, image::ImageFormat::from_mime_type(mime_type).unwrap()).unwrap();
+				let image = image.to_rgba8();
+				let dim = image.dimensions();
+				let data = image.into_raw();
+				state.textures.insert(Texture {
+					name: texture.name().unwrap_or_default().to_string(),
+					source: TextureSource::Buffer { data, width: dim.0 as u32, height: dim.1 as u32 },
+					..Default::default()
+				})
 			},
 			Source::Uri { uri, mime_type } => {
 				log::info!("uri: {}", uri);
 				log::info!("mime_type: {}", mime_type.unwrap_or("None"));
+				todo!()
 			}
 		};
-		
-		let texture_id = state.textures.insert(Texture {
-			name: texture.name().unwrap_or_default().to_string(),
-			..Default::default()
-		});
+
 		parser_state.texture_map.insert(texture.index(), texture_id);
 	}
 

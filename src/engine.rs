@@ -271,9 +271,10 @@ where
 						}
 					}
 				}
-				TextureSource::Buffer(data) => {
-					width = data.len() as u32 / 4;
-					height = 1;
+				TextureSource::Buffer { data: d, width: w, height: h } => {
+					data = d.clone();
+					width = *w;
+					height = *h;
 				}
 				TextureSource::None => {
 					log::warn!("TextureSource::None encountered - using red texture");

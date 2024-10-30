@@ -595,7 +595,11 @@ impl Animation {
 pub enum TextureSource {
 	None,
 	File(String),
-	Buffer(Vec<u8>),
+	Buffer {
+		data: Vec<u8>,
+		width: u32,
+		height: u32,
+	},
 }
 
 impl Default for TextureSource {

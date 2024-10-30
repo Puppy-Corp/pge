@@ -197,7 +197,8 @@ where
 				match node.parent {
 					NodeParent::Scene(id) => {
 						scene_id = Some(id);
-						node.matrix()
+						let scene = self.state.scenes.get(&id).unwrap();
+						node.matrix() * glam::Mat4::from_scale(scene.scale)
 					}
 					NodeParent::Orphan => node.matrix(),
 					NodeParent::Node(parent_node_id) => {

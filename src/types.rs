@@ -490,6 +490,7 @@ pub struct Asset {
 #[derive(Debug, Clone, Default)]
 pub struct Scene {
 	pub name: Option<String>,
+	pub scale: glam::Vec3,
 	pub _3d_model: Option<ArenaId<Model3D>>,
 }
 
@@ -497,6 +498,7 @@ impl Scene {
 	pub fn new() -> Self {
 		Self {
 			name: None,
+			scale: glam::Vec3::splat(1.0),
 			_3d_model: None,
 		}
 	}

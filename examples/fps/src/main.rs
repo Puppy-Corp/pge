@@ -575,6 +575,7 @@ impl pge::App for FpsShooter {
 					_ => {}
 				}
 			},
+			_ => {}
 		}
 	}
 

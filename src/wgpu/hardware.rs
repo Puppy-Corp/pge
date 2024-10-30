@@ -4,6 +4,7 @@ use std::time::Instant;
 use futures::executor::block_on;
 use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalPosition;
+use winit::event::MouseScrollDelta;
 use winit::event::WindowEvent;
 use winit::event_loop::ControlFlow;
 use winit::event_loop::EventLoop;
@@ -713,6 +714,25 @@ where
 					}
 				}
 			},
+			WindowEvent::MouseWheel {
+				device_id,
+				delta,
+				phase,
+			} => {
+				log::info!("scroll delta: {:?}", delta);
+				match delta {
+					MouseScrollDelta::LineDelta(dx, dy) => {
+						let event = MouseEvent::Wheel {
+							dx,
+							dy,
+						};
+						self.engine.on_mouse_input(WindowHandle {
+							id: window_ctx.window_id,
+						}, event);
+					}
+					_ => {}
+				}
+			}
 			_ => {}
 		}
 	}

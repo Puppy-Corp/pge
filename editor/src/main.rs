@@ -61,6 +61,11 @@ impl SceneViewer {
 					}
 				}*/
 			},
+			MouseEvent::Wheel { dx, dy } => {
+				log::info!("scroll delta: {:?}", (dx, dy));
+				let camera_node = state.nodes.get_mut(&self.camera_node_id).unwrap();
+				camera_node.translation += Vec3::new(0.0, 0.0, dy * 0.005);
+			}
 			_ => {}
 		}
 	}

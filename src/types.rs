@@ -32,6 +32,7 @@ pub enum MouseEvent {
 	Moved { dx: f32, dy: f32 },
 	Pressed { button: MouseButton },
 	Released { button: MouseButton },
+	Wheel { dx: f32, dy: f32 },
 }
 
 #[derive(Debug, Clone)]

@@ -14,9 +14,11 @@ struct SceneViewer {
 
 impl SceneViewer {
 	fn new(state: &mut State, scene_id: ArenaId<Scene>) -> Self {
-		let scene = state.scenes.get(&scene_id).unwrap();
+		let scene = state.scenes.get_mut(&scene_id).unwrap();
+		scene.scale = Vec3::new(10.0, 10.0, 10.0);
 		let name = scene.name.clone().unwrap_or_default();
 		log::info!("Scene added: {:?}", scene_id);
+		log::info!("scene bounding box: {:?}", state.get_scene_bounding_box(scene_id));
 		for (_, node) in state.nodes.iter_mut().filter(|(_, node)| node.parent == NodeParent::Scene(scene_id)) {
 			node.scale = Vec3::new(10.0, 10.0, 10.0);
 		}
@@ -29,14 +31,29 @@ impl SceneViewer {
 		light.node_id = Some(light_node_id);
 		state.point_lights.insert(light);
 
+		let scene_bounding_box = state.get_scene_bounding_box(scene_id);
+        let center = (scene_bounding_box.min + scene_bounding_box.max) * 0.5;
+        let size = scene_bounding_box.max - scene_bounding_box.min;
+        let max_size = size.x.max(size.y).max(size.z);
+
+		// Define camera FOV (in degrees)
+		let fov_degrees = 60.0_f32;
+		let fov_radians = fov_degrees.to_radians();
+		let distance = (max_size / 2.0) / fov_radians.tan();
+		log::info!("distance: {}", distance);
+
 		let mut camera_node = Node::new();
-		camera_node.translation = Vec3::new(0.0, 2.5, 3.3);
-		camera_node.looking_at(0.0, 1.0, 0.0);
+		camera_node.translation = Vec3::new(0.0, 0.0, 3.0);
+		camera_node.looking_at(0.0, 0.0, 0.0);
 		camera_node.parent = NodeParent::Scene(scene_id);
+		let camera_transform = camera_node.matrix();
 		let camera_node_id = state.nodes.insert(camera_node);
 
 		let mut camera = Camera::new();
+		camera.fovy = fov_radians;
 		camera.node_id = Some(camera_node_id);
+		let view_rect = camera.view_rect(camera_transform);
+		log::info!("view rect: {:?}", view_rect);
 		let camera_id = state.cameras.insert(camera);
 
 		let ui = camera_view(camera_id);
@@ -102,10 +119,15 @@ impl pge::App for PgeEditor {
 
 	fn on_process(&mut self, state: &mut State, delta: f32) {
 		let mut new_scene_ids = Vec::new();
-		for (scene_id,_) in state.scenes.iter_mut() {
+		for (scene_id,_) in state.scenes.iter() {
 			if self.scenes.contains(&scene_id) {
 				continue;
 			}
+			let node_count = state.nodes.iter().filter(|(_, node)| node.scene_id == Some(scene_id)).count();
+			if node_count == 0 {
+				continue;
+			}
+			log::info!("scene {:?} has {} nodes", scene_id, node_count);
 			new_scene_ids.push(scene_id);
 			self.scenes.insert(scene_id);
 		}

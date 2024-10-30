@@ -274,6 +274,10 @@ impl AABB {
         // Check if the distance is less than or equal to the sphere's radius
         distance <= sphere.radius
     }
+
+	pub fn max_component(&self) -> f32 {
+		self.max.x.max(self.max.y).max(self.max.z)
+	}
 }
 
 pub struct ConvexHull {
@@ -522,6 +526,15 @@ impl Camera {
 			znear: 0.1,
 			zfar: 100.0,
 			node_id: None
+		}
+	}
+
+	pub fn view_rect(&self, transform: glam::Mat4) -> AABB {
+		let fov_radians = self.fovy.to_radians();
+		let distance = (self.zfar / 2.0) / fov_radians.tan();
+		AABB {
+			min: (transform * glam::Vec4::new(-distance, -distance, self.znear, 1.0)).truncate(),
+			max: (transform * glam::Vec4::new(distance, distance, self.zfar, 1.0)).truncate(),
 		}
 	}
 }

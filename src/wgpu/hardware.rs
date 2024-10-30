@@ -119,7 +119,7 @@ where
 	H: Hardware,
 {
 	fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
-		event_loop.set_control_flow(ControlFlow::Wait);
+		event_loop.set_control_flow(ControlFlow::Poll);
 	}
 
 	fn user_event(&mut self, event_loop: &winit::event_loop::ActiveEventLoop, event: UserEvent) {

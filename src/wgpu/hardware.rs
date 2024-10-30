@@ -50,7 +50,11 @@ enum UserEvent{
 	},
 	CreateBuffer {
 		buffer_id: u32,
+		size: u64,
 		name: String,
+	},
+	DestroyBuffer {
+		buffer_id: u32,
 	},
 	CreateTexture {
 		texture_id: u32,
@@ -435,11 +439,12 @@ where
 			UserEvent::CreateBuffer {
 				buffer_id,
 				name,
+				size,
 			} => {
-				log::info!("new buffer id: {:?} name: {:?}", buffer_id, name);
+				log::info!("new buffer id: {:?} name: {:?} size: {:?}", buffer_id, name, size);
 				let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
 					label: Some(&name),
-					size: 10_000_000,
+					size,
 					usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC | wgpu::BufferUsages::INDEX | wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::STORAGE,
 					mapped_at_creation: false,
 				});
@@ -476,6 +481,19 @@ where
 					bind_group,
 					written: false,
 				});
+			}
+			UserEvent::DestroyBuffer {
+				buffer_id,
+			} => {
+				let buffer_ctx = match self.buffers.iter_mut().find(|b| b.id == buffer_id) {
+					Some(b) => b,
+					None => {
+						log::error!("Buffer not found: {:?}", buffer_id);
+						return;
+					}
+				};
+				buffer_ctx.buffer.destroy();
+				self.buffers.retain(|b| b.id != buffer_id);
 			}
 			UserEvent::CreateTexture {
 				texture_id,
@@ -819,16 +837,24 @@ impl WgpuHardware {
 }
 
 impl Hardware for WgpuHardware {
-	fn create_buffer(&mut self, name: &str) -> BufferHandle {
+	fn create_buffer(&mut self, name: &str, size: u64) -> BufferHandle {
 		let buffer_id = self.buffer_id;
 		self.proxy.send_event(UserEvent::CreateBuffer {
 			name: name.to_string(),
 			buffer_id,
+			size,
 		});
 		self.buffer_id += 1;
 		BufferHandle {
 			id: buffer_id,
+			size,
 		}
+	}
+
+	fn destroy_buffer(&mut self, handle: BufferHandle) {
+		self.proxy.send_event(UserEvent::DestroyBuffer {
+			buffer_id: handle.id,
+		});
 	}
 
 	fn create_texture(&mut self, name: &str, data: &[u8], width: u32, height: u32) -> TextureHandle {

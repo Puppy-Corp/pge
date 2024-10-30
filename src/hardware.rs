@@ -5,7 +5,8 @@ use crate::ArenaId;
 use crate::Window;
 
 pub trait Hardware {
-    fn create_buffer(&mut self, name: &str) -> BufferHandle { unimplemented!() }
+    fn create_buffer(&mut self, name: &str, size: u64) -> BufferHandle { unimplemented!() }
+	fn destroy_buffer(&mut self, handle: BufferHandle) { unimplemented!() }
     fn create_texture(&mut self, name: &str, data: &[u8], width: u32, height: u32) -> TextureHandle { unimplemented!() }
     fn create_pipeline(&mut self, name: &str, window: WindowHandle) -> PipelineHandle { unimplemented!() }
     fn render(&mut self, encoder: RenderEncoder, window: WindowHandle) { unimplemented!() }
@@ -31,6 +32,7 @@ pub struct Surface {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BufferHandle {
     pub id: u32,
+	pub size: u64,
 }
 
 #[derive(Debug)]

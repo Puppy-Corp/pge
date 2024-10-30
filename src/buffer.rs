@@ -50,6 +50,12 @@ impl Buffer {
     }
 
     pub fn flush(&mut self, hardware: &mut impl Hardware) {
+		if self.data.len() > self.handle.size as usize {
+			let new_size = (self.data.len() as f32 * 1.5) as u64;
+			log::info!("resizing buffer {:?} from {} to {}", self.handle, self.handle.size, new_size);
+			hardware.destroy_buffer(self.handle);
+			self.handle = hardware.create_buffer("buffer", new_size);
+		}
         hardware.write_buffer(self.handle, &self.data);
         self.data.clear();
     }
@@ -83,7 +89,7 @@ mod tests {
 
     #[test]
     fn test_buffer_slice() {
-        let handle = BufferHandle { id: 3 };
+        let handle = BufferHandle { id: 3, size: 1000 };
         let buffer = Buffer::new(handle);
         let slice = buffer.slice(1..3);
         assert_eq!(slice.handle, handle);
@@ -92,7 +98,7 @@ mod tests {
 
     #[test]
     fn test_buffer_full() {
-        let handle = BufferHandle { id: 4 };
+        let handle = BufferHandle { id: 4, size: 1000 };
         let buffer = Buffer::new(handle);
         let slice = buffer.full();
         assert_eq!(slice.handle, handle);
@@ -100,7 +106,7 @@ mod tests {
     }
     #[test]
     fn test_buffer_flush() {
-        let handle = BufferHandle { id: 5 };
+        let handle = BufferHandle { id: 5, size: 1000 };
         let mut buffer = Buffer::new(handle);
         let mut hardware = MockHardware::new();
 
@@ -128,7 +134,7 @@ mod tests {
 
     #[test]
     fn test_buffer_len_capacity() {
-        let handle = BufferHandle { id: 7 };
+        let handle = BufferHandle { id: 7, size: 1000 };
         let buffer = Buffer::new(handle);
         assert_eq!(buffer.len(), 0);
         // Capacity is implementation-defined, so we test that it's at least len

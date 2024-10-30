@@ -61,9 +61,9 @@ struct GuiBuffers {
 
 impl GuiBuffers {
     pub fn new(hardware: &mut impl Hardware) -> Self {
-        let vertices_buffer = Buffer::new(hardware.create_buffer("gui_vertices"));
-		let index_buffer = Buffer::new(hardware.create_buffer("gui_indices"));
-		let color_buffer = Buffer::new(hardware.create_buffer("gui_colors"));
+        let vertices_buffer = Buffer::new(hardware.create_buffer("gui_vertices", 1000));
+		let index_buffer = Buffer::new(hardware.create_buffer("gui_indices", 1000));
+		let color_buffer = Buffer::new(hardware.create_buffer("gui_colors", 1000));
         Self {
             vertices_buffer,
             index_buffer,
@@ -132,15 +132,15 @@ where
 		//let data = [0, 0, 0, 0];
         let default_texture = hardware.create_texture("default_texture", &data, 1, 1);
 
-        let vertices_buffer = Buffer::new(hardware.create_buffer("vertices"));
-        let tex_coords_buffer = Buffer::new(hardware.create_buffer("tex_coords"));
-        let normal_buffer = Buffer::new(hardware.create_buffer("normals"));
-        let index_buffer = Buffer::new(hardware.create_buffer("indices"));
+        let vertices_buffer = Buffer::new(hardware.create_buffer("vertices", 1000));
+        let tex_coords_buffer = Buffer::new(hardware.create_buffer("tex_coords", 1000));
+        let normal_buffer = Buffer::new(hardware.create_buffer("normals", 1000));
+        let index_buffer = Buffer::new(hardware.create_buffer("indices", 1000));
 
-		let default_point_lights = Buffer::new(hardware.create_buffer("default_point_lights"));
+		let default_point_lights = Buffer::new(hardware.create_buffer("default_point_lights", 1000));
         
         let default_material_data = RawMaterial::default();
-        let default_material = hardware.create_buffer("default_material");
+        let default_material = hardware.create_buffer("default_material", 1000);
         hardware.write_buffer(default_material, bytemuck::cast_slice(&[default_material_data]));
 
         let mut state = State::default();
@@ -303,7 +303,7 @@ where
 			};
 			log::info!("new material: {:?}", raw_material);
 
-			let buffer = self.hardware.create_buffer(&format!("material_buffer_{:?}", material_id.index()));
+			let buffer = self.hardware.create_buffer(&format!("material_buffer_{:?}", material_id.index()), 1000);
 			self.hardware.write_buffer(buffer, bytemuck::bytes_of(&raw_material));
 			self.materials.insert(material_id.clone(), buffer);
 		}
@@ -362,7 +362,7 @@ where
 							model: node.global_transform.to_cols_array_2d(),
 						};
 						let buffer = self.scene_instance_buffers.entry(scene_id)
-							.or_insert_with(|| Buffer::new(self.hardware.create_buffer(&format!("instances_{:?}", scene_id.index()))));
+							.or_insert_with(|| Buffer::new(self.hardware.create_buffer(&format!("instances_{:?}", scene_id.index()), 1000)));
 
 						let instance_start = buffer.len() as u32 / std::mem::size_of::<RawInstance>() as u32;
 						buffer.write(bytemuck::bytes_of(&instance));
@@ -425,7 +425,7 @@ where
 			let buffer = self
 				.camera_buffers
 				.entry(cam_id)
-				.or_insert_with(|| Buffer::new(self.hardware.create_buffer(&format!("camera_buffer_{:?}", cam_id.index()))));
+				.or_insert_with(|| Buffer::new(self.hardware.create_buffer(&format!("camera_buffer_{:?}", cam_id.index()), 1000)));
 			buffer.write(bytemuck::bytes_of(&cam));
 		}
 		for (_, buffer) in &mut self.camera_buffers {
@@ -453,7 +453,7 @@ where
 
 			self.point_light_buffers.entry(scene_id).or_insert_with(|| {
 				log::info!("Creating new point light buffer for scene ID: {:?}", scene_id);
-				Buffer::new(self.hardware.create_buffer("pointlight"))
+				Buffer::new(self.hardware.create_buffer("pointlight", 1000))
 			}).write(bytemuck::bytes_of(&light));
 		}
 		for (_, buffer) in &mut self.point_light_buffers {

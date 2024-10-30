@@ -605,7 +605,7 @@ impl pge::App for FpsShooter {
 
 		self.bullets.retain(|bullet| {
 			if bullet.spawned.elapsed().as_secs_f32() > 5.0 {
-				log::info!("depspawn bullet {:?}", bullet.node_id);
+				log::info!("depspawn bullet {}", bullet.node_id);
 				state.nodes.remove(&bullet.node_id);
 				false
 			} else {

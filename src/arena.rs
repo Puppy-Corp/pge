@@ -1,3 +1,5 @@
+use std::fmt;
+use std::fmt::Display;
 use std::hash::Hash;
 use std::marker::PhantomData;
 
@@ -17,6 +19,12 @@ impl<T> ArenaId<T> {
 
 	pub fn index(&self) -> usize {
 		self.index
+	}
+}
+
+impl<T> Display for ArenaId<T> {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		write!(f, "{}", self.index)
 	}
 }
 

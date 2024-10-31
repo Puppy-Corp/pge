@@ -38,3 +38,14 @@ jobs:
 
     - name: Run tests
       run: cargo test --verbose 
+    - name: Run Benchmarks
+      run: |
+        cargo bench
+        mkdir -p benchmark-report
+        criterion-report-dir=./target/criterion/report
+        cp -r $criterion-report-dir/* benchmark-report/
+    - name: Upload Benchmark Report
+      uses: actions/upload-artifact@v3
+      with:
+        name: benchmark-report
+        path: benchmark-report/

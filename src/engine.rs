@@ -185,7 +185,11 @@ where
 		}
 
 		self.topo_sorted_nodes.clear();
+		let sort_timer = Instant::now();
 		topo_sort_nodes(&self.state.nodes, &mut self.topo_sorted_nodes);
+		if sort_timer.elapsed() > Duration::from_millis(10) {
+			log::info!("Topo sort {} nodes took {:?}", self.topo_sorted_nodes.len(), sort_timer.elapsed());
+		}
 
 		for node_id in &self.topo_sorted_nodes {
 			let mut scene_id: Option<ArenaId<Scene>> = None;

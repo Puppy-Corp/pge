@@ -5,16 +5,30 @@ use crate::State;
 use glam::*;
 
 pub fn topo_sort_nodes(nodes: &Arena<Node>, sorted_nodes: &mut Vec<ArenaId<Node>>) {
-	let mut stack = nodes.iter().filter(|(_, node)| match node.parent {
-		NodeParent::Scene(_) | NodeParent::Orphan => true,
-		NodeParent::Node(_) => false,
-	}).map(|(id, _)| id).collect::<Vec<_>>();
-	while let Some(node_id) = stack.pop() {
-		sorted_nodes.push(node_id);
-		for (child, _) in nodes.iter().filter(|(_, node)| node.parent == NodeParent::Node(node_id)) {
-			stack.push(child);
-		}
-	}
+    // Pre-build child lookup map to avoid repeated filtering
+    let mut children: std::collections::HashMap<ArenaId<Node>, Vec<ArenaId<Node>>> = std::collections::HashMap::new();
+    for (id, node) in nodes.iter() {
+        if let NodeParent::Node(parent_id) = node.parent {
+            children.entry(parent_id).or_default().push(id);
+        }
+    }
+
+    // Find root nodes (those with Scene or Orphan parents)
+    let mut stack = Vec::new();
+    for (id, node) in nodes.iter() {
+        match node.parent {
+            NodeParent::Scene(_) | NodeParent::Orphan => stack.push(id),
+            _ => {}
+        }
+    }
+
+    // Process nodes depth-first
+    while let Some(node_id) = stack.pop() {
+        sorted_nodes.push(node_id);
+        if let Some(child_ids) = children.get(&node_id) {
+            stack.extend(child_ids);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -57,6 +71,8 @@ mod topo_sort_tests {
 		assert_eq!(sorted_nodes, vec![parent2, child2, parent1, child1, child3]);
 
 	}
+
+
 }
 
 pub fn get_scene_bounding_box(scene_id: ArenaId<Scene>, state: &State) -> AABB {

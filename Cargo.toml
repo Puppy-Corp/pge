@@ -23,6 +23,14 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1" }
 futures = "0.3"
 
+[dev-dependencies]
+criterion = { version = "0.5" }
+rand = "0.8"
+
 [features]
 wgpu_winit = ["wgpu", "winit"]
 
+
+[[bench]]
+name = "topo_sort_nodes"
+harness = false

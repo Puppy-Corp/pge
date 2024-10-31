@@ -76,15 +76,12 @@ impl Orc {
 	// 	self.node_id = Some(node_id);
 	// }
 
-	pub fn on_process(&mut self, state: &mut State) {
-		//let node = state.nodes.get_mut(&self.node).unwrap();
-		//node.translation += glam::Vec3::new(0.0, 0.0, 1.0);
-
-		// if let Some(node_id) = self.node_id {
-		// 	if let Some(node) = state.nodes.get_mut(&node_id) {
-		// 		// Do something with the node
-		// 	}
-		// }
+	pub fn on_process(&mut self, enemy: ArenaId<Node>, state: &mut State) {
+		let translation = state.nodes.get(&enemy).unwrap().translation;
+		let player_node = state.nodes.get_mut(&self.node).unwrap();
+		player_node.looking_at(translation.x, translation.y, translation.z);
+		let dir = translation - player_node.translation;
+		player_node.translation += dir.normalize() * 0.1;
 	}
 }
 
@@ -352,7 +349,7 @@ impl pge::App for FpsShooter {
 
 		let mut rng = rand::thread_rng();
 
-		for _ in 0..10 {
+		for _ in 0..30 {
 			let node_id = state.clone_node(orc_base_node_id);
 			let node = state.nodes.get_mut(&node_id).unwrap();
 			node.parent = NodeParent::Scene(main_scene_id);
@@ -586,7 +583,7 @@ impl pge::App for FpsShooter {
 
 	fn on_process(&mut self, state: &mut State, delta: f32) {
 		for orc in &mut self.orcs {
-			orc.on_process(state);
+			orc.on_process(self.player_id.unwrap(), state);
 		}
 
 		if let Some(index) = self.light_inx {

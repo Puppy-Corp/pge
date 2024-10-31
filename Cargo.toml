@@ -32,5 +32,5 @@ wgpu_winit = ["wgpu", "winit"]
 
 
 [[bench]]
-name = "topo_sort_nodes"
+name = "bench_main"
 harness = false

@@ -1,6 +1,3 @@
-#[macro_use]
-extern crate criterion;
-
 use criterion::{criterion_group, criterion_main, Criterion};
 use pge::*;
 use rand::{thread_rng, Rng};
@@ -59,5 +56,4 @@ fn bench_topo_sort_nodes(c: &mut Criterion) {
 	});
 }
 
-criterion_group!(benches, bench_topo_sort_nodes);
-criterion_main!(benches);
+criterion_group!(process_nodes, bench_topo_sort_nodes);

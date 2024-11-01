@@ -94,8 +94,8 @@ struct NodeComputedMetadata {
 }
 
 pub struct Engine<A, H> {
-    app: A,
-    state: State,
+    pub app: A,
+    pub state: State,
 	grids: HashMap<ArenaId<Scene>, SpatialGrid>,
     hardware: H,
     vertices_buffer: Buffer,
@@ -225,7 +225,6 @@ where
 							grid: SpatialGrid::new(5.0),
 							physics_system: PhysicsSystem::new(),
 						});
-
 						collection.grid.set_node(*node_id, aabb);
 					}
 				}

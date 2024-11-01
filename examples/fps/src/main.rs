@@ -81,7 +81,7 @@ impl Orc {
 		let player_node = state.nodes.get_mut(&self.node).unwrap();
 		player_node.looking_at(translation.x, translation.y, translation.z);
 		let dir = translation - player_node.translation;
-		player_node.translation += dir.normalize() * 0.1;
+		player_node.translation += dir.normalize() * 0.01;
 	}
 }
 

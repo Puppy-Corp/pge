@@ -244,7 +244,7 @@ where
 			c.grid.retain_nodes(|node_id| self.state.nodes.contains(node_id));
 		}
 		let elapsed = timer.elapsed();
-		if elapsed > Duration::from_millis(10) {
+		if elapsed > Duration::from_millis(5) {
 			log::info!("Node processing took {:?}", elapsed);
 		}
 	}
@@ -673,7 +673,7 @@ where
 
     pub fn render(&mut self, dt: f32) {
 		let fps = (1.0 / dt) as u32;
-		if (fps as i32 - self.fps as i32).abs() > 5 {
+		if (fps as i32 - self.fps as i32).abs() > 10 {
 			log::info!("FPS: {}", fps);
 		}
 		self.fps = fps;

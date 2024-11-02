@@ -1,3 +1,7 @@
+use std::collections::HashSet;
+use std::time::Duration;
+use std::time::Instant;
+
 use glam::Vec3;
 use crate::spatial_grid::SpatialGrid;
 use crate::state::State;
@@ -145,15 +149,37 @@ fn calculate_toi(a: &AABB, b: &AABB, rel_velocity: glam::Vec3, dt: f32) -> Optio
     }
 }
 
+fn resolve_collision_old(collision: &Collision, state: &mut State) {
+	let node1 = state.nodes.get(&collision.node1).unwrap();
+	let node2 = state.nodes.get(&collision.node2).unwrap();
+	let (normal_impulse, friction_impulse) = calculate_impulse(node1, node2, &collision, 0.3, 0.2);
+	if let Some(node1) = state.nodes.get_mut(&collision.node1) {
+		if node1.physics.typ == PhycisObjectType::Dynamic {
+			node1.physics.velocity -= (normal_impulse + friction_impulse) / node1.physics.mass;
+			node1.translation += collision.correction;
+		}
+	}
+	if let Some(node2) = state.nodes.get_mut(&collision.node2) {
+		if node2.physics.typ == PhycisObjectType::Dynamic {
+			node2.physics.velocity += (normal_impulse + friction_impulse) / node2.physics.mass;
+			node2.translation -= collision.correction;
+		}
+	}
+}
+
 #[derive(Debug, Default, Clone)]
 pub struct PhysicsSystem {
 	gravity: glam::Vec3,
+	collision_cache: HashSet<(ArenaId<Node>, ArenaId<Node>)>,
+	broad_phase_collisions: Vec<Collision>,
 }
 
 impl PhysicsSystem {
 	pub fn new() -> Self {
 		Self {
 			gravity: glam::Vec3::new(0.0, -10.0, 0.0),
+			collision_cache: HashSet::new(),
+			broad_phase_collisions: Vec::new(),
 		}
 	}
 	
@@ -175,8 +201,8 @@ impl PhysicsSystem {
 		}
 	}	
 	
-	fn broad_phase_collisions(&mut self, state: &mut State, grid: &SpatialGrid) -> Vec<Collision> {
-		let mut collisions = Vec::new();
+	fn broad_phase_collisions(&mut self, state: &mut State, grid: &SpatialGrid) {
+		self.broad_phase_collisions.clear();
 		for cell in grid.cells.values() {
 			if cell.len() < 2 {
 				continue;
@@ -195,7 +221,7 @@ impl PhysicsSystem {
 						None => continue
 					};
 					if node1_aabb.intersects(&node2_aabb) {
-						if collisions.iter().any(|c: &Collision| 
+						if self.broad_phase_collisions.iter().any(|c: &Collision| 
 							(c.node1 == node1_id && c.node2 == node2_id) || 
 							(c.node1 == node2_id && c.node2 == node1_id)) {
 							continue;
@@ -203,7 +229,7 @@ impl PhysicsSystem {
 	
 						let correction = node1_aabb.get_correction(&node2_aabb);
 
-						collisions.push(Collision {
+						self.broad_phase_collisions.push(Collision {
 							node1: node1_id,
 							node2: node2_id,
 							normal: calculate_collision_normal(&node1_aabb, &node2_aabb).into(),
@@ -214,7 +240,6 @@ impl PhysicsSystem {
 				}
 			}
 		}
-		collisions
 	}
 
 	fn resolve_collision(&mut self, state: &mut State, collision: &Collision) {
@@ -282,9 +307,11 @@ impl PhysicsSystem {
 		}
 	}
 
+
 	pub fn physics_update(&mut self, state: &mut State, grid: &mut SpatialGrid, mut dt: f32) {
+		let timer = Instant::now();
 	    let min_dt = 0.0001; // Minimum time increment to prevent infinite loops
-		let max_iterations = 10; // Maximum iterations to prevent infinite loops
+		let max_iterations = 4; // Maximum iterations to prevent infinite loops
 		let mut iterations = 0;
 
 		while dt > 0.0 && iterations < max_iterations {
@@ -294,9 +321,9 @@ impl PhysicsSystem {
 			let mut earliest_collision = None;
 
 			// Detect potential collisions without moving the nodes
-			let collisions = self.broad_phase_collisions(state, grid);
+			self.broad_phase_collisions(state, grid);
 
-			if collisions.is_empty() {
+			if self.broad_phase_collisions.is_empty() {
 				// No collisions, update nodes for remaining dt and exit
 				self.update_nodes(state, dt);
 				break;
@@ -304,7 +331,7 @@ impl PhysicsSystem {
 
 			let mut there_is_fast_boy = false;
 			// Find the earliest collision
-			for collision in collisions {
+			for collision in &self.broad_phase_collisions {
 				let node1 = state.nodes.get(&collision.node1).unwrap();
 				let node2 = state.nodes.get(&collision.node2).unwrap();
 
@@ -312,21 +339,15 @@ impl PhysicsSystem {
 					continue;
 				}
 
-				if node1.physics.velocity.length() < 50.0 && node2.physics.velocity.length() < 100.0 {
-					let (normal_impulse, friction_impulse) = calculate_impulse(node1, node2, &collision, 0.3, 0.2);
+				if self.collision_cache.contains(&(collision.node1, collision.node2)) {
+					resolve_collision_old(&collision, state);
+					continue;
+				}
 
-					if let Some(node1) = state.nodes.get_mut(&collision.node1) {
-						if node1.physics.typ == PhycisObjectType::Dynamic {
-							node1.physics.velocity -= (normal_impulse + friction_impulse) / node1.physics.mass;
-							node1.translation += collision.correction;
-						}
-					}
-					if let Some(node2) = state.nodes.get_mut(&collision.node2) {
-						if node2.physics.typ == PhycisObjectType::Dynamic {
-							node2.physics.velocity += (normal_impulse + friction_impulse) / node2.physics.mass;
-							node2.translation -= collision.correction;
-						}
-					}
+				let rel_velocity = node2.physics.velocity - node1.physics.velocity;
+
+				if rel_velocity.length() < 50.0 {
+					resolve_collision_old(&collision, state);
 					continue;
 				}
 				there_is_fast_boy = true;
@@ -334,14 +355,19 @@ impl PhysicsSystem {
 				let node1_aabb = grid.get_node_rect(collision.node1).unwrap();
 				let node2_aabb = grid.get_node_rect(collision.node2).unwrap();
 
-				let rel_velocity = node2.physics.velocity - node1.physics.velocity;
 				if let Some(toi) = calculate_toi(&node1_aabb, &node2_aabb, rel_velocity, dt) {
 					if toi < earliest_toi {
 						earliest_toi = toi;
-						earliest_collision = Some(collision);
+						earliest_collision = Some(collision.clone());
 					}
 				}
 			}
+
+			self.collision_cache.retain(|(node1, node2)| {
+				self.broad_phase_collisions.iter().any(|c: &Collision| 
+					(c.node1 == *node1 && c.node2 == *node2) || 
+					(c.node1 == *node2 && c.node2 == *node1))
+			});
 
 			if !there_is_fast_boy {
 				self.update_nodes(state, dt);
@@ -359,11 +385,16 @@ impl PhysicsSystem {
 
 				// Resolve collision
 				self.resolve_collision(state, &collision);
+				self.collision_cache.insert((collision.node1, collision.node2));
 			} else {
 				// No collisions within remaining dt, update nodes and exit
 				self.update_nodes(state, dt);
 				break;
 			}
+		}
+		let elapsed = timer.elapsed();
+		if elapsed > Duration::from_millis(10) {
+			log::info!("Physics update took {:?}", elapsed);
 		}
 	}
 }

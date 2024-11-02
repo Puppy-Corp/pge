@@ -142,7 +142,11 @@ pub struct PhysicsProps {
 	pub acceleration: glam::Vec3,
 	pub mass: f32,
 	pub stationary: bool,
-	pub force: Vec3
+	pub force: Vec3,
+	pub angular_velocity: glam::Vec3,
+    pub angular_acceleration: glam::Vec3,
+	pub torque: glam::Vec3,
+	pub moment_of_inertia: glam::Vec3,
 }
 
 #[derive(Debug, Clone)]
@@ -328,6 +332,22 @@ impl CollisionShape {
             }
         }
     }
+
+	pub fn center_of_mass(&self) -> glam::Vec3 {
+		match self {
+			Self::Sphere { .. } => glam::Vec3::ZERO,
+			Self::Box { .. } => glam::Vec3::ZERO,
+			Self::Capsule { .. } => glam::Vec3::ZERO,
+			Self::ConvexHull { vertices } => {
+				if vertices.is_empty() {
+					glam::Vec3::ZERO
+				} else {
+					let sum = vertices.iter().fold(glam::Vec3::ZERO, |acc, v| acc + *v);
+					sum / vertices.len() as f32
+				}
+			}
+		}
+	}
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -417,6 +437,13 @@ impl Node {
 		let scale = glam::Mat4::from_scale(self.scale);
 
 		translation * rotation * scale
+	}
+
+	pub fn center_of_mass(&self) -> glam::Vec3 {
+		match &self.collision_shape {
+			Some(shape) => shape.center_of_mass(),
+			_ => glam::Vec3::ZERO
+		}
 	}
 }
 

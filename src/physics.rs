@@ -19,20 +19,55 @@ pub struct Collision {
 	pub correction: glam::Vec3,
 }
 
-fn calculate_impulse(node1: &Node, node2: &Node, collision: &Collision, 
-	coeff_of_restitution: f32, coeff_of_friction: f32) -> (glam::Vec3, glam::Vec3) {
+struct Impulse {
+	normal: glam::Vec3,
+	tangent: glam::Vec3,
+	/// Node 1 angular velocity at point of contact
+	r1: glam::Vec3,
+	/// Node 2 angular velocity at point of contact
+	r2: glam::Vec3,
+}
+
+fn calculate_impulse(node1: &Node, node2: &Node, collision: &Collision, coeff_of_restitution: f32, coeff_of_friction: f32) -> Impulse {
     let rel_v = node2.physics.velocity - node1.physics.velocity;
     let velocity_along_normal = rel_v.dot(collision.normal);
 
     if velocity_along_normal < 0.0 {
-        return (Vec3::ZERO, Vec3::ZERO);
+        return Impulse {
+			normal: glam::Vec3::ZERO,
+			tangent: glam::Vec3::ZERO,
+			r1: glam::Vec3::ZERO,
+			r2: glam::Vec3::ZERO,
+		};
     }
 
-    let inv_mass1 = if node1.physics.mass != 0.0 { 1.0 / node1.physics.mass } else { 0.0 };
-    let inv_mass2 = if node2.physics.mass != 0.0 { 1.0 / node2.physics.mass } else { 0.0 };
+	let r1 = collision.point - node1.center_of_mass();
+	let r2 = collision.point - node2.center_of_mass();
+
+	let angular_velocity1 = node1.physics.angular_velocity.cross(r1);
+	let angular_velocity2 = node2.physics.angular_velocity.cross(r2);
+
+	let rel_velocity = (node2.physics.velocity + angular_velocity2) - (node1.physics.velocity + angular_velocity1);
+	let vel_along_normal = rel_velocity.dot(collision.normal);
+
+    let inv_mass1 = if node1.physics.mass == 0.0 { 0.0 } else { 1.0 / node1.physics.mass };
+    let inv_mass2 = if node2.physics.mass == 0.0 { 0.0 } else { 1.0 / node2.physics.mass };
+
+	let inv_inertia1 = if node1.physics.moment_of_inertia == glam::Vec3::ZERO { glam::Vec3::ZERO } else { node1.physics.moment_of_inertia.recip() };
+	let inv_inertia2 = if node2.physics.moment_of_inertia == glam::Vec3::ZERO { glam::Vec3::ZERO } else { node2.physics.moment_of_inertia.recip() };
+
+	let numerator = -(1.0 + coeff_of_restitution) * vel_along_normal;
+	let denominator = inv_mass1 + inv_mass2 + collision.normal.dot((inv_inertia1.cross(r1.cross(collision.normal))) + (inv_inertia2.cross(r2.cross(collision.normal))));
+	let impulse_scalar = if denominator == 0.0 { 0.0 } else { numerator / denominator };
+	let impulse = collision.normal * impulse_scalar;
+    
     let inv_mass_sum = inv_mass1 + inv_mass2;
-    let impulse_magnitude = -(1.0 + coeff_of_restitution) * (velocity_along_normal / inv_mass_sum);
-    let normal_impulse = collision.normal * impulse_magnitude;
+    let impulse_magnitude = if inv_mass_sum == 0.0 { 
+        0.0 
+    } else {
+        -(1.0 + coeff_of_restitution) * (velocity_along_normal / inv_mass_sum)
+    };
+
     let relative_velocity_tangent = rel_v - velocity_along_normal * collision.normal;
     let tangent_velocity_magnitude = relative_velocity_tangent.length();
 
@@ -43,7 +78,12 @@ fn calculate_impulse(node1: &Node, node2: &Node, collision: &Collision,
         tangent_impulse = tangent_direction * friction_magnitude;
     }
 
-    (normal_impulse, -tangent_impulse)
+    Impulse {
+		normal: impulse,
+		tangent: tangent_impulse,
+		r1,
+		r2,
+	}
 }
 
 fn calculate_collision_point(a: &AABB, b: &AABB) -> [f32; 3] {
@@ -152,18 +192,24 @@ fn calculate_toi(a: &AABB, b: &AABB, rel_velocity: glam::Vec3, dt: f32) -> Optio
 fn resolve_collision_old(collision: &Collision, state: &mut State) {
 	let node1 = state.nodes.get(&collision.node1).unwrap();
 	let node2 = state.nodes.get(&collision.node2).unwrap();
-	let (normal_impulse, friction_impulse) = calculate_impulse(node1, node2, &collision, 0.3, 0.2);
-	if let Some(node1) = state.nodes.get_mut(&collision.node1) {
-		if node1.physics.typ == PhycisObjectType::Dynamic {
-			node1.physics.velocity -= (normal_impulse + friction_impulse) / node1.physics.mass;
-			node1.translation += collision.correction;
-		}
+	let impluse = calculate_impulse(node1, node2, &collision, 0.3, 0.2);
+	let node1_typ = node1.physics.typ.clone();
+	let node2_typ = node2.physics.typ.clone();
+
+	if node1_typ == PhycisObjectType::Dynamic {
+		let node1 = state.nodes.get_mut(&collision.node1).unwrap();
+		node1.physics.velocity -= impluse.normal / node1.physics.mass;
+		node1.translation += collision.correction;
+		let angular_impulse = impluse.r1.cross(impluse.normal);
+		node1.physics.angular_velocity -= if node1.physics.moment_of_inertia == glam::Vec3::ZERO { glam::Vec3::ZERO } else { angular_impulse / node1.physics.moment_of_inertia };
 	}
-	if let Some(node2) = state.nodes.get_mut(&collision.node2) {
-		if node2.physics.typ == PhycisObjectType::Dynamic {
-			node2.physics.velocity += (normal_impulse + friction_impulse) / node2.physics.mass;
-			node2.translation -= collision.correction;
-		}
+
+	if node2_typ == PhycisObjectType::Dynamic {
+		let node2 = state.nodes.get_mut(&collision.node2).unwrap();
+		node2.physics.velocity += impluse.normal / node2.physics.mass;
+		node2.translation -= collision.correction;
+		let angular_impulse = impluse.r2.cross(impluse.normal);
+		node2.physics.angular_velocity += if node2.physics.moment_of_inertia == glam::Vec3::ZERO { glam::Vec3::ZERO } else { angular_impulse / node2.physics.moment_of_inertia };
 	}
 }
 
@@ -191,6 +237,21 @@ impl PhysicsSystem {
 		node.physics.velocity += acceleration * dt;
 		node.translation += node.physics.velocity * dt;
 		node.physics.acceleration = acceleration;
+	
+		// Angular dynamics
+		let torque = node.physics.torque;
+		let moment_of_inertia = node.physics.moment_of_inertia;
+		let angular_acceleration = glam::Vec3::new(
+			if moment_of_inertia.x > 0.0 { torque.x / moment_of_inertia.x } else { 0.0 },
+			if moment_of_inertia.y > 0.0 { torque.y / moment_of_inertia.y } else { 0.0 },
+			if moment_of_inertia.z > 0.0 { torque.z / moment_of_inertia.z } else { 0.0 },
+		);
+		node.physics.angular_velocity += angular_acceleration * dt;
+		node.rotation = node.rotation * glam::Quat::from_euler(glam::EulerRot::XYZ, 
+			node.physics.angular_velocity.x * dt,
+			node.physics.angular_velocity.y * dt, 
+			node.physics.angular_velocity.z * dt);
+		node.physics.angular_acceleration = angular_acceleration;
 	}
 	
 	fn update_nodes(&mut self, state: &mut State, dt: f32) {

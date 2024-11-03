@@ -431,8 +431,6 @@ mod tests {
 
 	#[test]
 	fn test_load_gltf() {
-		init_logging();
-
 		let mut state = State::default();
 		load_gltf("./assets/orkki.glb", &mut state);
 		state.print_state();

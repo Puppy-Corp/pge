@@ -42,6 +42,7 @@ use engine::Engine;
 						stationary: false,
 						..Default::default()
 					},
+					lock_rotation: true,
 					translation: Vec3::new(0.0, 10.0, 0.0),
 					collision_shape: Some(CollisionShape::Box { size: Vec3::new(1.0, 1.0, 1.0) }),
 					parent: NodeParent::Scene(scene_id),
@@ -57,12 +58,13 @@ use engine::Engine;
 
 		let timer = Instant::now();
 		let dt = 0.016;
-		for _ in 0..600 {
+		for _ in 0..2000 {
 			engine.render(dt);
 		}
 		let duration = timer.elapsed();
+		let fps = 600.0 / duration.as_secs_f32();
 		println!("duration: {:?}", duration);
-		println!("per frame: {:?} micros", duration.as_micros() / 600);
+		println!("fps: {:?}", fps);
 
 		let dynamic_node = engine.state.nodes.get(&engine.app.dynamic_node_id.unwrap()).unwrap();
 		println!("dynamic_node.translation: {:?}", dynamic_node.translation);
@@ -72,6 +74,8 @@ use engine::Engine;
 
 	#[test]
 	fn fast_object_does_not_fall_through_floor() {
+		init_logging();
+
 		#[derive(Default)]
 		struct TestApp {
 			pub dynamic_node_id: Option<ArenaId<Node>>,
@@ -120,7 +124,7 @@ use engine::Engine;
 
 		let timer = Instant::now();
 		let dt = 0.016;
-		for _ in 0..600 {
+		for _ in 0..3000 {
 			engine.render(dt);
 		}
 		let duration = timer.elapsed();

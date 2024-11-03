@@ -349,12 +349,13 @@ impl pge::App for FpsShooter {
 
 		let mut rng = rand::thread_rng();
 
-		for _ in 0..1 {
+		for _ in 0..0 {
 			let node_id = state.clone_node(orc_base_node_id);
 			let node = state.nodes.get_mut(&node_id).unwrap();
 			node.parent = NodeParent::Scene(main_scene_id);
 			node.physics.typ = PhycisObjectType::Dynamic;
 			node.physics.mass = 10.0;
+			node.lock_rotation = true;
 			node.collision_shape = Some(CollisionShape::Box { size: glam::Vec3::new(1.0, 3.0, 1.0) });
 			let x = rng.gen_range(-20.0..20.0);
 			let z = rng.gen_range(-20.0..20.0);
@@ -397,7 +398,7 @@ impl pge::App for FpsShooter {
 
 		let mut plane_node = Node::new();
 		plane_node.name = Some("Floor".to_string());
-		plane_node.set_translation(0.0, 0.0, 0.0);
+		plane_node.set_translation(0.0, 1.0, 0.0);
 		plane_node.mesh = Some(plane_mesh);
 		plane_node.physics.typ = PhycisObjectType::Static;
 		plane_node.scale = glam::Vec3::new(plane_size, 1.0, plane_size);
@@ -413,6 +414,7 @@ impl pge::App for FpsShooter {
 		//player.looking_at(0.0, 0.0, 0.0);
 		player.collision_shape = Some(CollisionShape::Box { size: glam::Vec3::new(1.0, 2.0, 1.0) });
 		player.parent = NodeParent::Scene(main_scene_id);
+		player.lock_rotation = true;
 		let player_id = state.nodes.insert(player);
 
 		{
@@ -444,7 +446,7 @@ impl pge::App for FpsShooter {
 
 		//Spawn random cubes
 		let mut rng = rand::thread_rng();
-		for i in 0..10 {
+		for i in 0..0 {
 			let x = rng.gen_range(-20.0..20.0);
 			let z = rng.gen_range(-20.0..20.0);
 			let mut cube_node = Node::new();

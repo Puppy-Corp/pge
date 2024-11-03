@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::path::Path;
+use glam::Mat3;
 use glam::Quat;
 use glam::Vec3;
 use crate::arena::Arena;
@@ -137,7 +138,6 @@ impl Default for PhycisObjectType {
 #[derive(Debug, Clone, Default)]
 pub struct PhysicsProps {
 	pub typ: PhycisObjectType,
-	pub position: glam::Vec3,
 	pub velocity: glam::Vec3,
 	pub acceleration: glam::Vec3,
 	pub mass: f32,
@@ -146,7 +146,6 @@ pub struct PhysicsProps {
 	pub angular_velocity: glam::Vec3,
     pub angular_acceleration: glam::Vec3,
 	pub torque: glam::Vec3,
-	pub moment_of_inertia: glam::Vec3,
 }
 
 #[derive(Debug, Clone)]
@@ -348,6 +347,38 @@ impl CollisionShape {
 			}
 		}
 	}
+
+    // Start of Selection
+    pub fn inertia_tensor(&self) -> glam::Mat3 {
+        match self {
+            Self::Sphere { radius } => {
+                let I = (2.0 / 5.0) * radius.powi(2);
+                glam::Mat3::from_diagonal(glam::Vec3::new(I, I, I))
+            },
+            Self::Box { size } => {
+                // Assuming `size` represents the half-extents of the box
+                let width = size.x * 2.0;
+                let height = size.y * 2.0;
+                let depth = size.z * 2.0;
+
+                let Ixx = (1.0 / 12.0) * (height.powi(2) + depth.powi(2));
+                let Iyy = (1.0 / 12.0) * (width.powi(2) + depth.powi(2));
+                let Izz = (1.0 / 12.0) * (width.powi(2) + height.powi(2));
+
+                glam::Mat3::from_cols(
+                    glam::Vec3::new(Ixx, 0.0, 0.0),
+                    glam::Vec3::new(0.0, Iyy, 0.0),
+                    glam::Vec3::new(0.0, 0.0, Izz),
+                )
+            },
+            Self::Capsule { radius, height } => {
+				todo!()
+            },
+            Self::ConvexHull { vertices } => {
+				todo!()
+            },
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -363,7 +394,12 @@ impl Default for NodeParent {
 	}
 }
 
-pub struct NodeId;
+#[derive(Debug, Clone)]
+pub struct ContactInfo {
+    pub normal: glam::Vec3,
+    pub point: glam::Vec3,
+	pub node_id: ArenaId<Node>,
+}
 
 #[derive(Debug, Clone)]
 pub struct Node {
@@ -377,6 +413,8 @@ pub struct Node {
 	pub collision_shape: Option<CollisionShape>,
 	pub global_transform: glam::Mat4,
 	pub scene_id: Option<ArenaId<Scene>>,
+	pub lock_rotation: bool,
+	pub contacts: Vec<ContactInfo>,
 }
 
 impl Default for Node {
@@ -392,6 +430,8 @@ impl Default for Node {
 			collision_shape: None,
 			global_transform: glam::Mat4::IDENTITY,
 			scene_id: None,
+			lock_rotation: false,
+			contacts: vec![],
 		}
 	}
 }
@@ -444,6 +484,37 @@ impl Node {
 			Some(shape) => shape.center_of_mass(),
 			_ => glam::Vec3::ZERO
 		}
+	}
+
+	pub fn size(&self) -> glam::Vec3 {
+		match &self.collision_shape {
+			Some(shape) => {
+				let aabb = shape.aabb(self.translation);
+				aabb.max - aabb.min
+			}
+			_ => glam::Vec3::ZERO
+		}
+	}
+
+	pub fn inertia_tensor(&self) -> glam::Mat3 {
+        let mass = self.physics.mass;
+		let size = self.size();
+        let width = size.x;
+        let height = size.y;
+        let depth = size.z;
+
+        let ix = (1.0 / 12.0) * mass * (height * height + depth * depth);
+        let iy = (1.0 / 12.0) * mass * (width * width + depth * depth);
+        let iz = (1.0 / 12.0) * mass * (width * width + height * height);
+
+        glam::Mat3::from_diagonal(glam::Vec3::new(ix, iy, iz))
+
+		//Mat3::ZERO
+
+		/*match &self.collision_shape {
+			Some(shape) => shape.inertia_tensor(),
+			_ => glam::Mat3::ZERO
+		}*/
 	}
 }
 

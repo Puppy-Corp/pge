@@ -368,27 +368,26 @@ impl PhysicsSystem {
 				};
 				for j in i+1..cell.len() {
 					let node2_id = cell[j];
+					if self.broad_phase_collisions.iter().any(|c: &Collision| 
+						(c.node1 == node1_id && c.node2 == node2_id) || 
+						(c.node1 == node2_id && c.node2 == node1_id)) {
+						continue;
+					}
 					let node2_aabb = match grid.get_node_rect(node2_id) {
 						Some(a) => a,
 						None => continue
 					};
-					if node1_aabb.intersects(&node2_aabb) {
-						if self.broad_phase_collisions.iter().any(|c: &Collision| 
-							(c.node1 == node1_id && c.node2 == node2_id) || 
-							(c.node1 == node2_id && c.node2 == node1_id)) {
-							continue;
-						}
-	
-						let correction = node1_aabb.get_correction(&node2_aabb) * 1.0;
-
-						self.broad_phase_collisions.push(Collision {
-							node1: node1_id,
-							node2: node2_id,
-							normal: calculate_collision_normal(&node1_aabb, &node2_aabb).into(),
-							point: calculate_collision_point(&node1_aabb, &node2_aabb).into(),
-							correction,
-						});
+					if !node1_aabb.intersects(&node2_aabb) {
+						continue;
 					}
+					let correction = node1_aabb.get_correction(&node2_aabb) * 1.0;
+					self.broad_phase_collisions.push(Collision {
+						node1: node1_id,
+						node2: node2_id,
+						normal: calculate_collision_normal(&node1_aabb, &node2_aabb).into(),
+						point: calculate_collision_point(&node1_aabb, &node2_aabb).into(),
+						correction,
+					});			
 				}
 			}
 		}

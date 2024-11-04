@@ -594,6 +594,8 @@ pub struct Asset {
 pub struct Scene {
 	pub name: Option<String>,
 	pub scale: glam::Vec3,
+	pub gravity: glam::Vec3,
+	pub physics_on: bool,
 	pub _3d_model: Option<ArenaId<Model3D>>,
 }
 
@@ -602,6 +604,8 @@ impl Scene {
 		Self {
 			name: None,
 			scale: glam::Vec3::splat(1.0),
+			gravity: glam::Vec3::ZERO,
+			physics_on: false,
 			_3d_model: None,
 		}
 	}

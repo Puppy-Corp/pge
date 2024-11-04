@@ -13,11 +13,11 @@ pub fn topo_sort_nodes(nodes: &Arena<Node>, sorted_nodes: &mut Vec<ArenaId<Node>
         }
     }
 
-    // Find root nodes (those with Scene or Orphan parents)
+    // Find root nodes (we don't care about Orphan's)
     let mut stack = Vec::new();
     for (id, node) in nodes.iter() {
         match node.parent {
-            NodeParent::Scene(_) | NodeParent::Orphan => stack.push(id),
+            NodeParent::Scene(_) => stack.push(id),
             _ => {}
         }
     }
@@ -50,25 +50,29 @@ mod topo_sort_tests {
 			parent: NodeParent::Scene(scene_id),
 			..Default::default()
 		});
-
+		let parent3 = nodes.insert(Node {
+			parent: NodeParent::Scene(scene_id),
+			..Default::default()
+		});
 		let child1 = nodes.insert(Node {
 			parent: NodeParent::Node(parent1),
 			..Default::default()
 		});
-
 		let child2 = nodes.insert(Node {
 			parent: NodeParent::Node(parent2),
 			..Default::default()
 		});
-
 		let child3 = nodes.insert(Node {
 			parent: NodeParent::Node(child1),
 			..Default::default()
 		});
-
+		let child4 = nodes.insert(Node {
+			parent: NodeParent::Node(parent3),
+			..Default::default()
+		});
 		let mut sorted_nodes = Vec::new();
 		topo_sort_nodes(&nodes, &mut sorted_nodes);
-		assert_eq!(sorted_nodes, vec![parent2, child2, parent1, child1, child3]);
+		assert_eq!(sorted_nodes, vec![parent3, child4, parent2, child2]);
 
 	}
 

@@ -56,11 +56,6 @@ struct Impulse {
 /// An `Impulse` struct containing the normal and tangential impulses as well as the vectors `r1`
 /// and `r2` from each body's center of mass to the collision point.
 ///
-/// # Examples
-///
-/// ```rust
-/// let impulse = calculate_impulse(&node1, &node2, &collision, 0.8, 0.5);
-/// ```
 fn calculate_impulse(node1: &Node, node2: &Node, collision: &Collision, restitution: f32, coeff_of_friction: f32) -> Impulse {
 	let r1 = collision.point - node1.center_of_mass();
 	let r2 = collision.point - node2.center_of_mass();

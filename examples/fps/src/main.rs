@@ -408,7 +408,7 @@ impl pge::App for FpsShooter {
 
 		let mut player = Node::new();
 		player.name = Some("Player".to_string());
-		player.set_translation(0.0, 10.0, 0.0);
+		player.set_translation(0.0, 30.0, 0.0);
 		player.physics.typ = PhycisObjectType::Dynamic;
 		player.physics.mass = 70.0;
 		//player.looking_at(0.0, 0.0, 0.0);

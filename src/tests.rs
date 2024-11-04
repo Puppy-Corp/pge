@@ -10,6 +10,7 @@ use engine::Engine;
 
 	#[test]
 	fn object_does_not_fall_through_floor() {
+		init_logging();
 		#[derive(Default)]
 		struct TestApp {
 			pub dynamic_node_id: Option<ArenaId<Node>>,

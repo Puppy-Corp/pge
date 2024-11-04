@@ -19,6 +19,7 @@ mod state;
 #[cfg(feature = "wgpu_winit")]
 mod wgpu;
 mod mock_hardware;
+mod collision_detection;
 pub mod utility;
 pub mod text;
 pub use types::*;

@@ -3,9 +3,12 @@ use std::time::Duration;
 use std::time::Instant;
 
 use glam::Vec3;
+use crate::collision_detection::obb_collide;
+use crate::collision_detection::CollisionInfo;
 use crate::spatial_grid::SpatialGrid;
 use crate::state::State;
 use crate::ArenaId;
+use crate::CollisionShape;
 use crate::ContactInfo;
 use crate::Node;
 use crate::PhycisObjectType;
@@ -277,6 +280,29 @@ fn resolve_collision(collision: &Collision, state: &mut State) {
 	}
 }
 
+fn get_collision(node1: &Node, node2: &Node) -> Option<CollisionInfo> {
+    // Ensure both nodes have collision shapes
+    let shape1 = match &node1.collision_shape {
+        Some(shape) => shape,
+        None => return None,
+    };
+
+    let shape2 = match &node2.collision_shape {
+        Some(shape) => shape,
+        None => return None,
+    };
+
+    // Get the world transforms for both nodes
+    let transform1 = node1.global_transform;
+    let transform2 = node2.global_transform;
+
+    match (shape1, shape2) {
+        (CollisionShape::Box { size: s1 }, CollisionShape::Box { size: s2 }) => {
+			obb_collide(transform1, *s1, transform2, *s2)
+		}
+    }
+}
+
 #[derive(Debug, Default, Clone)]
 pub struct PhysicsSystem {
 	gravity: glam::Vec3,
@@ -353,7 +379,7 @@ impl PhysicsSystem {
 		}
 	}	
 	
-	fn broad_phase_collisions(&mut self, state: &mut State, grid: &SpatialGrid) {
+	fn detect_collisions(&mut self, state: &mut State, grid: &SpatialGrid) {
 		self.broad_phase_collisions.clear();
 		for cell in grid.cells.values() {
 			if cell.len() < 2 {
@@ -380,6 +406,7 @@ impl PhysicsSystem {
 					if !node1_aabb.intersects(&node2_aabb) {
 						continue;
 					}
+					log::info!("node1: {:?}, node2: {:?} aabb intersect", node1_id, node2_id);
 					let correction = node1_aabb.get_correction(&node2_aabb) * 1.0;
 					self.broad_phase_collisions.push(Collision {
 						node1: node1_id,
@@ -387,7 +414,29 @@ impl PhysicsSystem {
 						normal: calculate_collision_normal(&node1_aabb, &node2_aabb).into(),
 						point: calculate_collision_point(&node1_aabb, &node2_aabb).into(),
 						correction,
-					});			
+					});
+
+					/*let node1 = state.nodes.get(&node1_id).unwrap();
+					let node2 = state.nodes.get(&node2_id).unwrap();
+					if node1.collision_shape.is_none() || node2.collision_shape.is_none() {
+						continue;
+					}
+					log::info!("node1.translation: {:?}", node1.translation);
+					log::info!("node2.translation: {:?}", node2.translation);
+					let collision_info = match get_collision(node1, node2) {
+						Some(info) => info,
+						None => continue,
+					};
+
+					log::info!("collision_info: {:?}", collision_info);
+
+					self.broad_phase_collisions.push(Collision {
+						node1: node1_id,
+						node2: node2_id,
+						normal: collision_info.normal,
+						point: collision_info.contact_point,
+						correction: collision_info.correction,
+					});*/
 				}
 			}
 		}
@@ -411,17 +460,17 @@ impl PhysicsSystem {
 			let mut earliest_collision = None;
 
 			// Detect potential collisions without moving the nodes
-			self.broad_phase_collisions(state, grid);
+			self.detect_collisions(state, grid);
+
+			if self.broad_phase_collisions.len() != self.broad_phase_collision_count {
+				self.broad_phase_collision_count = self.broad_phase_collisions.len();
+				log::info!("collision count: {}", self.broad_phase_collision_count);
+			}
 
 			if self.broad_phase_collisions.is_empty() {
 				// No collisions, update nodes for remaining dt and exit
 				self.update_nodes(state, dt);
 				break;
-			}
-
-			if self.broad_phase_collisions.len() != self.broad_phase_collision_count {
-				self.broad_phase_collision_count = self.broad_phase_collisions.len();
-				log::info!("broad_phase_collision_count: {}", self.broad_phase_collision_count);
 			}
 
 			let mut there_is_fast_boy = false;
@@ -433,6 +482,8 @@ impl PhysicsSystem {
 				if node1.physics.typ == PhycisObjectType::Static && node2.physics.typ == PhycisObjectType::Static {
 					continue;
 				}
+
+				log::info!("collision: {:?}", collision);
 
 				if self.collision_cache.contains(&(collision.node1, collision.node2)) {
 					resolve_collision(&collision, state);

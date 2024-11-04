@@ -283,78 +283,29 @@ impl AABB {
 	}
 }
 
-pub struct ConvexHull {
-	vertices: Vec<glam::Vec3>,
-}
-
 #[derive(Debug, Clone)]
 pub enum CollisionShape {
-	Sphere { radius: f32 },
 	Box { size: glam::Vec3 },
-	Capsule { radius: f32, height: f32 },
-	ConvexHull { vertices: Vec<glam::Vec3> }
 }
 
 impl CollisionShape {
     pub fn aabb(&self, translation: glam::Vec3) -> AABB {
         match self {
-            Self::Sphere { radius } => AABB {
-                min: translation + glam::Vec3::splat(-*radius),
-                max: translation + glam::Vec3::splat(*radius),
-            },
             Self::Box { size } => AABB {
                 min: translation - *size,
                 max: translation + *size,
-            },
-            Self::Capsule { radius, height } => AABB {
-                min: translation + glam::Vec3::new(-*radius, -(*height / 2.0 + *radius), -*radius),
-                max: translation + glam::Vec3::new(*radius, *height / 2.0 + *radius, *radius),
-            },
-            Self::ConvexHull { vertices } => {
-                if vertices.is_empty() {
-                    return AABB {
-                        min: translation,
-                        max: translation,
-                    };
-                }
-
-                let mut min = translation + vertices[0];
-                let mut max = translation + vertices[0];
-
-                for vertex in vertices.iter().skip(1) {
-                    let translated_vertex = translation + *vertex;
-                    min = min.min(translated_vertex);
-                    max = max.max(translated_vertex);
-                }
-
-                AABB { min, max }
             }
         }
     }
 
 	pub fn center_of_mass(&self) -> glam::Vec3 {
 		match self {
-			Self::Sphere { .. } => glam::Vec3::ZERO,
 			Self::Box { .. } => glam::Vec3::ZERO,
-			Self::Capsule { .. } => glam::Vec3::ZERO,
-			Self::ConvexHull { vertices } => {
-				if vertices.is_empty() {
-					glam::Vec3::ZERO
-				} else {
-					let sum = vertices.iter().fold(glam::Vec3::ZERO, |acc, v| acc + *v);
-					sum / vertices.len() as f32
-				}
-			}
 		}
 	}
 
-    // Start of Selection
     pub fn inertia_tensor(&self) -> glam::Mat3 {
         match self {
-            Self::Sphere { radius } => {
-                let I = (2.0 / 5.0) * radius.powi(2);
-                glam::Mat3::from_diagonal(glam::Vec3::new(I, I, I))
-            },
             Self::Box { size } => {
                 // Assuming `size` represents the half-extents of the box
                 let width = size.x * 2.0;
@@ -371,14 +322,12 @@ impl CollisionShape {
                     glam::Vec3::new(0.0, 0.0, Izz),
                 )
             },
-            Self::Capsule { radius, height } => {
-				todo!()
-            },
-            Self::ConvexHull { vertices } => {
-				todo!()
-            },
         }
     }
+
+	pub fn collides(&self, other: &CollisionShape) -> bool {
+		todo!()
+	}
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]

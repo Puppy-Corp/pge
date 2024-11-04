@@ -285,8 +285,6 @@ pub struct PhysicsSystem {
 	broad_phase_collision_count: usize,
 }
 
-const SLEEP_LINEAR_VELOCITY: f32 = 0.01;
-
 impl PhysicsSystem {
 	pub fn new() -> Self {
 		Self {

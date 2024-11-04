@@ -23,22 +23,14 @@ pub struct SpatialGrid {
 	cell_size: f32,
 	pub cells: HashMap<CellCoord, Vec<ArenaId<Node>>>,
 	nodes: HashMap<ArenaId<Node>, NodeMetadata>,
-	printer: ChangePrinter
 }
 
 impl SpatialGrid {
 	pub fn new(cell_size: f32) -> Self {
-		// let size = cell_size * cell_count as f32;
-		// log::info!("size: {}", size);
-		// let half_size = size / 2.0;
-		// let grid_size = cell_count.pow(3);
-		// log::info!("grid size: {}", grid_size);
-		// let cells = vec![Vec::new(); grid_size];
 		Self {
 			cell_size,
 			cells: HashMap::new(),
 			nodes: HashMap::new(),
-			printer: ChangePrinter::new(),
 		}
 	}
 
@@ -70,46 +62,6 @@ impl SpatialGrid {
 				self.add_node(node_id, rect)
 			},
 		}
-
-		// if let None = self.nodes.get(&node_id) {
-		// 	self.add_node(node_id, rect);
-		// 	return;
-		// }
-
-		// let node = match self.nodes.get_mut(&node_id) {
-		// 	Some(n) => n,
-		// 	None => return,
-		// };
-
-		// for cell in &node.cells {
-		// 	let cell = match self.cells.get_mut(cell) {
-		// 		Some(c) => c,
-		// 		None => continue,
-		// 	};
-		// 	cell.retain(|&inx| inx != node_id);
-		// }
-
-		// let min_x = (rect.min.x / self.cell_size).floor() as i32;
-		// let max_x = (rect.max.x / self.cell_size).ceil() as i32;
-		// let min_y = (rect.min.y / self.cell_size).floor() as i32;
-		// let max_y = (rect.max.y / self.cell_size).ceil() as i32;
-		// let min_z = (rect.min.z / self.cell_size).floor() as i32;
-		// let max_z = (rect.max.z / self.cell_size).ceil() as i32;
-		// let mut node_cells = Vec::new();
-
-		// for x in min_x..max_x {
-		// 	for y in min_y..max_y {
-		// 		for z in min_z..max_z {
-		// 			let coord = CellCoord { x, y, z };
-		// 			node_cells.push(coord);
-		// 			let cell = self.cells.entry(coord).or_insert(Vec::new());
-		// 			cell.push(node_id);
-		// 		}
-		// 	}
-		// }
-
-		// node.rect = rect;
-		// node.cells = node_cells;
 	}
 
 	pub fn add_node(&mut self, node: ArenaId<Node>, rect: AABB) {
@@ -173,10 +125,6 @@ impl SpatialGrid {
 				cell.retain(|&inx| inx != *node_inx);
 			}
 		}
-
-		// for cell in &mut self.cells {
-		// 	cell.retain(|&inx| !nodes.contains(&inx));
-		// }
 	}
 
 	pub fn get_line_ray_nodes(&self, start: glam::Vec3, end: glam::Vec3) -> HashSet<ArenaId<Node>> {

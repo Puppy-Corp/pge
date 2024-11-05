@@ -34,3 +34,7 @@ wgpu_winit = ["wgpu", "winit"]
 [[bench]]
 name = "bench_main"
 harness = false
+
+[[bin]]
+name = "cube_falls_to_floor"
+required-features = ["wgpu_winit"]
